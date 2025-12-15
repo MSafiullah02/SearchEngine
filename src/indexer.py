@@ -2,6 +2,8 @@ from tokenizer import tokenize
 import os
 import json
 from collections import defaultdict
+# from semantic_indexer import embed_text
+# from semantic_store import store_embedding
 lexicon = {}
 next_term_id = 0
 forward_index = {}
@@ -14,16 +16,41 @@ def get_term_id(token):
         next_term_id += 1
     return lexicon[token]
 
-def index_document(doc_id, raw_text):
-    tokens = tokenize(raw_text)
+def index_document(doc_id, data):
+    # extract sections separately
+    title = data.get("metadata", {}).get("title", "")
+    abstract_parts = data.get("abstract", [])
+    body_parts = data.get("body_text", [])
+    # combine abstract and body texts
+    abstract_text = " ".join(item.get("text","") for item in abstract_parts if isinstance(item, dict))
+    body_text = " ".join(item.get("text","") for item in body_parts if isinstance(item, dict))
+    # tokenize each section
+    title_tokens = tokenize(title)
+    abstract_tokens = tokenize(abstract_text)
+    body_tokens = tokenize(body_text)
+    # section weights
+    title_weight = 10
+    abstract_weight = 5
+    body_weight = 1
+    # accumulate weighted counts
+    term_counts = defaultdict(int)
+    for t in title_tokens:
+        term_counts[t] += title_weight
+    for t in abstract_tokens:
+        term_counts[t] += abstract_weight
+    for t in body_tokens:
+        term_counts[t] += body_weight
     term_ids = []
-    for token in tokens:
+    for token, count in term_counts.items():
         if token.isdigit():
             continue
         term_id = get_term_id(token)
         term_ids.append(term_id)
-        inverted_index[term_id][doc_id] += 1
+        inverted_index[term_id][doc_id] += count
     forward_index[doc_id] = term_ids
+    # semantic embedding (will be added soon)
+    # vector = embed_text(title + " " + abstract_text + " " + body_text)
+    # store_embedding(doc_id, vector)
 
 def write_lexicon(path="lexicon.txt"):
     with open(path, "w", encoding="utf-8") as f:
@@ -46,22 +73,6 @@ def write_all():
     write_forward_index()
     write_inverted_index()
 
-def extract_text(data): # Extract text from JSON
-    text = ""
-    abstract_parts = data.get("abstract", [])
-    if isinstance(abstract_parts, list):
-        for item in abstract_parts:
-            text += " " + item.get("text", "")
-    else:
-        text += str(abstract_parts)
-    body_parts = data.get("body_text", [])
-    if isinstance(body_parts, list):
-        for item in body_parts:
-            text += " " + item.get("text", "")
-    else:
-        text += str(body_parts)
-    return text.strip()
-
 def index_all_documents(json_folder="test_batch"):
     folder_path = os.path.join(os.path.dirname(__file__), json_folder)
     for filename in os.listdir(folder_path):
@@ -71,7 +82,7 @@ def index_all_documents(json_folder="test_batch"):
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         doc_id = data.get("paper_id", filename.split(".")[0])
-        index_document(doc_id, extract_text(data))
+        index_document(doc_id, data)
     write_all()
 if __name__ == "__main__":
     index_all_documents()
