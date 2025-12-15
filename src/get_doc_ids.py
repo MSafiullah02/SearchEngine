@@ -1,0 +1,68 @@
+from tokenizer import tokenize
+import re
+def get_doc_ids(text):
+    tokens = tokenize(text)
+    if not tokens:
+        return []
+    tokens.sort(key=lambda s: ord(s[0]) - ord('a') if s and 'a' <= s[0] <= 'z' else 26)
+    term_ids = []
+    file_id = 1
+    data = {}
+    def update_lexicon():
+        data.clear()
+        with open(f"../lexicon/lexicon{file_id}.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                term, term_id = line.strip().split('\t')
+                data[term] = int(term_id)
+    update_lexicon()
+    for token in tokens:
+        if not token:
+            continue  # skip empty tokens
+        # select the correct lexicon barrel
+        if ord(token[0]) < ord('a') or ord(token[0]) > ord('z'):
+            file_id = 27
+            update_lexicon()
+        elif ord(token[0]) - ord('a') != file_id - 1:
+            file_id = ord(token[0]) - ord('a') + 1
+            update_lexicon()
+        # lookup term_id directly from the dictionary
+        term_id = data.get(token)
+        if term_id is not None:
+            term_ids.append(term_id)
+    # sort term_ids by modulo 100 and then by value
+    term_ids.sort(key=lambda x: (x % 100, x))
+    file_id = 0
+    def update_inverted_index():
+        data.clear()
+        with open(f"../inverted_index/inverted_index{file_id}.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # split first tab to separate term_id from postings
+                parts = line.split('\t', 1)
+                term_id = int(parts[0])
+                postings = []
+                if len(parts) > 1:
+                    # split postings by any whitespace (space or tab)
+                    for p in re.split(r'[\t ]+', parts[1]):
+                        if ':' not in p:
+                            continue
+                        doc_name, count = p.split(':', 1)
+                        postings.append([doc_name, int(count)])
+                data[term_id] = postings
+    update_inverted_index()
+    doc_dict = {}  # key: doc_name, value: count
+    for term_id in term_ids:
+        # load the correct inverted index barrel if needed
+        if term_id % 100 != file_id:
+            file_id = term_id % 100
+            update_inverted_index()  # data is now a dict
+        # lookup postings directly from the dict
+        postings = data.get(term_id, [])
+        for doc_name, count in postings:
+            doc_dict[doc_name] = doc_dict.get(doc_name, 0) + count
+    # convert to combined list and sort by count
+    doc_ids = [[name, count] for name, count in doc_dict.items()]
+    doc_ids.sort(key=lambda x: x[1], reverse=True)
+    return doc_ids
