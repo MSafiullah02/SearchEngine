@@ -1,5 +1,9 @@
-from tokenizer import tokenize
+from src.tokenizer import tokenize
 import re
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+LEXICON_DIR = BASE_DIR / "lexicon"
+INVERTED_INDEX_DIR = BASE_DIR / "inverted_index"
 def get_doc_ids(text):
     tokens = tokenize(text)
     if not tokens:
@@ -10,7 +14,7 @@ def get_doc_ids(text):
     data = {}
     def update_lexicon():
         data.clear()
-        with open(f"../lexicon/lexicon{file_id}.txt", "r", encoding="utf-8") as f:
+        with open(LEXICON_DIR / f"lexicon{file_id}.txt", "r", encoding="utf-8") as f:
             for line in f:
                 term, term_id = line.strip().split('\t')
                 data[term] = int(term_id)
@@ -34,7 +38,7 @@ def get_doc_ids(text):
     file_id = 0
     def update_inverted_index():
         data.clear()
-        with open(f"../inverted_index/inverted_index{file_id}.txt", "r", encoding="utf-8") as f:
+        with open(INVERTED_INDEX_DIR / f"inverted_index{file_id}.txt", "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
