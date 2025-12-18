@@ -1,11 +1,11 @@
-from tokenizer import tokenize
-from semantic_search import get_semantic_engine
+from src.tokenizer import tokenize
+from src.semantic_search import get_semantic_engine
 import os
 import json
 import numpy as np
 from collections import defaultdict
 from pathlib import Path
-from multiprocessing import Pool, cpu_count, Manager
+from multiprocessing import Pool, cpu_count
 
 lexicon = {}
 next_term_id = 0
@@ -37,13 +37,12 @@ def tokenize_sections(title, abstract_parts, body_parts):
     return title_tokens, abstract_tokens, body_tokens
 
 
-def process_document_worker(args):
+def process_document_worker(file_path):
     """
     Worker function for parallel document processing.
+    Only does tokenization - no embeddings to save RAM.
     Returns the processed data to be merged by main process.
     """
-    file_path, use_semantic, semantic_engine_available = args
-
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -70,20 +69,10 @@ def process_document_worker(args):
 
         doc_length = len(title_tokens) + len(abstract_tokens) + len(body_tokens)
 
-        # Load semantic engine in worker if needed
-        doc_embeddings = {}
-        if use_semantic and semantic_engine_available:
-            semantic_engine = get_semantic_engine()
-            if semantic_engine and semantic_engine.loaded:
-                for token in term_counts.keys():
-                    if token in semantic_engine.embeddings:
-                        doc_embeddings[token] = semantic_engine.embeddings[token].astype(np.float32)
-
         return {
             'doc_id': doc_id,
             'term_counts': dict(term_counts),
             'doc_length': doc_length,
-            'doc_embeddings': doc_embeddings,
             'success': True
         }
 
@@ -166,14 +155,12 @@ def index_all_documents(json_folder="jsons", use_semantic=True, num_workers=None
         print(f"Error: {folder_path} does not exist")
         return
 
-    # Check if semantic engine is available
-    semantic_engine_available = False
+    semantic_engine = None
     if use_semantic:
-        print("Checking semantic engine availability...")
+        print("Loading semantic engine in main process...")
         semantic_engine = get_semantic_engine()
         if semantic_engine and semantic_engine.loaded:
-            print(f"Semantic engine available with {len(semantic_engine.embeddings)} embeddings")
-            semantic_engine_available = True
+            print(f"Semantic engine loaded with {len(semantic_engine.embeddings)} embeddings")
         else:
             print("Warning: Semantic engine not available, indexing without embeddings")
             use_semantic = False
@@ -186,13 +173,11 @@ def index_all_documents(json_folder="jsons", use_semantic=True, num_workers=None
 
     print(f"Indexing {total_files} documents using {num_workers} CPU cores...")
 
-    worker_args = [(file_path, use_semantic, semantic_engine_available) for file_path in json_files]
-
     processed_count = 0
     error_count = 0
 
     with Pool(processes=num_workers) as pool:
-        for i, result in enumerate(pool.imap_unordered(process_document_worker, worker_args), 1):
+        for i, result in enumerate(pool.imap_unordered(process_document_worker, json_files), 1):
             if result['success']:
                 doc_id = result['doc_id']
                 term_counts = result['term_counts']
@@ -207,8 +192,13 @@ def index_all_documents(json_folder="jsons", use_semantic=True, num_workers=None
                 forward_index[doc_id] = term_ids
                 doc_lengths[doc_id] = result['doc_length']
 
-                if result['doc_embeddings']:
-                    doc_term_embeddings[doc_id] = result['doc_embeddings']
+                if use_semantic and semantic_engine:
+                    doc_embeddings = {}
+                    for token in term_counts.keys():
+                        if token in semantic_engine.embeddings:
+                            doc_embeddings[token] = semantic_engine.embeddings[token].astype(np.float32)
+                    if doc_embeddings:
+                        doc_term_embeddings[doc_id] = doc_embeddings
 
                 processed_count += 1
             else:
