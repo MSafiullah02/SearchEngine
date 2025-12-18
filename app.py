@@ -15,7 +15,7 @@ app = Flask(__name__, static_folder='static')
 CORS(app)
 
 BASE_DIR = Path(__file__).resolve().parent
-TEST_BATCH_DIR = BASE_DIR / "src" / "test_batch"
+JSONS_DIR = BASE_DIR / "jsons"
 LEXICON_DIR = BASE_DIR / "lexicon"
 
 class TrieNode:
@@ -128,7 +128,7 @@ def search():
         print(f"[v0] Received search query: {query}")
         print(f"[v0] Current directory: {os.getcwd()}")
         print(f"[v0] BASE_DIR: {BASE_DIR}")
-        print(f"[v0] TEST_BATCH_DIR: {TEST_BATCH_DIR}")
+        print(f"[v0] TEST_BATCH_DIR: {JSONS_DIR}")
         
         if not query:
             return jsonify({'error': 'Query is required'}), 400
@@ -144,10 +144,10 @@ def search():
             print(f"[v0] Processing doc: {doc_name} with score: {count}")
             
             # Try to load the JSON file
-            json_path = TEST_BATCH_DIR / f"{doc_name}.json"
+            json_path = JSONS_DIR / f"{doc_name}.json"
             if not json_path.exists():
                 # Try with .xml.json extension for PMC files
-                json_path = TEST_BATCH_DIR / f"{doc_name}.xml.json"
+                json_path = JSONS_DIR / f"{doc_name}.xml.json"
             
             print(f"[v0] Looking for JSON at: {json_path}")
             print(f"[v0] JSON exists: {json_path.exists()}")
