@@ -1,0 +1,1977 @@
+{
+    "paper_id": "85a0d2585c68e711c39dbac8a5ad8cdcf40960ce",
+    "metadata": {
+        "title": "TransRev: Modeling Reviews as Translations from Users to Items",
+        "authors": [
+            {
+                "first": "Alberto",
+                "middle": [],
+                "last": "Garc\u00eda-Dur\u00e1n",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "EPFL",
+                    "location": {
+                        "settlement": "Lausanne",
+                        "country": "Switzerland"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Roberto",
+                "middle": [],
+                "last": "Gonz\u00e1lez",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "NEC Labs Europe",
+                    "institution": "",
+                    "location": {
+                        "settlement": "Heidelberg",
+                        "country": "Germany"
+                    }
+                },
+                "email": "roberto.gonzalez@neclab.eu"
+            },
+            {
+                "first": "Daniel",
+                "middle": [],
+                "last": "O\u00f1oro-Rubio",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "NEC Labs Europe",
+                    "institution": "",
+                    "location": {
+                        "settlement": "Heidelberg",
+                        "country": "Germany"
+                    }
+                },
+                "email": "daniel.onoro@neclab.eu"
+            },
+            {
+                "first": "Mathias",
+                "middle": [],
+                "last": "Niepert",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "NEC Labs Europe",
+                    "institution": "",
+                    "location": {
+                        "settlement": "Heidelberg",
+                        "country": "Germany"
+                    }
+                },
+                "email": "mathias.niepert@neclab.eu"
+            },
+            {
+                "first": "Hui",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Xiamen University",
+                    "location": {
+                        "settlement": "Xiamen",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The text of a review expresses the sentiment a customer has towards a particular product. This is exploited in sentiment analysis where machine learning models are used to predict the review score from the text of the review. Furthermore, the products costumers have purchased in the past are indicative of the products they will purchase in the future. This is what recommender systems exploit by learning models from purchase information to predict the items a customer might be interested in. The underlying structure of this problem setting is a bipartite graph, wherein customer nodes are connected to product nodes via 'review' links. This is reminiscent of knowledge bases, with 'review' links replacing relation types. We propose TransRev, an approach to the product recommendation problem that integrates ideas from recommender systems, sentiment analysis, and multi-relational learning into a joint learning objective.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "TransRev learns vector representations for users, items, and reviews. The embedding of a review is learned such that (a) it performs well as input feature of a regression model for sentiment prediction; and (b) it always translates the reviewer embedding to the embedding of the reviewed item. This is reminiscent of TransE [5], a popular embedding method for link prediction in knowledge bases. This allows TransRev to approximate a review embedding at test time as the difference of the embedding of each item and the user embedding. The approximated review embedding is then used with the regression model to predict the review score for each item. TransRev outperforms state of the art recommender systems on a large number of benchmark data sets. Moreover, it is able to retrieve, for each user and item, the review text from the training set whose embedding is most similar to the approximated review embedding.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Online retail is a growing market with sales accounting for $394.9 billion or 11.7% of total US retail sales in 2016 [35] . In the same year, e-commerce sales accounted for 41.6% of all retail sales growth [15] . For some entertainment products such as movies, books, and music, online retailers have long outperformed traditional in-store retailers. One of the driving forces of this success is the ability of online retailers to collect purchase histories of customers, online shopping behavior, and reviews of products for a very large number of users. This data is driving several machine learning applications in online retail, of which personalized recommendation is the most important one. With recommender systems online retailers can provide personalized product recommendations and anticipate purchasing behavior. In addition, the availability of product reviews allows users to make more informed purchasing choices and companies to analyze costumer sentiment towards their products. The latter was coined sentiment analysis and is concerned with machine learning approaches that map written text to scores. Nevertheless, even the best sentiment analysis methods cannot help in determining which new products a costumer might be interested in. The obvious reason is that costumer reviews are not available for products they have not purchased yet.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[35]",
+                    "ref_id": null
+                },
+                {
+                    "start": 206,
+                    "end": 210,
+                    "text": "[15]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In recent years the availability of large corpora of product reviews has driven text-based research in the recommender system community (e.g. [3, 19, 21] ). Some of these novel methods extend latent factor models to leverage review text by employing an explicit mapping from text to either user or item factors. At prediction time, these models predict product ratings based on some operation (typically the dot product) applied to the user and product representations. Sentiment analysis, however, is usually applied to some representation (e.g. bagof-words) of review text but in a recommender system scenario the review is not available at prediction time.",
+            "cite_spans": [
+                {
+                    "start": 142,
+                    "end": 145,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "With this paper we propose TransRev, a method that combines a personalized recommendation learning objective with a sentiment analysis objective into a joint learning objective. TransRev learns vector representations for At training time, a function's parameters are learned to compute the review embedding from the word token embeddings such that the embedding of the user translated by the review embedding is similar to the product embedding. At the same time, a regression model g is trained to perform well on predicting ratings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "users, items, and reviews jointly. The crucial advantage of TransRev is that the review embedding is learned such that it corresponds to a translation that moves the embedding of the reviewing user to the embedding of the item the review is about. This allows TransRev to approximate a review embedding at test time as the difference of the item and user embedding despite the absence of a review from the user for that item. The approximated review embedding is then used in the sentiment analysis model to predict the review score. Moreover, the approximated review embedding can be used to retrieve reviews in the training set deemed most similar by a distance measure in the embedding space. These retrieved reviews could be used for several purposes. For instance, such reviews could be provided to users as a starting point for a review, lowering the barrier to writing reviews.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We address the problem of learning prediction models for the product recommendation problem. A small example of the input data typical to such a machine learning system is depicted in Fig. 1 . This reminds of knowledge bases, with 'reviews' replacing relation types. Two nodes in a knowledge base may be joined by a number of links, each representing one relation type from a small vocabulary. Here, if two nodes are connected they are linked by one single edge type, in which case it is represented by a number of words from a (very) large vocabulary.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 184,
+                    "end": 190,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "There are a set of users U, a set of items I, and a set of reviews R. Each rev (u,i) \u2208 R represents a review written by user u for item i. Hence, rev (u,i) = [t 1 , \u00b7 \u00b7 \u00b7 , t n ], that is, each review is a sequence of n tokens. In the following we refer to (u, rev (u,i) , i) as a triple. Each such triple is associated with the review score r (u,i) given by the user u to item i.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "TransRev embeds all users, items and reviews into a latent space where the embedding of a user plus the embedding of the review is learned to be close to the embedding of the reviewed item. It simultaneously learns a regression model to predict the rating given a review text. This is illustrated in Fig. 2 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 300,
+                    "end": 306,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "At prediction time, reviews are not available, but the modeling assumption of TransRev allows to predict the review embedding by taking the difference of the embedding of the item and user. Then this approximation is used as input feature of the regression model to perform rating prediction-see Fig. 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 296,
+                    "end": 302,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "approx. review embedding but good price\" similar g( ) Fig. 3 . At test time, the review embedding is approximated as the difference between the product and user embeddings. The approximated review embedding is used to predict the rating and to retrieve similar reviews.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 54,
+                    "end": 60,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "TransRev embeds all nodes and reviews into a latent space R k (k is a model hyperparameter). The review embeddings are computed by applying a learnable function f to the token sequence of the review",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "The function f can be parameterized (typically with a neural network such as a recursive or convolutional neural network) but it can also be a simple parameter-free aggregation function that computes, for instance, the element-wise average or maximum of the token embeddings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "We propose and evaluate a simple instance of f where the review embedding h rev (u,i) is the average of the embeddings of the tokens occurring in the review. More formally,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "where v t is the embedding associated with token t and h 0 is a review bias which is common to all reviews and takes values in R k . The review bias is of importance since there are some reviews all of whose tokens are not in the training vocabulary. In these cases we have h rev (u,i) = h 0 . The learning of the item, review, and user embeddings is determined by two learning objectives. The first objective guides the joint learning of the parameters of the regression model and the review embeddings such that the regression model performs well at review score prediction",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "where S is the set of training triples and their associated ratings, and g is a learnable regression function R k \u2192 R that is applied to the representation of the review h rev (u,i) . While g can be an arbitrary complex function, the instance of g used in this work is as follows",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "where w are the learnable weights of the linear regressor, \u03c3 is the sigmoid function \u03c3(x) = 1 1 + e \u2212x , and b (u,i) is the shortcut we use to refer to the sum of the bias terms, namely the user, item and overall bias: b (u,i) = b u + b i + b 0 . Later we motivate the application of the sigmoid function to the review embedding.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "Of course, in a real-world scenario a recommender system makes rating predictions on items that users have not rated yet and, consequently, reviews are not available for those items. The application of the regression model of Eq. (3) to new examples, therefore, is not possible at test time. Our second learning procedure aims at overcoming this limitation by leveraging ideas from embeddingbased knowledge base completion methods. We want to be able to approximate a review embedding at test time such that this review embedding can be used in conjunction with the learned regression model. Hence, in addition to the learning objective (2), we introduce a second objective that forces the embedding of a review to be close to the difference between the item and user embeddings. This translation-based modeling assumption is followed in TransE [5] and several other knowledge base completion methods [10, 13] . We include a second term in the objective that drives the distance between (a) the user embedding translated by the review embedding and (b) the embedding of the item to be small",
+            "cite_spans": [
+                {
+                    "start": 845,
+                    "end": 848,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 901,
+                    "end": 905,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 906,
+                    "end": 909,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "where e u and e i are the embeddings of the user and item, respectively. In the knowledge base embedding literature (cf. [5] ) it is common the representations are learned via a margin-based loss, where the embeddings are updated if the score (the negative distance) of a positive triple (e.g.",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 124,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "(Berlin, located_in, Germany)) is not larger than the score of a negative triple (e.g. (Berlin, located_in, Portugal)) plus a margin. Note that this type of learning is required to avoid trivial solutions. The minimization problem of Eq. (4) can easily be solved by setting e u = h rev (u,i) = e i = 0 \u2200u, i. However, this kind of trivial solutions is avoided by jointly optimizing Eqs. (2) and (4), since a degenerate solution like the aforementioned one would lead to a high error with respect to the regression objective (Eq. (2)). The overall objective can now be written as min",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "where \u03bb is a term that weights the approximation loss due to the modeling assumption formalized in Eq. (4). In our model, \u0398 corresponds to the parameters w, e, v, h 0 \u2208 R k and the bias terms b.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "At test time, we can now approximate review embeddings of (u, i) pairs not seen during training by computin\u011d",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "With the trained regression model g we can make rating predictionsr (u,i) for unseen (u, i) pairs by computin\u011d",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "Contrary to training, now the regression model g is applied to\u0125 revu,i , instead of h revu,i , which is not available at test time. The sigmoid function of the regression function g adds a non-linear interaction between the user and item representation. Without such activation function, the model would consist of a linear combination of bias terms and the (ranking of) served recommendations would be identical to all users. All parameters of the parts of the objective are jointly learned with stochastic gradient descent. More details regarding the parameter learning are contained in the experimental section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TransRev: Modeling Reviews as Translations in Vector Space"
+        },
+        {
+            "text": "The choice of TransE as underlying modeling assumption to this recommendation problem is not arbitrary. Given the user and item embeddings, and without further constraints, it allows to distinctively compute the approximate review embedding via Eq. (6). Another popular knowledge graph embedding method is DistMult [16] . In applying such modeling assumption to this problem one would obtain the approximate review embedding by solving the following optimization problem:\u0125 rev (u,i) = max h (e i \u2022 e u )h, where \u2022 is the element-wise multiplication. The solution to that problem would be any vector with infinite norm. Therefore, one should impose constraints in the norm of the embeddings to obtain a non-trivial solution. However, previous work [11] shows that such constraint harms performance. Similarly, most of the knowledge graph embedding methods would require to impose constraints in the norm of the embeddings. The translation modeling assumption of TransE facilitates the approximation of the review embedding without additional constraints, while its performance is on par with, if not better, than most of all other translation-based knowledge graph embedding methods [11] .",
+            "cite_spans": [
+                {
+                    "start": 315,
+                    "end": 319,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 747,
+                    "end": 751,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1182,
+                    "end": 1186,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "On the Choice of TransE as Modeling Assumption"
+        },
+        {
+            "text": "There are three lines of research related to our work: knowledge graph completion, recommender systems and sentiment analysis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The first research theme related to TransRev is knowledge graph completion. In the last years, many embedding-based methods have been proposed to infer missing relations in knowledge graphs based on a function that computes a likelihood score based on the embeddings of entities and relation types. Due to its simplicity and good performance, there is a large body of work on translation-based scoring functions [5, 13] . [14] propose an approach to large-scale sequential sales prediction that embeds items into a transition space where user embeddings are modeled as translation vectors operating on item sequences. The associated optimization problem is formulated as a sequential Bayesian ranking problem [28] . To the best of our knowledge, [14] is the first work in leveraging ideas from knowledge graph completion methods for recommender system. Whereas TransRev addresses the problem of rating prediction by incorporating review text, [14] addresses the different problem of sequential recommendation. Therefore the experimental comparison to that work is not possible. In TransRev the review embedding translates the user embedding to the product embedding. In [14] , the user embedding translates a product embedding to the embedding of the next purchased product. Moreover, TransRev gets rid of the margin-based loss (and consequently of the negative sampling) due to the joint optimization of Eqs. (2) and (4), whereas [14] is formalized as a ranking problem in a similar way to [5] . Subsequently, there has been additional work on translation-based models in recommender systems [25, 33] . However, these works cannot incorporate users' feedback other than ratings into the learning, which has been shown to boost performance [21] .",
+            "cite_spans": [
+                {
+                    "start": 412,
+                    "end": 415,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 416,
+                    "end": 419,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 422,
+                    "end": 426,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 709,
+                    "end": 713,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 746,
+                    "end": 750,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 943,
+                    "end": 947,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1170,
+                    "end": 1174,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1431,
+                    "end": 1435,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1491,
+                    "end": 1494,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1593,
+                    "end": 1597,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1598,
+                    "end": 1601,
+                    "text": "33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1740,
+                    "end": 1744,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "There is an extensive body of work on recommender systems [1, 6, 29] . Singular Value Decomposition (SVD) [17] computes the review score prediction as the dot product between the item embeddings and the user embeddings plus some learnable bias terms. Due to its simplicity and performance on numerous data sets-including winning solution to the Netflix prize-it is still one of the most used methods for product recommendations. Most of the previous research that explored the utility of review text for rating prediction can be classified into two categories.",
+            "cite_spans": [
+                {
+                    "start": 58,
+                    "end": 61,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 62,
+                    "end": 64,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 65,
+                    "end": 68,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 106,
+                    "end": 110,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Semi-supervised Approaches. HFT [21] was one of the first methods combining a supervised learning objective to predict ratings with an unsupervised learning objective (e.g. latent Dirichlet allocation) for text content to regularize the parameters of the supervised model. The idea of combining two learning objectives has been explored in several additional approaches [3, 9, 19] . The methods differ in the unsupervised objectives, some of which are tailored to a specific domain. For example, JMARS [9] outperforms HFT on a movie recommendation data set but it is outperformed by HFT on data sets similar to those used in our work [36] .",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 36,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 370,
+                    "end": 373,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 374,
+                    "end": 376,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 377,
+                    "end": 380,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 502,
+                    "end": 505,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 634,
+                    "end": 638,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Supervised Approaches. Methods that fall into this category such as [31, 32] learn latent representations of users and items from the text content so as to perform well at rating prediction. The learning of the latent representations is done via a deep architecture. The approaches differences lie mainly in the neural architectures they employ.",
+            "cite_spans": [
+                {
+                    "start": 68,
+                    "end": 72,
+                    "text": "[31,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 73,
+                    "end": 76,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "There is one crucial difference between the aforementioned methods and TransRev. TransRev predicts the review score based on an approximation of the review embedding computed at test time. Moreover, since TransRev is able to approximate a review embedding, we can use this embedding to retrieve reviews in the training set deemed most similar by a distance metric in the embedding space.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Similar to sentiment analysis methods, TransRev trains a regression model that predicts the review rating from the review text. Contrary to the typical setting in which sentiment analysis methods operate, however, review text is not available at prediction time in the recommender system setting. Consequently, the application of sentiment analysis to recommender systems is not directly possible. In the simplest case, a sentiment analysis method is a linear regressor applied to a text embedding (Eq. (3) ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 498,
+                    "end": 506,
+                    "text": "(Eq. (3)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "We conduct several experiments to empirically compare TransRev to state of the art methods for product recommendation. Moreover, we provide some qualitative results on retrieving training reviews most similar to the approximated reviews at test time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "We evaluate the various methods on data sets from the Amazon Product Data 1 , which has been extensively used in previous works [21] [22] [23] . The data set consists of reviews and product metadata from Amazon from May 1996 to July 2014. We focus on the 5-core versions (which contain at least 5 reviews for each user and item) of those data sets. There are 24 product categories from which we have randomly picked 18. As all previously mentioned works, we treat each of these resulting 18 data sets independently in our experiments. Ratings in all benchmark data sets are integer values between 1 and 5. As in previous work, we randomly sample 80% of the reviews as training, 10% as validation, and 10% as test data. We remove reviews from the validation and test splits if they involve either a product or a user that is not part of the training data.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 133,
+                    "end": 137,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data Sets"
+        },
+        {
+            "text": "We follow the same preprocessing steps for each data set. First, we lowercase the review texts and apply the regular expression \"\\w+\" to tokenize the text data, discarding those words that appear in less than 0.1% of the reviews of the data set under consideration. For all the Amazon data sets, both full reviews and short summaries (rarely having more than 30 words) are available. Since classifying short documents into their sentiment is less challenging than doing the same for longer text [4] , we have used the reviews summaries for our work. We truncate these reviews to the first 200 words. For lack of space we cannot include statistics of the preprocessed data sets.",
+            "cite_spans": [
+                {
+                    "start": 495,
+                    "end": 498,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Review Text Preprocessing"
+        },
+        {
+            "text": "We compare to the following methods: a SVD matrix factorization; HFT, which has not often been benchmarked in previous works; and DeepCoNN [38] , which learns user and item representations from reviews via convolutional neural networks. We also include MPCN [34] (which stands for multi-pointer co-attention networks) in the comparison, however, as indicated in previous work [8] MPCN is a non-reproducible work 2 . Therefore, we simply copy numbers from [34] , since they used the same data sets as the ones used in this work. Additionally, we also include performance for TransNets (T-Nets) [7] , whose numbers are also copied from [34] . T-Nets is similar to TransRev in that it also infers review latent representations from user and item representations. Different to TransRev, it does not have any underlying graph-based modeling assumption among users, items and reviews. ",
+            "cite_spans": [
+                {
+                    "start": 139,
+                    "end": 143,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 258,
+                    "end": 262,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 376,
+                    "end": 379,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 455,
+                    "end": 459,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 593,
+                    "end": 596,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 634,
+                    "end": 638,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "We set the dimension k of the embedding space to 16 for all methods. We evaluated the robustness of TransRev to changes in Sect. 4.6. Alternatively, one could use off-the-shelf word embeddings (e.g. word2vec [24] or ELMO [26] ), but this would require to assume the existence of a large collection of text for effectively learning good word representations in an unsupervised manner. However, such a corpus may not be available for some low-resource languages or domainspecific use cases. For TransRev's parameters were randomly initialized [12] and learned with vanilla stochastic gradient descent. A single learning iteration performs SGD with all review triples in the training data and their associated ratings. For TransRev we used a batch size of 64. We ran TransRev for a maximum of 500 epochs and validated every 10 epochs. For SVD we used the Python package Surprise 4 , and chose the learning rate and regularization term from the same range of values. Parameters for HFT were learned with L-BFGS, which was run for 2,500 learning iterations and validated every 50 iterations. For DeepCoNN the original authors' code is not available and we used a third-party implementation 5 . We applied the default hyperparameters values for dropout and L2 regularization and used the same embedding dimension as for all other methods. All methods are validated according to the Mean Squared Error (MSE).",
+            "cite_spans": [
+                {
+                    "start": 208,
+                    "end": 212,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 221,
+                    "end": 225,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 541,
+                    "end": 545,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Parameter Setting"
+        },
+        {
+            "text": "The experimental results are listed in Table 1 where the best performance is in bold font. TransRev achieves the best performance on all data sets with the exception of the Kindle Store and Automotive categories. Surprisingly, HFT is more competitive than more recent approaches that also take advantage of review text. Most of these recent approaches do not include HFT in their baselines.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 39,
+                    "end": 46,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "TransRev is competitive with and often outperforms HFT on the benchmark data sets under consideration. To quantify that the rating predictions made by HFT and TransRev are significantly different we have computed the dependent t-test for paired samples and for all data sets where TransRev outperforms HFT. The p-value is always smaller than 0.01. It is remarkable the low performance of DeepCoNN, MPCN and T-Nets in almost all datasets. This is in line with the findings reported in very recent work [8] , where authors' analysis reveals that deep recommender models are systematically outperformed by simple heuristic recommender methods. These results only confirm the existing problem reported in [8] . We randomly selected the 4 data sets Baby, Digital Music, Office and Tools&Home Improvement from the Amazon data and evaluated different values of k for user, item and word embedding sizes. We increase k from 4 to 64 and always validate all hyperparameters, including the regularization term. Table 2 list the MSE scores. We only observe small differences in the corresponding model's performances. This observation is in line with [21] . For most of the data sets the validated weighting term \u03bb takes the value of either 0.1 or 0.25. This seems to indicate that the regression objective is more important than the modeling assumption in our task, as it directly relates to the goal of the task. The regularization term is of crucial importance to obtain good performance and largely varies across data sets, as their statistics also largely differ across data sets. Review embeddings, which are learned from word embeddings, are learned to be good predictors of user ratings. As a consequence the learned word embeddings are correlated with the ratings. To visualize the correlation between words and ratings we proceed as follows. First, we assign a score to each word that is computed by taking the average rating of the reviews that contain the word. Second, we compute a 2-dimensional representation of the words by applying t-SNE [20] to the 16-dimensional word embeddings learned by TransRev. Figure 4 depicts these 2-dimensional word embedding vectors learned for the Amazon Beauty data set. The corresponding rating scores are indicated by the color.",
+            "cite_spans": [
+                {
+                    "start": 501,
+                    "end": 504,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 701,
+                    "end": 704,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1139,
+                    "end": 1143,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 2043,
+                    "end": 2047,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1000,
+                    "end": 1007,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 2107,
+                    "end": 2115,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "The clusters we discovered in Fig. 4 are interpretable. They are meaningful with respect to the score, observing that the upper right cluster is mostly made up of words with negative connotations (e.g. horrible, useless. . . ), the lower left one contains neutral words (e.g. with, products. . . ) and the lower right one contains words with positive connotations (e.g. awesome, excellent. . . ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 30,
+                    "end": 36,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Visualization of the Word Embeddings"
+        },
+        {
+            "text": "One of the characteristics of TransRev is its ability to approximate the review representation at prediction time. This approximation is used to make a rating prediction, but it can also be used to propose a tentative review on which the user can elaborate on. This is related to a number of approaches [18, 27, 37] on explainable recommendations. We compute the Euclidean distance between the approximated review embedding\u0125 rev (u,i) and all review embeddings h rev (u,i) from the training set. We then retrieve the review text with the most similar review embedding. We investigate the quality of the tentative reviews that TransRev retrieves for the Beauty and Digital Music data sets. The example reviews listed in Table 3 show that while the overall sentiment is correct in most cases, we can also observe the following shortcomings: (a) The function f chosen in our work is invariant to word ordering and, therefore, cannot learn that bigrams such as \"not good\" have a negative meaning. (b) Despite matching the overall sentiment, the actual and retrieved review can refer to different aspects of the product (for example, \"it clumps\" and \"gives me headaches\"). Related work [37] extracts aspects from reviews by applying a number of grammatical and morphological analysis tools. These aspects are used later on to explain why the model suspects that a user might be interested in a certain product. We think this type of explanation is complementary to ours, and might inspire future work. (c) Reviews can be specific to a single product. A straightforward improvement could consist of retrieving only existing reviews for the specific product under consideration. Table 3 . Reviews retrieved from the Beauty (upper) and Digital Music (lower) data sets. In parenthesis the ratings associated to the reviews.",
+            "cite_spans": [
+                {
+                    "start": 303,
+                    "end": 307,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 308,
+                    "end": 311,
+                    "text": "27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 312,
+                    "end": 315,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 1181,
+                    "end": 1185,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 719,
+                    "end": 726,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1672,
+                    "end": 1679,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Suggesting Reviews to Users"
+        },
+        {
+            "text": "Closest training review in embedding space skin improved (5) makes your face feel refreshed (5) love it (5) you'll notice the difference (5) best soap ever (5) I'll never change it (5) it clumps (2) gives me headaches (1) smells like bug repellent (3) pantene give it up (2) fake fake fake do not buy (1) seems to be harsh on my skin (2) saved my skin (5) not good quality (2) another great release from saliva (5) can't say enough good things about this cd (5) a great collection (5) definitive collection (5) sound nice (3) not his best nor his worst (4) a complete massacre of an album (2) some great songs but overall a disappointment (3) the very worst best of ever (1) overall a pretty big disappointment (2) what a boring moment (1) overrated but still alright (3) great cd (5) a brilliant van halen debut album (5) We believe that more sophisticated sentence and paragraph representations might lead to better results in the review retrieval task. As discussed, a promising line of research has to do with learning representations for reviews that are aspect-specific (e.g. \"ease of use\" or \"price\").",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 107,
+                    "text": "(5)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 819,
+                    "end": 822,
+                    "text": "(5)",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Actual test review"
+        },
+        {
+            "text": "TransRev is a novel approach for product recommendation combining ideas from knowledge graph embedding methods, recommender systems and sentiment analysis. TransRev achieves state of the art performance on the data sets under consideration while having fewer (hyper)parameters than more recent works.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Most importantly, one main characteristic of TransRev is its ability to approximate the review representation during inference. This approximated representation can be used to retrieve reviews in the training set that are similar with respect to the overall sentiment towards the product. Such reviews can be dispatched to users as a starting point for a review, and thus lowering the barrier to writing new reviews. Given the known influence of product reviews in the purchasing choices of the users [2, 30] , we think that recommender systems will benefit from such mechanism.",
+            "cite_spans": [
+                {
+                    "start": 501,
+                    "end": 504,
+                    "text": "[2,",
+                    "ref_id": null
+                },
+                {
+                    "start": 505,
+                    "end": 508,
+                    "text": "30]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "User models: theory, method, and practice",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Allen",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "Int. J. Man Mach. Stud",
+            "volume": "32",
+            "issn": "5",
+            "pages": "511--543",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "TopicMF: simultaneously exploiting ratings and reviews for recommendation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2--8",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Classifying sentiment in microblogs: is brevity an advantage? In: CIKM",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bermingham",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Smeaton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1833--1836",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Translating embeddings for modeling multi-relational data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garc\u00eda-Dur\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Yakhnenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "2787--2795",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Empirical analysis of predictive algorithms for collaborative filtering",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Breese",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Heckerman",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kadie",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "43--52",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "TransNets: learning to transform for recommendation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Catherine",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "RecSys",
+            "volume": "",
+            "issn": "",
+            "pages": "288--296",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Are we really making much progress? A worrying analysis of recent neural recommendation approaches",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Dacrema",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Cremonesi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Jannach",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Jointly modeling aspects, ratings and sentiments for movie recommendation (JMARS)",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Diao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Qiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "193--202",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Composing relationships with translations",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garc\u00eda-Dur\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "286--290",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Combining two and three-way embedding models for link prediction in knowledge bases",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garc\u00eda-Dur\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Grandvalet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Artif. Intell. Res",
+            "volume": "55",
+            "issn": "",
+            "pages": "715--742",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Understanding the difficulty of training deep feedforward neural networks",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Glorot",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "In: AISTATS. JMLR Proceedings",
+            "volume": "9",
+            "issn": "",
+            "pages": "249--256",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Traversing knowledge graphs in vector space",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Guu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Miller",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "318--327",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Translation-based recommendation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mcauley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "RecSys",
+            "volume": "",
+            "issn": "",
+            "pages": "161--169",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Knowledge base completion: baselines strike back",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kadlec",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bajgar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kleindienst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1705.10744"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Matrix factorization techniques for recommender systems",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Koren",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bell",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Volinsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "IEEE Comput",
+            "volume": "42",
+            "issn": "8",
+            "pages": "30--37",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Research and Development in Intelligent Systems XXXII",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lawlor",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Muhammad",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Rafter",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Smyth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "331--344",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-25032-8_25"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Ratings meet reviews, a combined approach to recommend",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ling",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Lyu",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "King",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "RecSys",
+            "volume": "",
+            "issn": "",
+            "pages": "105--112",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Visualizing data using t-SNE",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "9",
+            "issn": "",
+            "pages": "2579--2605",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Hidden factors and hidden topics: understanding rating dimensions with review text",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcauley",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "RecSys",
+            "volume": "",
+            "issn": "",
+            "pages": "165--172",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Inferring networks of substitutable and complementary products",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcauley",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pandey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "KDD",
+            "volume": "",
+            "issn": "",
+            "pages": "785--794",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Image-based recommendations on styles and substitutes",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcauley",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Targett",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Den Hengel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "43--52",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "An empirical comparison of knowledge graph embeddings for item recommendation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Palumbo",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Rizzo",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Troncy",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Baralis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Osella",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ferro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "DL4KGS@ ESWC",
+            "volume": "",
+            "issn": "",
+            "pages": "14--20",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Deep contextualized word representations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Peters",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1802.05365"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Lit@EVE : explainable recommendation based on wikipedia concept vectors",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Qureshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Greene",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "PKDD 2017",
+            "volume": "10536",
+            "issn": "",
+            "pages": "409--413",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-71273-4_41"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Factorizing personalized Markov chains for next-basket recommendation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Freudenthaler",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Schmidt-Thieme",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "811--820",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Fast maximum margin matrix factorization for collaborative prediction",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "D M"
+                    ],
+                    "last": "Rennie",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srebro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "ICML. ACM International Conference Proceeding Series",
+            "volume": "119",
+            "issn": "",
+            "pages": "713--719",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Interpretable convolutional neural networks with dual local and global attention for review rating prediction",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "RecSys",
+            "volume": "",
+            "issn": "",
+            "pages": "297--305",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Representation learning of users and items for review rating prediction using attention-based convolutional neural network",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "3rd International Workshop on Machine Learning Methods for Recommender Systems (MLRec",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Latent relational metric learning via memorybased attention for collaborative ranking",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tay",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Anh Tuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Hui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 World Wide Web Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "729--739",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Multi-pointer co-attention networks for recommendation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tay",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Tuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Hui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Explaining reviews and ratings with PACO: poisson additive co-clustering",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beutel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ahmed",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smola",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "WWW (Companion Volume)",
+            "volume": "",
+            "issn": "",
+            "pages": "127--128",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Explicit factor models for explainable recommendation based on phrase-level sentiment analysis",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "83--92",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Joint deep modeling of users and items using reviews for recommendation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Noroozi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "425--434",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "(Left) A typical product summary with review score and 'Pros'. Image taken from www.bestbuy.com. (Right) A small bipartite graph modeling customers (users), products (items), product reviews, and review scores.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fig. 2. At training time, a function's parameters are learned to compute the review embedding from the word token embeddings such that the embedding of the user translated by the review embedding is similar to the product embedding. At the same time, a regression model g is trained to perform well on predicting ratings.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "HFT we used the original implementation of the authors 3 and validated the trade-off term from the values [0.001, 0.01, 0.1, 1, 10, 50]. For TransRev we validated \u03bb among the values [0.05, 0.1, 0.25, 0.5, 1] and the learning rate of the optimizer and regularization term (\u03bc in our model) from the values [0.001, 0.005, 0.01, 0.05, 0.1] and [0.00001, 0.00005, 0.0001, 0.0005, 0.001], respectively.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "(a) Two-dimensional t-SNE representations of the word embeddings learned by TransRev for the Beauty data set. The color bar represents the average rating of the reviews where each word appears. (b), (c) and (d) depict regions of the embedding space where negative, neutral and positive words are clustered, respectively. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Performance comparison (MSE) on 18 datasets. The asterisk * indicates the macro MSE across all the Amazon data sets.HFT SVD DeepCoNN T-Nets MPCN TransRev",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Sensitivity to latent dimension.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. The research leading to these results has received funding from the European Union's Horizon 2020 innovation action programme under grant agreement No 786741 -SMOOTH project. This publication reflects only the author's views and the European Community is not liable for any use that may be made of the information contained herein.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

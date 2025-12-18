@@ -1,0 +1,1087 @@
+{
+    "paper_id": "66178117b0f45a4700170b95b866658cf8c89323",
+    "metadata": {
+        "title": "MemMAP: Compact and Generalizable Meta-LSTM Models for Memory Access Prediction",
+        "authors": [
+            {
+                "first": "Ajitesh",
+                "middle": [],
+                "last": "Srivastava",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California",
+                    "location": {
+                        "postCode": "90089",
+                        "settlement": "Los Angeles",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "ajiteshs@usc.edu"
+            },
+            {
+                "first": "Ta-Yang",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California",
+                    "location": {
+                        "postCode": "90089",
+                        "settlement": "Los Angeles",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "tayangwa@usc.edu"
+            },
+            {
+                "first": "Pengmiao",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California",
+                    "location": {
+                        "postCode": "90089",
+                        "settlement": "Los Angeles",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "pengmiao@usc.edu"
+            },
+            {
+                "first": "Cesar",
+                "middle": [],
+                "last": "Augusto",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "F",
+                "middle": [],
+                "last": "De Rose",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Pontifical Catholic University of Rio Grande do Sul",
+                    "location": {
+                        "settlement": "Porto Alegre",
+                        "country": "Brazil"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Rajgopal",
+                "middle": [],
+                "last": "Kannan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Army Research Lab-West",
+                    "institution": "US",
+                    "location": {
+                        "settlement": "Playa Vista",
+                        "country": "USA"
+                    }
+                },
+                "email": "rajgopal.kannan.civ@mail.mil"
+            },
+            {
+                "first": "Viktor",
+                "middle": [
+                    "K"
+                ],
+                "last": "Prasanna",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Southern California",
+                    "location": {
+                        "postCode": "90089",
+                        "settlement": "Los Angeles",
+                        "region": "CA",
+                        "country": "USA"
+                    }
+                },
+                "email": "prasanna@usc.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "With the rise of Big Data, there has been a significant effort in increasing compute power through GPUs, TPUs, and heterogeneous architectures. As a result, many applications are memory bound, i.e., they are bottlenecked by the movement of data from main memory to compute units. One way to address this issue is through data prefetching, which relies on accurate prediction of memory accesses. While recent deep learning models have performed well on sequence prediction problems, they are far too heavy in terms of model size and inference latency to be practical for data prefetching. Here, we propose extremely compact LSTM models that can predict the next memory access with high accuracy. Prior LSTM based work on access prediction has used orders of magnitude more parameters and developed one model for each application (trace). While one (specialized) model per application can result in more accuracy, it is not a scalable approach. In contrast, our models can predict for a class of applications by trading off specialization at the cost of few retraining steps at runtime, for a more generalizable compact meta-model. Our experiments on 13 benchmark applications demonstrate that three compact meta-models can obtain accuracy close to specialized models using few batches of retraining for majority of the applications.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Prefetching is critical in reducing program execution time through hiding the latency due to data movement. Especially, with the advent of GPUs, TPUs, and heterogeneous architectures that accelerate computation, the bottleneck is shifting towards memory performance. The central aspect of prefetching is to be able to accurately predict future memory accesses. This can be seen as a sequence prediction task, which in theory, is well-suited for machine learning. Specifically, LSTM (Long-Short Term Memory) based Deep Learning has shown tremendous success in sequence prediction tasks like text prediction [4] , along with other natural language tasks such as part of speech tagging [11] and grammar learning [14] . Since memory accesses have an underlying grammar similar to natural language, such models are naturally applicable to learning accesses. Recent work [5, 13, 15] has shown that LSTM based methods indeed lead to higher accuracy than those used in traditional prefetchers.",
+            "cite_spans": [
+                {
+                    "start": 606,
+                    "end": 609,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 683,
+                    "end": 687,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 709,
+                    "end": 713,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 865,
+                    "end": 868,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 869,
+                    "end": 872,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 873,
+                    "end": 876,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, in reality, LSTM based prefetchers are far from becoming practical due to their extremely high memory and computation requirements. For instance, the models proposed in [5] can have more than a million parameters. Such a large number of parameters (and thus computations) make it infeasible to implement a prefetcher based on LSTM, as to be useful, these predictions need to be faster than accessing the sequence of memory addresses without any prefetching. Recent work [13] proposes an encoding method that reduces the size of the LSTM model to few thousands of parameters. They also show that such high compression can be achieved without any significant loss in accuracy. As a result, inference can be fast and models can be retrained quickly on demand, when there is a drastic change in access patterns. The drawback of this approach is that it requires training one model each for all applications. This is not a scalable solution as the number of applications grow, the total size of the models (storage required on the memory controller where these models will reside) grows linearly, thus defeating the purpose of having compact models. Further, such models do not apply to applications that have not been seen in training.",
+            "cite_spans": [
+                {
+                    "start": 178,
+                    "end": 181,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 479,
+                    "end": 483,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To address these shortcomings in making deep learning based prefetchers realistic, we develop a new approach -we show that using a small number of compact models (termed MemMAP) is sufficient to adaptively and accurately predict on a diverse set of applications of interest, i.e. these models can also generalize to applications not seen during training. Our approach relies on identifying clusters of applications that are similar, and then training a meta-model [3] for each cluster. MemMAP for high scalability (adaptability to multiple applications) and generalizability at the cost of small loss in accuracy and need for few retraining steps. Through extensive experiments on PARSEC [1] benchmark, which has diverse applications, we demonstrate that our approach leads to accurate, adaptable, and generalizable prediction access models. Using only three compact models of size 24K parameters each, we are able to perform on par with specialized models for 13 applications. We envision that in a real system implementation, the memory controller will run all three models concurrently, and use the model that produces better accuracy over last few accesses. Note that, in this paper, our objective is not to develop a full scale prefetcher, but to design a small set of highly accurate and compact LSTM based access prediction model to enable a realistic prefetcher implementation. A prefetcher built on top of our approach and its hardware implementation will be explored in future work. Specifically, our contributions are as follows:",
+            "cite_spans": [
+                {
+                    "start": 464,
+                    "end": 467,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 688,
+                    "end": 691,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We improve upon the state-of-the-art compressed LSTM models for access predictions, eliminating its necessity of one model per application (trace); -We propose a clustered meta-learning-based approach to obtain more general prediction models that can achieve high accuracy after a small number of gradient steps and can even generalize to unseen/new applications; -We experimentally demonstrate that our approach is accurate, adaptable, and generalizable -with a reduced number of models, we can achieve the same level of accuracy as the specialized (one model per application) approach with a much smaller memory footprint.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Several prior works have proposed LSTM for memory access prediction [5, 15] .",
+            "cite_spans": [
+                {
+                    "start": 68,
+                    "end": 71,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In [12] , the authors propose the use of logistic regression, and decision tree models to enhance prefetching. The authors in [7] evaluate various machine learning models on their ability to improve prefetching for data center applications. Neural networks and decision trees where shown to achieve the highest performance in this application domain. The work in [9, 10] , and [6] presents an extensive evaluation of LSTM for prefetching, achieving similar performance improvements as the other LSTM based approaches. Among the related work [5] has received significant attention. Their approach is impractical to be directly applied for prefetching, and as stated by the authors, is only a first step towards an LSTM-based prefetcher. They, and several state-of-the-art machine learning based access predictors perform the training on cache misses as it reduces the size of training. However, an accurate prefetcher will change the distribution of cache misses and hence invalidate its own trained model. Secondly, to achieve higher accuracy, some online training is necessary to learn application specific patterns. Their models are extremely large to be used for real-time inference or online retraining. Even after considering labels for predictions that cover 50% of the data (leading to a compulsory accuracy loss of 50%), the number of labels can be of the order of 10K. This, in turn, with a small hidden layer of size 100 will lead to a model with more than million parameters. Instead, we propose to use a small ensemble of highly compact LSTM models.",
+            "cite_spans": [
+                {
+                    "start": 3,
+                    "end": 7,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 126,
+                    "end": 129,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 363,
+                    "end": 366,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 367,
+                    "end": 370,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 377,
+                    "end": 380,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 541,
+                    "end": 544,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In [13] a compact LSTM based prediction model was proposed. Extremely high compression of LSTM model was achieved through encoding of the labels (jumps in memory accesses 'deltas'). The approach is based on the observation that the number of parameters are dominated by the output layer. Therefore, for label set of size n, they create the output layer with log n nodes each of which can take a 0 or 1 value. This network is trained to predict a multi-label output with log n labels, which is the binary representation of the delta instead of a single label (1 out of n) representing the delta itself. This technique led to around 1000\u00d7 compression. On the other hand, in the process of compression, the prediction problem is made harder due to the fact that all the log n bits need to be predicted correctly for the right memory access prediction. Yet, the experiments confirm that the loss in accuracy due to 1000\u00d7 compression is negligible. While training one model for each application is possible and leads to highly specialized and accurate models [13] , it is not a scalable solution. Further a specialized model does not generalize to other applications (see Fig. 1 ). In this work, we apply the same compression techniques presented in [13] , but use meta LSTM models to avoid the need for one model per application. We also propose a clustered meta-learning-based approach to obtain more general prediction models that can achieve comparable accuracy as previous techniques after a small number of gradient steps and can even generalize to unseen/new applications. This results in a much smaller memory footprint compared to related work, allowing its implementation in hardware.",
+            "cite_spans": [
+                {
+                    "start": 3,
+                    "end": 7,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1054,
+                    "end": 1058,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1245,
+                    "end": 1249,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1167,
+                    "end": 1173,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "We see the problem of access prediction as a sequence prediction problem, where the task is to predict the \"delta\", i.e., the jump in address with respect to the current address. This reduces the number of labels, i.e., possible outcomes for the predictions. Further, it accounts for the fact that often an application has similar jumps in addresses, even though it may start from a different memory location. Prior work [5, 13] has taken the same approach of classifying deltas for the same reasons. Next we will explain the modeling of MemMAP.",
+            "cite_spans": [
+                {
+                    "start": 421,
+                    "end": 424,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 425,
+                    "end": 428,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MemMAP Approach"
+        },
+        {
+            "text": "For an LSTM model to be realistically used for prefetching, it needs to have low latency and should require small amount of computation. These factors are closely related to the size (number of parameters) of the model. As shown in [13] , the size (number of parameters) of the simple LSTM model for memory access prediction is dominated by the dense last layer. Few thousands of output layers may lead to slowing down of inference due to large number of parameters in the final layer. Instead of using the deltas (jumps in memory accesses) directly as labels, the approach in [13] predicts the binary representation of deltas, converting the problem from a single label (1 out of n) prediction problem to a multi-label prediction problem (log n labels). Using this technique, we obtained an LSTM architecture which has 23, 944 parameters.",
+            "cite_spans": [
+                {
+                    "start": 232,
+                    "end": 236,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 577,
+                    "end": 581,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compression"
+        },
+        {
+            "text": "The other dimension of reducing the overhead of memory access prediction is to reduce the number of models required for all the applications of interest. While training one model for each application leads to highly specialized and accurate models [13] , it is not a scalable solution. Further a specialized model does not generalize to other applications. To demonstrate this, we trained specialized models as in prior work [13] , and tested them on other applications. Figure 1 shows one such instance, where the model was trained using the application \"Swaption\" and then tested on other applications of PARSEC benchmark. The results clearly indicate that the models are not generalizable. Therefore, there is a need for creating a more general model that can work well for a class of applications, thus eliminating the size requirement of one model per applications and possibly generalizing to unseen applications. From the huge variations in accuracies seen in the plots, it is also clear that different patterns exist in different applications. This indicates that one model may not readily apply to all applications, and instead may requires some retraining. With the goal of obtaining a general model that quickly adapts to a chosen application, we use Model-Agnostic Meta-Learning [3] that samples batches from a set of applications to train one meta-LSTM model (Algorithm 1). First, we sample a set of applications and from each we prepare a batch of memory accesses. This batch is used to calculate loss and update adapted parameters from meta-parameters. Then from this mixed set of applications, a batch is prepared to compute the loss which is used to update the meta-model parameters. At termination, a metamodel is obtained which can adapt to all the tasks used in this training with few retraining steps.",
+            "cite_spans": [
+                {
+                    "start": 248,
+                    "end": 252,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 425,
+                    "end": 429,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1291,
+                    "end": 1294,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 471,
+                    "end": 479,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Meta-learning"
+        },
+        {
+            "text": "While in the ideal scenario, we would like one meta-model to be enough, in reality, the application traces may vary drastically, making it difficult for one model to adapt to all the applications. Instead, we propose to use a small ensemble of meta-models that can cover all the applications. Our intuition is that it is better S: A set of applications 3:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Initialize \u03b8 and initial parameters \u03b1, \u03b2 4:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "for k \u2190 1 to N epoch do 5:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Sample batch of applications Ai \u223c S 6:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "for all Ai do 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Sample a batch D of m accesses from Ai 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Evaluate \u2207 \u03b8 LA i (f \u03b8 ) using D, where LA i is the binary cross-entropy loss 9:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Compute the adapted parameters:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "Sample accesses D i from Ai for the meta-update to have similar applications for one meta-model, and so we train one metamodel for each set of similar applications. We construct the similarity matrix of the given set of application traces using soft-DTW [2] and then apply k-means to cluster the memory accesses. Soft-DTW is a differentiable approximation of DTW (Dynamic Time Warping). A smoothing parameter \u03b3 is introduced to the original min operation in DTW to create a generalized min operator. It can acquire better minima due to its better convexity properties in processing time-series data. As a pre-processing step, we convert the memory accesses into decimal values. Then they are standardized through subtracting the mean and dividing by the standard deviation. These standardized trace chunks are fed into a k-means clustering algorithm that uses soft-DTW to calculate the distance. The parameter k (number of clusters, i.e., number of meta-models) of k-means is chosen based on the memory available for storing the access prediction models.",
+            "cite_spans": [
+                {
+                    "start": 254,
+                    "end": 257,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "For our experiments, we have chosen k = 3 (see Sect. 4.2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "We consider the meta-model obtained for each cluster as a representative of a class of applications. In real implementation, all k (one for each of the k clusters) meta-models will work in parallel to predict the memory accesses, and as more of the memory trace is seen, with few retraining steps, we will be able to identify which of the k models is more accurate. That model will be chose to continue inference, until the accuracy drops below a desired level. In that scenario, parallel retraining for all k meta models will resume. We believe that such retraining and switching between meta-models is essential as the program may go through a drastic change in access pattern. Similar concept of online retraining has been considered in [13] .",
+            "cite_spans": [
+                {
+                    "start": 740,
+                    "end": 744,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ensemble Meta-learning"
+        },
+        {
+            "text": "We conducted extensive experimentation on the PARSEC benchmark [1] , which was specifically chosen because of its diverse set of applications. The Intel Pin [8] tool was used to obtain memory access traces for each application. As mentioned earlier, instead of actual memory locations, we transform the memory traces to sequences of deltas by subtracting consecutive hexadecimal memory address and converting them to integer. The reason for this is to allow the model to predict memory locations for any future execution of the same application, since the relative memory differences are expected to stay consistent [5, 13] ",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 616,
+                    "end": 619,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 620,
+                    "end": 623,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "We used the doubly compressed LSTM (DCLSTM) architecture as described in [13] . It has an embedding layer with 10 units, followed by an LSTM layer with 50 units, followed by a dense layer with 50 units, and 15 outputs to represent up to 2 15 most frequent deltas. We also used a dropout of 10%, look back window 3 (i.e., takes last three access predictions as input), 20 training epochs, a batch size 256, and 50-50 train/test split. We used sigmoid activation function and binary cross entropy loss function. This architecture is trained differently by different models as described below 1 .",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Settings"
+        },
+        {
+            "text": "-Specialized: This is the DCLSTM model trained for one application. Ideally, this would be the best performing model, but it cannot be generalized. We will use the accuracies obtained from the specialized model as reference to compare other models on the given applications that are trained to adapt to multiple applications.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Settings"
+        },
+        {
+            "text": "-Concatenated: This DCLSTM model is trained by simply concatenating the training traces from all applications. -MAML-DCLSTM: This is a meta-model where the weights are learned using Algorithm 1. -C-MAML-DCLSTM: This is a meta-model obtained from Algorithm 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Settings"
+        },
+        {
+            "text": "Instead of training with all the applications, this is trained with applications that belong to the same cluster. Three such models were trained based on the three clusters obtained from PARSEC (see Fig. 2 ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 199,
+                    "end": 205,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Model Settings"
+        },
+        {
+            "text": "The goal of our experiments is to show that our cluster-based compact meta-LSTM models are: (a) Accurate -produce accuracy comparable to specialized models; (b) Adaptable -quickly adapt, i.e., specialize themselves for the given application; and (c) Generalizable -adapt to high accuracy even when the application was never seen before. The following results discuss these aspects. Fig. 3 . Accuracy of the models pre-and post-retraining. Figure 3 shows the accuracy results of all the methods. The specialized model serves as a reference for the ideal accuracy we wish to achieve. For concatenated model, MAML-DCLSTM and C-MAML-DCLSTM, we compared the model performance before retraining (pre-update) and after retraining (updated) by specific trace. In the experiment for pre-update models, we use 200K accesses for training and the next 200K for testing. For retraining, we use unseen 200K accesses of specific trace to retrain the existing pre-update models to get updated models for each trace. Then, we test them with the next 200K accesses in the trace. As shown in Fig. 3 , the accuracies of all pre-update models are improved after retraining. In most cases (11 out of 13), MAML-DCLSTM models achieve higher accuracy than concatenated models, even when they start with lower pre-update accuracy. This shows that the meta-model learns fast with a more general initialization. C-MAML-DCLSTM models gain a similar level of raises as MAML-DCLSTM. Due to the higher similarity of traces in the same cluster, C-MAML-DCLSTM models usually have higher pre-update accuracy. As a result, in 9 traces, C-MAML-DCLSTM outperform MAML-DCLSTM and in 3 traces they perform similarly. Overall, C-MAML-DCLSTM results in accuracies close to the specialized models in 9 out of 13 traces. Figure 4 shows how retraining starting from various models improves the accuracy as more of the trace is seen. We compared the performance of concatenated, MAML-DCLSTM, C-MAML-DCLSTM, and specialized models by testing on two applications: Raytrace and Streamcluster. Note that, specialized models are used for reference, and we do not performing any retraining for them. We used 256 memory accesses for a batch of training and calculated test accuracy on the next 10K samples in rolling windows. Retraining is performed beginning from the weights of the neural network from the previous training batch. Based on the plots, although both MAML and concatenated models have similar result on some applications, the accuracy per batch on other traces such as Blackscholes, Ferret, and Streamcluser indicate that MAML-DCLSTM model learns faster than concatenated model, and C-MAML-DCLSTM performs better than MAML-DCLSTM. One can see that the relationship between these three models is clear for stable applications, while the others fluctuate a little. It seems that both C-MAML-DCLSTM and MAML-DCLSTM model can adapt to the stable applications rapidly and C-MAML-DCLSTM has the best adaptability. There are some challenging traces such as Vips and X264 on which even specialized model failed to achieve high accuracy. It is possible that the memory accesses of these applications vary considerably, and so prediction is extremely hard. In four out of 13 applications, the accuracy of C-MAML-DCLSTM is significantly less than specialized model. Improved clustering and more meta-models may be necessary for improving on these traces. Figure 5 shows the comparison of how generalizable the models are. We split the applications in the same cluster into the training (Bodytrack, Canneal, Dedup, Facesim, Fluidanimate, Freqmine, Swaptions, Vips) and test sets (Raytrace and Streamcluster), the training set was used to build the meta-model using C-DCLSTM-MAML and concatenated model, and then we tested on the test applications to compare the performance of these two models for generalizability. We collected batches of 256 memory accesses for training and calculated test accuracy on next 10K samples in rolling windows. We performed retraining starting from the weights of the neural network from the previous training batch. The performance of C-MAML-DCLSTM improved after several memory accesses for both Raytrace and Streamcluster, which demonstrates that it can quickly generalize to unseen applications in the same cluster. Although the test accuracy for concatenated model did increase after several memory accesses in the case of Raytrace, it performed poorly in the case of Streamcluser. Furthermore, the C-MAML-DCLSTM model can obtain accuracy close to specialized models using only a small number of batches. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 382,
+                    "end": 388,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 439,
+                    "end": 447,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1073,
+                    "end": 1079,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1777,
+                    "end": 1785,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 3407,
+                    "end": 3415,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "We have proposed MemMAP a meta-model approach to predicting memory accesses, a central aspect of prefetchers, necessary to improve memory performance. We addressed the impracticality of current deep learning models in prefetching due to their high storage requirement. We improved upon the stateof-the-art, which although does provide compact LSTM models, it requires one model for each application. Such an approach does not scale to large number of applications. It also does not generalize to applications not seen before. We propose to use a clustering based meta-learning approach, where the applications are first clustered and then a meta-model is trained for each cluster. While, it is possible to train one model for all applications, the accuracy was typically lower. Our approach exploits the trade-offs between total model size, accuracy, and retraining steps. We showed that three models (with 3 \u00d7 24K parameters) can achieve high accuracy quickly for 13 diverse applications. We show that our approach is accurate for majority of applications in the benchmarks, it adapts quickly with retraining of only one epoch with increasing number of accesses, and it can generalize to applications that were not seen during training. In future work, we will explore other clustering approaches to identify the ideal set of meta-models, and their hardware implementation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The parsec benchmark suite: characterization and architectural implications",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bienia",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 17th International Conference on Parallel Architectures and Compilation Techniques",
+            "volume": "",
+            "issn": "",
+            "pages": "72--81",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Soft-DTW: a differentiable loss function for time-series",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cuturi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Blondel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning",
+            "volume": "70",
+            "issn": "",
+            "pages": "894--903",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Model-agnostic meta-learning for fast adaptation of deep networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Finn",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Abbeel",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Levine",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning",
+            "volume": "70",
+            "issn": "",
+            "pages": "1126--1135",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Learning to forget: continual prediction with LSTM",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gers",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Cummins",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Learning memory access patterns",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hashemi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Learning memory access patterns",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hashemi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Machine learningbased prefetch optimization for data center applications",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liao",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hung",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chou",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the Conference on High Performance Computing Networking, Storage and Analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Building customized program analysis tools with dynamic instrumentation",
+            "authors": [
+                {
+                    "first": "C.-K",
+                    "middle": [],
+                    "last": "Luk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "SIGPLAN Not",
+            "volume": "40",
+            "issn": "6",
+            "pages": "190--200",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "DeepCache: a deep learning based framework for content caching",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Narayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Verma",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ramadan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Babaie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "48--53",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A neural network memory prefetcher using semantic locality",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Peled",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Weiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Etsion",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Multilingual part-of-speech tagging with bidirectional long short-term memory models and auxiliary loss",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Plank",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "S\u00f8gaard",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Goldberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1604.05529"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Maximizing hardware prefetch effectiveness with machine learning",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rahman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Burtscher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zong",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Qasem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE 17th International Conference on High Performance Computing and Communications, 2015 IEEE 7th International Symposium on Cyberspace Safety and Security, and 2015 IEEE 12th International Conference on Embedded Software and Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "383--389",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Predicting memory accesses: the road to compact ML-driven prefetcher",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lazaris",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Brooks",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kannan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Prasanna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the International Symposium on Memory Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "461--470",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Grammar as a foreign language",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Koo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Petrov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2773--2781",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Long short term memory based hardware prefetcher: a case study",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the International Symposium on Memory Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "305--311",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Model obtained from one application do not generalize to other applications. The model was trained on the application 'swaption' and tested on all the applications in the PARSEC benchmark. The dots represent the accuracy achieved by training on the respective applications, provided as the reference accuracy.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "using each D i and LA i 11:return \u03b8 Clusters obtained from PARSEC benchmarks.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Adaptability results for our meta-models.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Generalizability results for our meta-models.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. This work is supported by Google Faculty Research Award, Air Force Research Laboratory grant number FA8750-18-S-7001, and National Science Foundation award number 1912680. The authors would like to thank Dr. Angelos Lazaris for useful discussions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

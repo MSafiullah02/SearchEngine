@@ -1,0 +1,2561 @@
+{
+    "paper_id": "182fb20107d83e7d10ccb716093011838b4bbd27",
+    "metadata": {
+        "title": "Noisy Adaptive Group Testing using Bayesian Sequential Experimental Design",
+        "authors": [
+            {
+                "first": "Marco",
+                "middle": [],
+                "last": "Cuturi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Brain Team",
+                    "location": {
+                        "settlement": "Paris"
+                    }
+                },
+                "email": "cuturi@google.com"
+            },
+            {
+                "first": "Olivier",
+                "middle": [],
+                "last": "Teboul",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Brain Team",
+                    "location": {
+                        "settlement": "Paris"
+                    }
+                },
+                "email": "oliviert@google.com"
+            },
+            {
+                "first": "Jean-Philippe",
+                "middle": [],
+                "last": "Vert",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Brain Team",
+                    "location": {
+                        "settlement": "Paris"
+                    }
+                },
+                "email": "jpvert@google.com"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "When test resources are scarce and infection prevalence is low, testing groups of individuals can be more efficient than testing individuals. This can be done by pooling individual samples (in groups, and only test those groups for the presence of a pathogen. The rationale is that if prevalence is low, many of these groups will ideally test negative, clearing all all individuals from such groups, whereas individuals appearing in (ideally few) positive groups will require further screening. Forming those groups in order to minimize testing costs while maintaining good detection is the goal of group testing algorithms. We propose a new framework to form such groups that takes into account various constraints of the testing environment, and which can easily incorporate individualized infection priors. Our solution solves a Bayesian sequential experimental design problem: Given previous group test results, we sample the posterior distribution of infection status vectors using sequential Monte Carlo samplers; these samples are then fed to an optimizer, which seeks to form groups that maximize an information gain if those future tests were to be known. To output marginal probabilities of infection, we use loopy belief propagation as a decoder. We show a significant empirical improvement over individualized tests in simulations: our G-MIMAX test procedure has an average specificity/sensitivity that significantly exceeds that of other baselines, including individual tests, as long as the disease prevalence \u2264 5%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Singling out infected individuals in a population that has little immunity to a pathogen is of paramount importance to control the propagation of an epidemic. As a response to the ongoing COVID-19 epidemic, a recent study (Allen et al., 2020) recommends to scale up test capacities to more than 30 million tests a week, at an estimated cost of 100 billion US Dollars, all of this for the US alone. When tests are expensive and the base infection rate is low, an approach first pioneered by Dorfman (1943) consists in pooling individuals into groups (e.g. by pooling nasal swabs) and test only those pooled samples first (e.g. to detect traces of virus RNA in each pool). In a second stage, only those individuals that belonged to positive groups are tested individually. By properly tuning the size of groups, Dorfman showed that this two-stage group testing procedure can significantly reduce the number of tests needed to identify infected individuals. For these reasons, the Dorfman procedure is reportedly in use to test for SARC-CoV-2 infection (Yelin et al., 2020; Seifried and Ciesek, 2020) .",
+            "cite_spans": [
+                {
+                    "start": 222,
+                    "end": 242,
+                    "text": "(Allen et al., 2020)",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 490,
+                    "end": 504,
+                    "text": "Dorfman (1943)",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1050,
+                    "end": 1070,
+                    "text": "(Yelin et al., 2020;",
+                    "ref_id": null
+                },
+                {
+                    "start": 1071,
+                    "end": 1097,
+                    "text": "Seifried and Ciesek, 2020)",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Since Dorfman's seminal work on medical testing, the field of group testing at large has significantly grown, and numerous strategies have been proposed and many applications considered, notably quality control (Sobel and Groll, 1959) , communications (Berger et al., 1984; Wolf, 1985) , molecular biology (Balding et al., 1996; Ngo and Du, 2000) , pattern matching (Macula and Popyack, 2004; Clifford et al., 2010) , database systems (Cormode and Muthukrishnan, 2005) , traitor tracing (Meerwald and Furon, 2011; Laarhoven, 2015) , or machine learning (Zhou et al., 2014) ; see (Aldridge et al., 2019) for a recent and exhaustive review.",
+            "cite_spans": [
+                {
+                    "start": 211,
+                    "end": 234,
+                    "text": "(Sobel and Groll, 1959)",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 252,
+                    "end": 273,
+                    "text": "(Berger et al., 1984;",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 274,
+                    "end": 285,
+                    "text": "Wolf, 1985)",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 306,
+                    "end": 328,
+                    "text": "(Balding et al., 1996;",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 329,
+                    "end": 346,
+                    "text": "Ngo and Du, 2000)",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 366,
+                    "end": 392,
+                    "text": "(Macula and Popyack, 2004;",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 393,
+                    "end": 415,
+                    "text": "Clifford et al., 2010)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 435,
+                    "end": 468,
+                    "text": "(Cormode and Muthukrishnan, 2005)",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 487,
+                    "end": 513,
+                    "text": "(Meerwald and Furon, 2011;",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 514,
+                    "end": 530,
+                    "text": "Laarhoven, 2015)",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 553,
+                    "end": 572,
+                    "text": "(Zhou et al., 2014)",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 579,
+                    "end": 602,
+                    "text": "(Aldridge et al., 2019)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Adaptive Group testing. Group testing strategies differ in how they design the groups to be tested, and what assumptions they make on the quality of the tests. They can be non-adaptive, when every group to be tested is designed before or without observing any test results, or adaptive, when the tests are performed in several stages, and when groups to be tested at the next stage can be chosen based on the results of the tests performed up to the current stage (Scarlett, 2019) . For example, Dorfman's test is a two-stage adaptive strategy. There exists a large body of work on adaptive and non-adaptive group testing in the noiseless setting, i.e., when we assume that a test is positive if and only if at least one individual in the group tested is infected . In that setting, adaptive strategies tend to have better theoretical guarantees and result in more practical algorithms than non-adaptive strategies (Scarlett and Cevher, 2016; Aldridge, 2017; Scarlett, 2019) . For example, Hwang (1972) proposed a multi-stage adaptive binary splitting algorithm, which achieves the information-theoretical asymptotic lower bound on the number of tests needed to identify all infected individuals when the population size increases and the proportion of infected individuals vanishes (Baldassini et al., 2013) . Additionally, it is known that non-adaptive designs can be suboptimal compared to adaptive strategies in some regimes (Agarwal et al., 2018) . Optimal two-stage adaptive algorithms are also well understood in the noiseless setting (M\u00e9zard and Toninelli, 2011; De Bonis et al., 2005) .",
+            "cite_spans": [
+                {
+                    "start": 464,
+                    "end": 480,
+                    "text": "(Scarlett, 2019)",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 915,
+                    "end": 942,
+                    "text": "(Scarlett and Cevher, 2016;",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 943,
+                    "end": 958,
+                    "text": "Aldridge, 2017;",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 959,
+                    "end": 974,
+                    "text": "Scarlett, 2019)",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 990,
+                    "end": 1002,
+                    "text": "Hwang (1972)",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1283,
+                    "end": 1308,
+                    "text": "(Baldassini et al., 2013)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1429,
+                    "end": 1451,
+                    "text": "(Agarwal et al., 2018)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1542,
+                    "end": 1570,
+                    "text": "(M\u00e9zard and Toninelli, 2011;",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1571,
+                    "end": 1593,
+                    "text": "De Bonis et al., 2005)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Noisy Group testing. With Covid-19 as a backdrop, where RT-PCR are known to be noisy (Wikramaratna et al., 2020; Yelin et al., 2020) , the noisy regime of group testing is far more relevant. As noise increases, results that are outputted by testing devices gradually depart from the theoretical combinatorial setting, rendering it far less relevant in practice. In the noisy regime, informationtheoretic limits of group testing are well understood (Malyutov, 1978; Malyutov and Mateev, 1980; Atia and Saligrama, 2012; Baldassini et al., 2013; Scarlett and Cevher, 2016; Aldridge, 2017) but most existing group testing strategies are non-adaptative (Malyutov and Mateev, 1980; Chan et al., 2011 Chan et al., , 2014 Scarlett and Cevher, 2018) , with the exception of Cai et al. (2013) ; Scarlett (2019) . The latter two algorithms have various optimality properties in an asymptotic regime, when the population size increases and the fraction of infected individuals vanishes; however, little is known about the quality of these methods in a non-asymptotic regime, with a small but non-vanishing proportion of infections in the population.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 112,
+                    "text": "(Wikramaratna et al., 2020;",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 113,
+                    "end": 132,
+                    "text": "Yelin et al., 2020)",
+                    "ref_id": null
+                },
+                {
+                    "start": 448,
+                    "end": 464,
+                    "text": "(Malyutov, 1978;",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 465,
+                    "end": 491,
+                    "text": "Malyutov and Mateev, 1980;",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 492,
+                    "end": 517,
+                    "text": "Atia and Saligrama, 2012;",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 518,
+                    "end": 542,
+                    "text": "Baldassini et al., 2013;",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 543,
+                    "end": 569,
+                    "text": "Scarlett and Cevher, 2016;",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 570,
+                    "end": 585,
+                    "text": "Aldridge, 2017)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 648,
+                    "end": 675,
+                    "text": "(Malyutov and Mateev, 1980;",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 676,
+                    "end": 693,
+                    "text": "Chan et al., 2011",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 694,
+                    "end": 713,
+                    "text": "Chan et al., , 2014",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 714,
+                    "end": 740,
+                    "text": "Scarlett and Cevher, 2018)",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 765,
+                    "end": 782,
+                    "text": "Cai et al. (2013)",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 785,
+                    "end": 800,
+                    "text": "Scarlett (2019)",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our contributions. In this work, we depart from the standard asymptotic analysis and propose to phrase the problem of adaptive group design in the noisy regime as a sequential experimental design problem. Deciding on which groups to test next requires formulating a hypothesis on what are the most likely infectious states of individuals, given groups seen so far and prior infection beliefs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our first proposal is to use loopy belief propagation (Pearl, 1982) to recover an approximation of the marginal distribution of infection states from past group tests results. We follow in that sense work by (Sejdinovic and Johnson, 2010) with a slightly different setup as described in \u00a7A. We propose a baseline adaptive methods by combining that LBP approximation with the so-called informative dorfman (ID) method McMahan et al. (2012) .",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 67,
+                    "text": "(Pearl, 1982)",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 208,
+                    "end": 238,
+                    "text": "(Sejdinovic and Johnson, 2010)",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 417,
+                    "end": 438,
+                    "text": "McMahan et al. (2012)",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our second and most important contribution is to go beyond marginal approximations, and use more computationally demanding sequential Monte-Carlo (SMC) samplers (Del Moral et al., 2006) to sample from the binary space {0, 1} n of infection status vectors. We start from the overall approach proposed by (Sch\u00e4fer and Chopin, 2013) in the context of sparse Bayesian regression, and consider alternative ways to define Metropolis-Hastings kernels. The main rationale for using posterior approximations is that they can be used to inform a Bayesian experimental design strategy (Chaloner and Verdinelli, 1995) , where groups at each stage are selected to maximize the expected utility of their test results, and where after each stage we update our belief about the joint status of all individuals from the tests' results using Bayes theorem. We consider different utility functions to guide the choice of groups, including minimizing the entropy of the posterior (maximizing mutual information or information gain), or maximizing the expected area under the ROC curve (AUC) when we rank individuals by their posterior marginal probability to be infected. Because of its favorable computational properties, we focus in our experiments on maximizing the mutual information of new tests, and we use a greedy forward/backward algorithm to do so. We call that algorithm G-MIMAX (Greedy Mutual Information MAXimization) . We show using a large number of simulations on a set of 70 patients infected with 2%, 5% and 10% prevalence rates that our approach converges much faster to accurate identification of infected individuals than several baselines, including random group mechanisms which are known to be optimal in an asymptotic regime, as well as individual tests.",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 185,
+                    "text": "Moral et al., 2006)",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 303,
+                    "end": 329,
+                    "text": "(Sch\u00e4fer and Chopin, 2013)",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 574,
+                    "end": 605,
+                    "text": "(Chaloner and Verdinelli, 1995)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Prior on infection. We consider a population of n individuals, who can be either infected or not. We model the infection status of the i-th individual by a binary random variable X i , where X i = 1 if that individual is infected and X i = 0 otherwise, and let X = (X 1 , . . . , X n ) \u2208 {0, 1} n be the infection status of the whole population. We assume that a prior probability distribution P (0) for X is given, reflecting our prior knowledge about the infection status of the population. For example, we may model the infection status of individuals as independent random variables, each following a Bernoulli distribution X i \u223c B(q i ), where q i may be the same across all individuals and set to a base infection rate, or on the contrary specific to each individual, extrapolated for instance from, e.g., a questionnaire asking for risk factors (\"were you in contact with a sick person in the past week?\", \"did you experience symptoms?\", etc). In other words, under this model, the prior probability satisfies, for any x = (x 1 , . . . , x n ) \u2208 {0, 1} n ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "Of course, more informed and non-independent priors (relating for instance two people in the same household) may be considered; as discussed in Section 4.3, we represent the prior P with a set of particles in {0, 1} n , giving us the flexibility to consider any sort of initial prior.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "Group vs. individual testing in the presence of testing noise. Our goal is to infer which individuals are infected and which ones are not. For that purpose, we can run tests, which give us information about the status of one or several individuals. More precisely, we focus on group tests, which for any given group g \u2282 {1, . . . , n} give us information about the binary status of the group: either none of the individuals in the group is infected, in which case the group status is negative, or at least one individual is infected, in which case the group status is positive. A straightforward approach to test the whole population would be to test each individual one-by-one, however, this raises two questions: (i) this requires a total of n tests, which may be costly if n is large, and may not be necessary if only a small percentage of the population is infected; (ii) tests can be noisy (e.g., nose and throat swab tests by qRT-PCR can create false positives and false negatives), so by testing only once each individual there is a risk of error which may not be acceptable. Our goal in this paper is to propose solutions to both problems, by designing group tests that allow to control the errors made on each individual, while minimizing the number of tests needed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "Probabilistic inference using group tests. Given an integer n, we write n for the set of integers {1, . . . , n}. We denote by G the set of all non-empty groups, i.e., non-empty subsets of n . With a slight overload of notations that should be clear from context, we equivalently represent a group g \u2208 G as a binary vector g \u2208 {0, 1} n , where the i-th element of g is 1 if and only if i \u2208 g. We use the notation g = g T 1 n to denote the size of group g (therefore if we use indexed groups g i , g i stands for the size of g i ). Given two binary vectors g, x in {0, 1} n we write",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "the binary status of group g given the binary status of individuals x. In other words, [g, x] \u2208 {0, 1} is equal to 0 if and only if all entries in x indexed by g are equal to 0. For any distribution P over {0, 1} n , we further denote",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "Given a group g \u2208 G, a group test associated to g is a binary random variable Y g to assess if at least an individual in g is infected, i.e., to assess the group status [g, X] . We assume that conditioned on X, all group tests considered are independent from each other, and that each group test follows a Bernoulli law that depends on the status of the group tested, and of the specificity and sensitivity of the test. More precisely, a group test of size g with sensitivity s g and specificity \u03c3 g is such that",
+            "cite_spans": [
+                {
+                    "start": 169,
+                    "end": 175,
+                    "text": "[g, X]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "Put differently, we can write for any x \u2208 {0, 1} n and y \u2208 {0, 1}:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "where \u03c1 g := s g + \u03c3 g \u2212 1. Alternatively, using the logit function (u) = log u 1\u2212u , we can rewrite this probability in terms of \u03c3g = (\u03c3 g ), sg = (s g ) and \u03b3 = log(1 \u2212 s g ) \u2212 log(\u03c3 g ) as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "We assume that tests can be run simultaneously in parallel, and will therefore not only consider the outcome of one group Y g , but rather the outcome of k groups G = (g 1 , . . . , g k ) \u2208 G k . We denote by G * = \u222a i\u22651 G i the set of all possible non-empty batches of groups. We equivalently represent a batch of k groups as a matrix in {0, 1} n\u00d7k , and we denote, for any x \u2208 {0, 1} n , the vector of group status for all groups in the batch as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "and naturally introduce Y G = (Y g1 , . . . , Y g k ) for the random vector of test results in the batch, taking values in {0, 1} k . Note that a group g may appear several times in G, if for example we want to test several times the same group. In that case, with a slight abuse of notations, we use the same notation Y g for potentially several independent random variables corresponding to the results of testing g several times. Since we assume that the test results of different groups are independent from each other given X, the entries of Y G are independent Bernoulli variable of parameter s g or 1 \u2212 \u03c3 g , depending of whether the corresponding entries in [G, x] are 1 or 0. In other words, we can write compactly the law of Y G given X as follows, using the individual test likelihoods (5):",
+            "cite_spans": [
+                {
+                    "start": 666,
+                    "end": 672,
+                    "text": "[G, x]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "where \u2297 and stand for element-wise exponentiation and multiplication, respectively. Alternatively, when k is very large and precision becomes an issue, one may consider instead log-likelihoods (6) to obtain",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "x] \u2212 \u03c3 u + log(\u03c3)) , (8) where log(\u03c3), \u03c3 , s and \u03b3 are k-dimensional vectors with respective entries log(\u03c3 gi ), \u03c3g i , sg i and \u03b3 gi , for i = 1, . . . , k. In our experiments, the number of new tests at every round k is of the order of 8, and therefore evaluating (7) directly poses no underflow/overflow challenge as long as the specificity and sensitivity are not too close to 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background on Group Testing"
+        },
+        {
+            "text": "In T -stage adaptive group design, for a given T \u2208 N, we iteratively select batches of groups G (1) , . . . , G (T ) \u2208 G * . After each stage i, we observe the results of the tests Y G (i) , and the choice of the next batch G (i+1) can depend on the results of all previous tests (",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "After observing the test results at the i-th stage, we denote by P (i) the posterior distribution given all previous observations, i.e., for any event A,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "In particular, P (0) is the prior distribution P that reflects our prior assumption about the population and the quality of the tests.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "We phrase the problem of adaptive group design as a myopic sequential Bayesian experimental problem (Chaloner and Verdinelli, 1995) , where at each stage we try to greedily select the batch of groups which largest utility given our current belief:",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 131,
+                    "text": "(Chaloner and Verdinelli, 1995)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "where G (i) \u2282 G * is the set of batches allowed at stage i (which, e.g., may be constrained in terms of number of groups, group size, or possibility or not to test each individual). The utility U (G, P (i) ) of a batch of groups G given our current belief P (i) is itself defined as the expected value, using the current P (i) , of a function \u03c6 of the posterior probability P (i+1) that would include test results that would involve pools in G:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "The choice of \u03c6 is dictated by our final goal and cost function, e.g., identifying as many infected people as possible with a given specificity; ranking individuals from the less likely to the most likely to be infected, or more generally reducing as much as possible the uncertainty about the status of the population in the posterior distribution for further Bayesian analysis. We now detail and derive algorithms for two particular classes of utility functions, (i) the negative entropy of the posterior and (ii) performance of a predictor of individual infections based on the marginal probabilities to be infected.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bayesian Experimental Design to Select Informative Groups"
+        },
+        {
+            "text": "A standard measure of uncertainty for a random variable is its entropy. To reduce the uncertainty over the population status, we can therefore take for \u03c6 the negative entropy function:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "where for any pair of random variables X, Y with joint distribution P, I P is their mutual information (MI) (Cover and Thomas, 1990) :",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 132,
+                    "text": "(Cover and Thomas, 1990)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "In other words, the utility of a group G is, up to an additive constant, equal to the MI under P (i) between X and Y G . Since the additive constant is the same for all groups, we can as well just consider the MI term to define the utility of a group:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "The MI is a standard utility function in Bayesian experimental design (Lindley, 1956; Chaloner and Verdinelli, 1995) . In our particular setting, the evaluation of U MI is facilitated by the following formulation: Lemma 1. For any batch of groups G = (g 1 , . . . , g k ) \u2208 G * , and any joint distribution between X and Y G ,",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 85,
+                    "text": "(Lindley, 1956;",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 86,
+                    "end": 116,
+                    "text": "Chaloner and Verdinelli, 1995)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "is the binary entropy, and for any group g, h \u03c3g = h(\u03c3 g ), h sg = h(s g ), and \u03b3 g = h sg \u2212 h \u03c3g . In the case of a single group g \u2208 G, this reduces to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "Proof. Let us start with a single group g \u2208 G. From (13) we use the fact that I P (X; Y g ) can also be written as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "and compute each term in turn. H P (Y g ) can be computed easily from the law of X since, by (5),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "For the second term, we notice that, conditionally to X = x, Y g is a Bernoulli random variable whose expectation only depends on [g, x] , which itself can only take two values 0 and 1. By (4) we deduce:",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 136,
+                    "text": "[g, x]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "which we can summarize as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "We deduce that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "Plugging (18) and (20) into (17) gives (16). Moving now to the case of a batch G = (g 1 , . . . , g k ) \u2208 G * , we use the fact that the entries of Y G are independent from each other given X to write, for any x \u2208 {0, 1} n , and using (19),",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "As a result,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "Plugging this equation into (13) gives (15).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximizing Mutual Information, or Equivalently the Negative Entropy of the Posterior"
+        },
+        {
+            "text": "A second class of utility functions assess directly the performance of a predictor of infection, based on the estimated probability that each individual is infected. While quality of a predictor is correlated with the certainty we have in the state of the population, our framework gives the flexibility to optimize directly a specific measure of performance of the predictor, such as the AUC, instead of the negative entropy of the posterior. For that purpose, we consider a quality measure \u03c8 : R n \u00d7 {0, 1} n to quantify by \u03c8(s, x) how good the prediction of infections based on the individual scores s \u2208 R n is when the true infection status of the population is x \u2208 {0, 1} n . Examples of measures include accuracy, specificity, sensitivity or AUC:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Utility Based on Posterior Marginals"
+        },
+        {
+            "text": "where TP(s,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Utility Based on Posterior Marginals"
+        },
+        {
+            "text": "are respectively the number of true positives and true negatives when we predict an individual i as infected when",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Utility Based on Posterior Marginals"
+        },
+        {
+            "text": "(1 \u2212 x i ) are the total number of infected and non-infected individuals, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Utility Based on Posterior Marginals"
+        },
+        {
+            "text": "Given a distribution P X over the state of the population, let \u00b5 i (P X ) = P X (X i = 1) = E P X X i be the probability that the i-th individual is infected is, and \u00b5(P X ) = (\u00b5 1 (P X ), . . . , \u00b5 i (P n )) the vector of marginal probabilities of infection for individuals in the population. For each of the measures \u03c8(s, x) of prediction quality in (21), we can define a corresponding function \u03c6(P X ) where P X is a distribution on {0, 1} n as \u03c6(P X ) = E P X \u03c8(\u00b5(P X ), X) , and the corresponding utility function from (11).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Utility Based on Posterior Marginals"
+        },
+        {
+            "text": "In order to implement the sequential Bayesian experimental design procedure described in Section 3, we now describe in more details the algorithmic components to compute the utility of a batch of groups (11), find a batch that maximizes the utility (10), and maintain a computationally tractable description of the posterior distribution after each stage (9).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms"
+        },
+        {
+            "text": "For any functional \u03c6, Algorithm 1 estimates the utility \u03c6(G, P) of a batch G of groups given a distribution P over {0, 1} n . We assume that the distribution P is provided to the function as a tuple of N pairs",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "All weights taken together form a probability vector in the N simplex \u03c9 \u2208 \u03a3 N , whereas all particles taken together form a matrix X. If the population size n is not too large, then we can take N = 2 n to cover the full space {0, 1} n ; however, when n is larger than a few tens, we suggest instead to encode the true posterior after each stage with N 2 n particles using a sequential Monte Carlo approach described in Section 4.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "The space complexity of Algorithm 1 is O(N \u00d7 max(2 k , n)), where n is the number of individuals, k is the number of groups, and N is the size of the support of the distribution P(X), e.g. the number of particles. The time complexity is dictated by line 6, where we repeat 2 k times a call to the utility function \u03c6(P) where P has a support of size N in {0, 1} n . If this operation has complexity C(N, n), then the time complexity of Algorithm 1 is O(2 k C(N, n)). For example, the entropy utility \u03c6 Ent has C(N, n) = O(N ), while for utilities based on marginals we need to compute the n marginals first in O(N ) operations each, hence C(N, n) = O(N n) to compute marginals.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "Algorithm 1: Compute utility of a set of groups ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "When the utility function is the mutual information (Section 3.1), we can bypass a few steps in the algorithm. Indeed, instead of using Algorithm 1 with the utility function",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": ", and directly evaluate the first term from the vector D and the second term from the matrix A, using the fact that since Y G is a product distribution conditioned to X we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "The resulting algorithm is shown in Algorithm 2. Compared to using Algorithm 1 with \u03c6 = \u03c6 Ent , the computation of F in O(N \u00d7 2 k ) operations to compute 2 k entropies over a space of cardinality N in Algorithm 1, line 6, is replaced by the computation of H 2 in O(N \u00d7 k) (Algorithm 2, line 2) and of H 1 in O(2 k ) to compute a single entropy over a space of cardinality 2 k (Algorithm 2, line 7).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "Algorithm 2: Compute MI utility of a set of groups",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "1} n\u00d7k a set of groups; \u03c3, s \u2208 [0, 1] n the specificities and sensitivities of the test for each group in G. Output: The MI utility of the groups U",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Evaluate Utilities"
+        },
+        {
+            "text": "Given a function that computes the utility of any candidate batch of groups, as described in Section 4.1, the question of finding a batch that maximizes the utility (10) is a complex discrete optimization problem. Any standard algorithm for discrete optimization can in principle be used to find suboptimal solutions, such as greedy forward/backward optimization, simulated annealing or genetic algorithms. We choose to use a greedy approach to maximize the mutual information utility, subject to the constraint that each group should have at most n max individuals, and that the batch should contain any number m \u2264 k of groups. Simply put, we greedily create groups one by one, until we have m groups. Once we have created groups G j = (g 1 , . . . , g j ), we create a new group g j+1 by starting from an empty group g = \u2205 (line 3) and growing iteratively the group by selecting the individual that adds the most mutual information g \u2190 g \u222a {i} where i \u2208 arg max u I P (X ; Y (G j ,g\u222a{u}) ), until either we stop making progress in terms of mutual information, or when the group has already reached size n max . We consider additionally a variant in which we do not only consider greedy addition of individuals to form a group, but also removal, resulting in Forward-Backward iterations. Algorithm 3 describes an efficient way to carry out such forward passes more efficiently than by evaluating repeatedly Algorithm 2, because it leverages the fact that G is built sequentially, column by column. We omit the backward pass which only consists in changing line 5 (by setting g \u03c9 = 1 instead) and removing (rather than adding) \u03b9 u * from g in line 16. At each loop index in i (line 4), having a number F of forward passes and B of backward passes, with F > B, requires executing the body of the loop (lines 5 to 14) F times in forward mode, and B times in backward mode.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Optimize Mutual Information"
+        },
+        {
+            "text": "We use the following notations in Algorithm 3: small letters denote constants, small bold letters denote vectors, bold capital letters are matrices and bold greek letters are 3D tensors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithms to Optimize Mutual Information"
+        },
+        {
+            "text": "Once a new batch of groups G (t) is selected at the t-th stage of the campaign, we observe the result of the test Y G (t) \u2208 {0, 1} k and must update the posterior (9):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "A naive approach to store and update P (t) , and one that is in fact tractable up to n \u2248 25 patients, is to consider all possible 2 n infection status vectors, and update the probability of each state x \u2208 {0, 1} n Algorithm 3: G-MIMAX: Optimize MI of m prospective group tests with greedy search",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "Number of m groups to add, n max upperbound on group size",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "// initialize group, objective, positive in group across particles indicator 4 for i \u2190 1 to n max do 5 \u03b9 \u2190 (w \u2208 n : g w = 0), r \u2190 |\u03b9| // indices that can be added",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "// probability tensor across all possible candidate groups \u00d7 particles \u00d7 2 j hypothetical test results across j groups. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": ".",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "At n = 25, this results in enumerating about 33 million possible states, that is as many binary numbers of length 25. A more reasonable approach, but one which would lead to a minor decrease would be to consider states with up to a certain proportion of infected (e.g. 20%) but with n+1 n/5 possible states remains still intractable for moderate n.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "Instead of the naive approach, we propose two strategies to approximate the posterior P (t) (X):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "\u2022 A cheap approximation of the posterior that only estimates the marginal posterior distribution of each state. This approximation is particularly relevant to estimate and optimize utility functions based on marginal posteriors (Section 3.2). We use a loopy belief propagation algorithm for that purpose (Pearl, 1982) , see Appendix A for details on the implementation.",
+            "cite_spans": [
+                {
+                    "start": 304,
+                    "end": 317,
+                    "text": "(Pearl, 1982)",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "\u2022 A more expensive sequential Monte Carlo sampler (SMC-S) (Del Moral et al., 2006) using the likelihood ratio above, sampling from the unnormalized numerator at the bottom of (22) above, from scratch after each new test, or by using the update likelihood above with particles sampled at the previous step. Based on preliminary tests, we choose to resample at every iteration. Building on the overall approach outlined by Sch\u00e4fer and Chopin (2013), we consider a few variants for the MH kernel, which all seem to provide similar results as shown in Figure 3 . We consider classical Gibbs sampling Geman and Geman (1984) by looping cyclically across all n components of all particle (4 times by default at each kernel application); a slightly modified Metropolis-Hastings Gibbs kernel introduced by Liu (1996) for discrete spaces resulting in larger acceptance rate; the approach described in Sch\u00e4fer and Chopin (2013) that uses a global kernel estimated from sparse logistic regression. Although our experiments show that the latter approach is faster than Gibbs sampling, we obtain with our parameter settings a slightly lower performance in terms of specificity/sensitivity in our simulations. Pairing it with (local) Gibbs sampling recovers a better performance, with a slightly faster sampling compared to Gibbs. In practice all three methods perform similarly on our final task.",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 82,
+                    "text": "Moral et al., 2006)",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 596,
+                    "end": 618,
+                    "text": "Geman and Geman (1984)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 891,
+                    "end": 916,
+                    "text": "Sch\u00e4fer and Chopin (2013)",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 548,
+                    "end": 556,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "It is important to note that these two approaches are fundamentally different, in the sense that LBP only produces a single vector of marginals \u00b5 \u2208 [0, 1] n , whereas the SMC-S approach produces a cloud of weighted particles (\u03c9 i , x i ) \u2208 [0, 1] \u00d7 {0, 1} n for i = 1, . . . , N to encode the approximation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "While the former can be used to quickly assess the status of an individual, the latter is more relevant to optimize for groups:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "\u2022 We use the LBP approximation to evaluate (decode), at any point in the testing campaign, the marginal probability of individuals. This allows to monitor the performance of group testing strategies even though the testing campaign has not fully ended, as was proposed by Sejdinovic and Johnson (2010) . We also propose to use that marginal distribution to define a simple adaptive rule to select groups, building on the informative Dorfman (ID) procedure (McMahan et al., 2012) . We propose a modified ID procedure: instead of using an individualized infection prior known beforehand to define groups using ID, we use the LBP marginal at every iteration to re-run the ID selection procedure.",
+            "cite_spans": [
+                {
+                    "start": 272,
+                    "end": 301,
+                    "text": "Sejdinovic and Johnson (2010)",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 456,
+                    "end": 478,
+                    "text": "(McMahan et al., 2012)",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "\u2022 We use the SMC-S approximation of the posterior to inform our adaptive experimental design, e.g. feed directly the results from the SMC-S to compute and optimize with a greedy approach the MIMAX criterion as in Alg. 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "All of the components we have described (posterior approximation, group optimization) can be pieced together to define an overall group testing strategy. We call those policies, sequential algorithms that propose groups to test using the knowledge of previous tests.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Posterior Sampling and Marginal Probability Evaluation"
+        },
+        {
+            "text": "A group testing policy is an algorithm that can design iteratively, given prior beliefs and observed test results, what groups to form next. A policy is therefore a sequence of algorithms that can take previous tests into consideration and output new groups. We call each of these algorithms a group selector. We consider in this work various policies, all designed as predefined sequences of group selectors (although each group selector can be adaptive, the policy defines a sequence of group selectors that is not). All the policies we consider require having beforehand a prior on infection status. Dorfman policies can only use a prior infection rateq that is shared across all individuals. In the simulations we run in this paper we have assumed no mis-specification, namely the infection rate used in the simulator is the same as that assumed by the policy,q = q, and equivalently for specificity and sensitivity. Recall that group selectors must comply with the constraint that the size of their groups be smaller than a number n max . We start by describing the group selectors, and list policies that combine them.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sequential Group Testing using Testing Policies"
+        },
+        {
+            "text": "We start with selectors that require no knowledge other than the base infection rate.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Basic selectors building on uniform priors"
+        },
+        {
+            "text": ". This is the first stage of Dorfman tests, splitting all n patients into subgroups of size roughly equal to min n max , 1 + 1 \u221a q at the first stage.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dorfman Splitting (D)"
+        },
+        {
+            "text": "Split only positives (SplitPos). This is the second stage of Dorfman tests, with a focus exclusively on those groups that returned positive in the first wave. (SplitPos:0) tests individually all samples that have appeared in a positive group; (SplitPos:2) uses Hwang's hierarchical approach (1972) to split all positive groups into two subgroups of roughly equal sizes, to subsequently tests those smaller groups, and then start again by dividing those positive subgroups. At each stage, all positive groups that have been flagged as positive previously are split until only individuals are tested. M\u00e9zard-Toninelli Splitting (MT) . This approach selects randomly groups of the same size g across all n possible patients. Given a prior q, the group is chosen to get an acceptance probability of 1/2. In our setting, this translates to the requirement that the group size g satisfies",
+            "cite_spans": [
+                {
+                    "start": 261,
+                    "end": 297,
+                    "text": "Hwang's hierarchical approach (1972)",
+                    "ref_id": null
+                },
+                {
+                    "start": 599,
+                    "end": 630,
+                    "text": "M\u00e9zard-Toninelli Splitting (MT)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dorfman Splitting (D)"
+        },
+        {
+            "text": "This identity follows from the fact setting",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dorfman Splitting (D)"
+        },
+        {
+            "text": "leads to a group size g as given above, with the added constraint on maximal group sizes. M\u00e9zard and Toninelli (2011) have proved that in the absence of noise this choice is asymptotically optimal.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 117,
+                    "text": "M\u00e9zard and Toninelli (2011)",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dorfman Splitting (D)"
+        },
+        {
+            "text": "Origami fixed design (OM3). We also consider predefined groups, as enumerated in the Origami M3 assay matrix (Kainkaryam and Woolf, 2008) . This design is a binary matrix G of size 70 \u00d7 22, with 22 tests of groups whose size is roughly 10. This matrix was proposed with a deterministic decoder that operates assuming up to \u2248 5% individuals are infected, without taking into account noisy tests, as is usual in the combinatorial group testing literature. We therefore expect that assay to be the most useful for infection rates that are below 5%.",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 137,
+                    "text": "(Kainkaryam and Woolf, 2008)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dorfman Splitting (D)"
+        },
+        {
+            "text": "Modified Informative Dorfman (MID). Given an individualized prior infection probability, q 1 , . . . , q n , Hwang (1975) proposed an optimal rule that proceeds by grouping individuals by increasing infection probability with groups of decreasing size. McMahan et al. (2012) proposed the informative Dorfman rule as a generalization of that problem that can adapt to a noisy setting. The rule proceeds by sorting patients by increasing marginal infection probability, and group them with groups that are initially large (to clear large subsets of unlikely infected patients) to small (to test individuals likelier to be infected in smaller groups). More precisely, given a sorted list of individuals with increasing infection probability q 1 , . . . , q n , (McMahan et al., 2012) propose in their pool specific optimal Dorfman (PSOD) algorithm to group together the first c * individuals, where c * is defined as",
+            "cite_spans": [
+                {
+                    "start": 109,
+                    "end": 121,
+                    "text": "Hwang (1975)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 253,
+                    "end": 274,
+                    "text": "McMahan et al. (2012)",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 758,
+                    "end": 780,
+                    "text": "(McMahan et al., 2012)",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Selectors building on marginal distribution"
+        },
+        {
+            "text": "remove them from the queue and proceed until all individuals are grouped. We modify this rule as follows: in the absence of an individual prior, we recover results from a first wave of tests to produce an LBP marginal approximation that we plug in the rule. We additionally constrain c to be smaller than n max . Because the informative Dorfman procedure was designed as a single stage procedure, with no consideration of testing capacity per unit of time, we modify it to fit our sequential scheme as follows: (i) we discard individuals with marginal probabilities smaller and larger than 0.1% and 90% respectively. we sort them and use the efficiency criterion to form groups that cannot be larger than n max . as in the R package binGroup (Bilder et al., 2010) . (ii) Because the number of groups resulting from the informative Dorfman rule is random and likelier to be bigger than the maximal budget k, we propose to subsample k of them randomly at each cycle, in order to be able to propose more informed tests at the next cycle.",
+            "cite_spans": [
+                {
+                    "start": 742,
+                    "end": 763,
+                    "text": "(Bilder et al., 2010)",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Selectors building on marginal distribution"
+        },
+        {
+            "text": "Greedy Maximization of Mutual Information (G-MIMAX). We optimize the mutual information utility using k groups and samples produced from a SMC Sampler, as described in Algorithm 3. By fedault the number of forward iterations is F = 1, backward is B = 0. We do however observe in simulations a small increase in performance using F = 4 and B = 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Selectors building on posterior distribution"
+        },
+        {
+            "text": "We consider the following policies, here all composed by one or at most two group selectors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Policies"
+        },
+        {
+            "text": "\u2022 Dorfman: starts with Dorfman splitting first (D) followed by (SplitPos:0) \u2022 Binary Dorfman: starts with Dorfman splitting first (D) followed by (SplitPos:2) applied as many times as needed. \u2022 MT : generates random groups at each stage with the (MT) selector using the optimal size outlined in (23). For both q = 5% and 10%, that size is above the limit of n max = 10, and we therefore stick to 10. For 10 = 2% the rule results in groups of size 7. \u2022 OM3-MID: uses (OM3) for 22 tests, and then switches to (MID) using the LBP marginal.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Policies"
+        },
+        {
+            "text": "\u2022 G-MIMAX: uses (G-MIMAX) on a sample from the prior first, and then from the posterior distribution using a SMC sampler.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Policies"
+        },
+        {
+            "text": "Given a batch of n patients to be tested, we assume that testing capacities allow for k tests per testing cycle, carried out in parallel. For instance, in RT-PCR testing, what we call a testing cycle (not to be confused with the thermal cycles running in PCR) would require from 1 to 4 hours, and the machine would allow for k simultaneous tests. If the population is much larger and testing capacity K per cycle much bigger, a simple way to adapt our procedure would be to split the population in B batches of n patients, to allocate a testing capacity for each batch equal to k = K/B. We assume for simplicity that the testing machine has constant specificity \u03c3 and sensitivity s that is independent of the group size, but cap the maximal group size to a number n max . Since our simulator can account for varying specificity/sensitivity per group size, we leave simulations in that setting for future work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Simulations"
+        },
+        {
+            "text": "Our simulations run for a predefined number T of test cycles, during which we can carry out up to k tests per test cycle. We consider settings where T k < n. The testing simulator is described in Algorithm 4 using the following notations: (A) is the number of lines of a matrix A, A :i for the first i lines of a matrix, and A i: for the matrix A stripped of those i first lines. It essentially follows by sampling a patient infection status and then, through an iterative selection of tests reach a marginal distribution whose AUC is compared to the sampled ground truth labels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Group testing simulator"
+        },
+        {
+            "text": "We use the following parameters in our simulation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "\u2022 Number of patients n = 70.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "\u2022 Constant specificity \u03c3 = 97% and sensitivity s = 85%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "\u2022 Base infection rates of q = 2%, 5%, 10%",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "\u2022 Two different testing environments:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "1. We consider a PCR machine that can allocate a budget of k = 8 tests per cycle, for that pool of 70 patients. We track the performance over at most T = 5 test cycles (equivalent to a full day if these cycles took 5 hours). We consider a maximal group size n max of 10. In that setting, most methods we consider can generate a varying number of tests per cycle, and can therefore saturate the test budget at will. Only Dorfman methods may, on the contrary, use less than 8 tests at some cycles, and even possibly terminate (notably for low infection rates) before 5 cycles. 2. In order to study Dorfman baselines in a setting that is more favorable, we also consider 1 test cycles, where T = 24 and only one test, k = 1, is generated at a time, for an infection rate of 5%. In that setting Dorfman methods only use pools of size 6 or less, which is why we also cap n max to 6% for all methods. This setting is of course very costly for posterior based methods, since it requires (re)sampling the posterior at every iteration new test.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Input: Prior P 0 on patients infection state space {0, 1} n Test(G) returns (G) noisy tests \u03c3, s \u2208 [0, 1] 2 by pooling individuals according to G Policy(t, m, y t , G t , ) algorithm that outputs at iteration t up to m new groups according to past test results y t /G t , possibly informed by posterior particles or marginal approximation . Sampler(y t , G t , P 0 ) produces N posterior samples given test results and prior MarginalSampler(y t , G t , P 0 ) produces only approximate marginal distribution. Output: Pairs of ground-truth vectors sampled from prior and marginal predictions of infection. 1 x truth \u223c P 0 // sample one ground truth status 2 \u03c9 0 = 1 N /N, X 0 \u223c P \u2297N 0 // sample N particles from prior 3 G totest \u2190 0 n\u00d70 , G 0 \u2190 0 n\u00d70 , y 0 \u2190 0 0 // initialize groups and test results 4 for t \u2190 1 to T do 5 if (G totest ) < k then // check enough groups to test (\u03c9 t , X t ) \u2190 Sampler(y t , G t , P 0 ) // sample particles using test results 14x t \u2190 MarginalSampler(y t , G t , P 0 ) // recompute marginal using tests 15 a t \u2190 (x truth ,x t ) // store current belief at cycle t 16 return a",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 4: Simulator for Campaign of Tests"
+        },
+        {
+            "text": "We run 5,000 simulations for each policy, by sampling an infection status vector from the prior. Each of these simulations produces a ground truth infection status vector and a sequence of T marginal probability distributions, generated using LBP by observing the sequence of group tests observed up to cycle T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 4: Simulator for Campaign of Tests"
+        },
+        {
+            "text": "In Figures 1 and 4 we apply the same threshold on the LBP marginals of all simulations of a given policy, to decide for each simulations which individuals are classified as positive/negative. We record the resulting sensitivity/specificity for each simulation at that threshold and average these values over 5,000 simulations (for those ground-truth samples where only negatives are sampled, which can notably happen with a base rate of 2%, the sensitivity cannot be evaluated and those simulations are therefore only used to record specificity). Using the same threshold, rather than the AUC ranking based loss that we used in an earlier version of this work, results in a more realistic assessment of these methods: If these testing policies where to be deployed, one would need to decide beforehand on a single threshold to decide on the infection status of individuals, not on a ranking. We measure the progression of the average specificity/sensitivity of the policy as a function of the number of test cycles carried out.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 18,
+                    "text": "Figures 1 and 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Algorithm 4: Simulator for Campaign of Tests"
+        },
+        {
+            "text": "In Figures 2 and 3 we plot the average specificity/sensitivity obtained by varying that threshold (recovering a curve of average sensitivity/specificity levels using all experiments with, again, the same threshold), and provide two plots as a function of the number of tests (24 and 32 for low prevalence, 32 and 40 for higher prevalence). Figure 3 illustrates the robustness of the SMC sampler to the kernel that is used, as seen through the lens of the performance of G-MIMAX.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 18,
+                    "text": "Figures 2 and 3",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 340,
+                    "end": 348,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Algorithm 4: Simulator for Campaign of Tests"
+        },
+        {
+            "text": "Our goal in this work is to maximize the efficiency of group testing in the noisy setting in which tests can be flipped at random. By relying on a particle representation of the posterior, we are able to formulate the problem of designing groups iteratively as a combinatorial problem, solved with a greedy algorithm. We have benchmarked our approach against the celebrated Dorfman procedure and show a substantial improvement in performance. Our results for the more complex (1) in \u00a76.2, to plot average specificity/sensitivity over 5,000 simulations for each of the policies we consider in three base infection settings. Those two numbers are recovered by computing first, given past group test results, an LBP approximation of the marginal distribution of infection of each patient and thresholding it at certain level (5, 10 and 15% respectively for 2, 5 and 10% base infection rates) to make a binary decision. These thresholds are arbitrary, and follow from examining Fig.2 . We report these average specificity/sensitivity as the number of tests that is effectively carried out grows. The specificity/sensitivity of individual tests (requiring therefore 70 tests) is plotted in red, and can be attained or improved upon in most settings by G-MIMAX with nearly half the number of tests. Here G-MIMAX uses a Gibbs sampler using Liu's modification with 10,000 particles and the overall algorithm setting described in (Sch\u00e4fer and Chopin, 2013) . Figure 1 we report average specificity/sensitivity for various policies, but use instead a single number of tests for each plot and vary the threshold used to make decisions. We therefore obtain a global specificity/sensitivity curve for all 5,000 experiments using a common set of thresholds. Figure 4 : Progression of average specificity/sensitivity using the second setup in \u00a76.2 where each testing cycle consists in only one test. Note that both Dorfman and Binary Dorfman have an identical initial trajectory because they share the first 12 initial uniform split (70 into groups of 6 or 5 individuals).",
+            "cite_spans": [
+                {
+                    "start": 1421,
+                    "end": 1447,
+                    "text": "(Sch\u00e4fer and Chopin, 2013)",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 974,
+                    "end": 979,
+                    "text": "Fig.2",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 1450,
+                    "end": 1458,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1744,
+                    "end": 1752,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Conclusion"
+        },
+        {
+            "text": "MI approach suggests a fertile ground to improve our algorithms along several directions: quality of posterior sampling, consideration of more complex utility functions \u03c6, and additional efforts on the combinatorial solver tasked to produce groups out of posterior samples. Since our method currently scales exponentially with the number k of groups that need to be designed (which we have equated in this work to the number of tests available per round for that pool of patients), an extension of our work that carries out resampling at each group optimization iteration might be required for longer horizons.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "A standard way to compute an approximation of the posterior marginals is to run loopy belief propagation (LBP) until convergence. Here we detail the LBP equations for our setting. Given n individuals and m tests performed with groups g i , . . . , g m \u2282 [1, n], LBP alternates passing messages \u00b5 i\u2192j = (\u00b5 i\u2192j (0), \u00b5 i\u2192j (1)) \u2208 R 2 from individuals i \u2208 [1, n] to groups j \u2208 [1, m] with i \u2208 g j , and \u00b5 j\u2192i = (\u03bc j\u2192i (0),\u03bc j\u2192i (1)) \u2208 R 2 from groups j with i \u2208 g j to individuals i, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "Adding a superscript (t) to clarify the messages sent at the t-th iteration of LBP, the messages from an individual i \u2208 [1, n] to a group j \u2208 [1, m] with i \u2208 g j follow the standard equations:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "The messages from a group j \u2208 [1, m] to an individual i \u2208 [1, n] with i \u2208 g j depend on the result of the test Y gj : if Y gj = 0 (negative test), then Furthermore, let us make the change of variables, for any (i, j, t) \u2208 [1, n] \u00d7 [1, m] \u00d7 N,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "Then (24) can be rewritten as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "Similarly, denoting\u1fb1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "we can rewrite (25) and (26) ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "and if Y gj = 1,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "After convergence of the messages (denoted as t = \u221e), we estimate the posterior marginal of the i-th individual as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        },
+        {
+            "text": "that is, P LBP (D i = 1 | Y g1 , . . . , Y gm ) = 1 1 + e",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Approximate posterior estimation by loopy belief propagation"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Novel impossibility results for group-testing",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jaggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mazumdar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. IEEE Int. Symp. Information Theory (ISIT)",
+            "volume": "",
+            "issn": "",
+            "pages": "2579--2583",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "The capacity of Bernoulli nonadaptive group testing",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Aldridge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "63",
+            "issn": "11",
+            "pages": "7142--7148",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Group testing: an information theory perspective. Foundations and Trends R in Communications and Information Theory",
+            "authors": [
+                {
+                    "first": "Matthew",
+                    "middle": [],
+                    "last": "Aldridge",
+                    "suffix": ""
+                },
+                {
+                    "first": "Oliver",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jonathan",
+                    "middle": [],
+                    "last": "Scarlett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "15",
+            "issn": "",
+            "pages": "196--392",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "National covid-19 testing action plan, pragmatic steps to reopen our workplaces and our communities. pages 1-30. The Rockefeller Foundation",
+            "authors": [
+                {
+                    "first": "Danielle",
+                    "middle": [],
+                    "last": "Allen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Julius",
+                    "middle": [],
+                    "last": "Krein",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ganesh",
+                    "middle": [],
+                    "last": "Sitaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "Glen"
+                    ],
+                    "last": "Weyl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Boolean compressed sensing and noisy group testing",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Atia",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Saligrama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "58",
+            "issn": "3",
+            "pages": "1880--1901",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "The capacity of adaptive group testing",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Baldassini",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Aldridge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "2013 IEEE International Symposium on Information Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "2676--2680",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "A comparative survey of nonadaptive pooling designs",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Balding",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bruno",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Torney",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Knill",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Genetic mapping and DNA sequencing",
+            "volume": "",
+            "issn": "",
+            "pages": "133--154",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Random multiple-access communication and group testing",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Mehravari",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Towsley",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "IEEE Trans. Commun",
+            "volume": "32",
+            "issn": "7",
+            "pages": "769--779",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "bingroup: a package for group testing",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bilder",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Schaarschmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tebbs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The R journal",
+            "volume": "2",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Grotesque: Noisy group testing (quick and efficient)",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jahangoshahi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bakshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jaggi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proc. and Computing (Allerton) 2013 51st Annual Allerton Conf. Communication, Control",
+            "volume": "",
+            "issn": "",
+            "pages": "1234--1241",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Bayesian experimental design: a review",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chaloner",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Verdinelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Stat. Sci",
+            "volume": "10",
+            "issn": "3",
+            "pages": "273--304",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Non-adaptive probabilistic group testing with noisy measurements: Near-optimal bounds with efficient algorithms",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Chan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Che",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jaggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Saligrama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. and Computing (Allerton) 2011 49th Annual Allerton Conf. Communication, Control",
+            "volume": "",
+            "issn": "",
+            "pages": "1832--1839",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Non-adaptive group testing: Explicit bounds and novel algorithms",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Chan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jaggi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Saligrama",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Agnihotri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "60",
+            "issn": "5",
+            "pages": "3019--3035",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Pattern matching with don't cares and few errors",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Clifford",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Efremenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Porat",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rothschild",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Comput. Syst. Sci",
+            "volume": "76",
+            "issn": "2",
+            "pages": "115--124",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "What's hot and what's not: tracking most frequent items dynamically",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cormode",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Muthukrishnan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "ACM Trans. Database Sys",
+            "volume": "30",
+            "issn": "1",
+            "pages": "249--278",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Optimal two-stage algorithms for group testing problems",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Thomas ; A. De",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bonis",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Gasieniec",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Vaccaro",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "SIAM J. Comput",
+            "volume": "34",
+            "issn": "5",
+            "pages": "1253--1270",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Sequential monte carlo samplers",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Moral",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Doucet",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jasra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "J. R. Stat. Soc. Ser. B",
+            "volume": "68",
+            "issn": "3",
+            "pages": "411--436",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "The detection of defective members of large populations",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Dorfman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1943,
+            "venue": "Ann. Math. Statist",
+            "volume": "14",
+            "issn": "4",
+            "pages": "436--440",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Combinatorial group testing and its applications",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Hwang",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hwang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "World Scientific",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Stochastic relaxation, gibbs distributions, and the bayesian restoration of images",
+            "authors": [
+                {
+                    "first": "Stuart",
+                    "middle": [],
+                    "last": "Geman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donald",
+                    "middle": [],
+                    "last": "Geman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "IEEE Transactions",
+            "volume": "",
+            "issn": "6",
+            "pages": "721--741",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A method for detecting all defective members in a population by group testing",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hwang",
+                    "suffix": ""
+                }
+            ],
+            "year": 1972,
+            "venue": "J. Am. Stat. Assoc",
+            "volume": "67",
+            "issn": "339",
+            "pages": "605--608",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "A generalized binomial group testing problem",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fk",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hwang",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "70",
+            "issn": "352",
+            "pages": "923--926",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "poolhits: A shifted transversal design based pooling strategy for high-throughput drug screening",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kainkaryam",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Woolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "BMC Bioinformatics",
+            "volume": "9",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Asymptotics of fingerprinting and group testing: Tight bounds from channel capacities",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Laarhoven",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Trans. Inf. Forensics Security",
+            "volume": "10",
+            "issn": "9",
+            "pages": "1967--1980",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "On a measure of the information provided by an experiment",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Lindley",
+                    "suffix": ""
+                }
+            ],
+            "year": 1956,
+            "venue": "Ann. Math. Statist",
+            "volume": "27",
+            "issn": "4",
+            "pages": "986--1005",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Peskun's theorem and a modified discrete-state gibbs sampler",
+            "authors": [
+                {
+                    "first": ";",
+                    "middle": [
+                        "A J"
+                    ],
+                    "last": "Jun S Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Macula",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Popyack",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Discrete Appl. Math",
+            "volume": "83",
+            "issn": "3",
+            "pages": "149--157",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "The separating property of random matrices. Mathematical notes of the Academy of Sciences of the USSR",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Malyutov",
+                    "suffix": ""
+                }
+            ],
+            "year": 1978,
+            "venue": "",
+            "volume": "23",
+            "issn": "",
+            "pages": "84--91",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Planning of screening experiments for a nonsymmetric response function",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Malyutov",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Mateev",
+                    "suffix": ""
+                }
+            ],
+            "year": 1980,
+            "venue": "Mathematical notes of the Academy of Sciences of the USSR",
+            "volume": "27",
+            "issn": "",
+            "pages": "57--68",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Informative dorfman screening",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Tebbs",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bilder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Biometrics",
+            "volume": "68",
+            "issn": "1",
+            "pages": "287--296",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Group testing meets traitor tracing",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Meerwald",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Furon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. Speech and Signal Processing (ICASSP) 2011 IEEE Int. Conf. Acoustics",
+            "volume": "",
+            "issn": "",
+            "pages": "4204--4207",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Group testing with random pools: Optimal two-stage algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "M\u00e9zard",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Toninelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "57",
+            "issn": "3",
+            "pages": "1736--1745",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "A survey on combinatorial group testing algorithms with applications to dna library screening",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Ngo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.-Z",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Discrete Math. Problems with Medical Appl",
+            "volume": "55",
+            "issn": "",
+            "pages": "171--182",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Reverend Bayes on inference engines: A distributed hierarchical approach",
+            "authors": [
+                {
+                    "first": "Judea",
+                    "middle": [],
+                    "last": "Pearl",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Noisy adaptive group testing: Bounds and algorithms",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Scarlett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "65",
+            "issn": "6",
+            "pages": "3646--3661",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Phase transitions in group testing",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Scarlett",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Cevher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the twenty-seventh annual ACM-SIAM symposium on Discrete algorithms",
+            "volume": "",
+            "issn": "",
+            "pages": "40--53",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Near-optimal noisy group testing via separate decoding of items",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Scarlett",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Cevher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE J. Sel. Topics Signal Process",
+            "volume": "12",
+            "issn": "5",
+            "pages": "902--915",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Sequential monte carlo on large binary sampling spaces",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sch\u00e4fer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Chopin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Stat. Comput",
+            "volume": "23",
+            "issn": "2",
+            "pages": "163--184",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Pool testing of sars-cov-2 samples increases test capacity",
+            "authors": [
+                {
+                    "first": "Erhard",
+                    "middle": [],
+                    "last": "Seifried",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sandra",
+                    "middle": [],
+                    "last": "Ciesek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Note on noisy group testing: Asymptotic bounds and belief propagation reconstruction",
+            "authors": [
+                {
+                    "first": "Dino",
+                    "middle": [],
+                    "last": "Sejdinovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Oliver",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "48th Annual Allerton Conference on Communication, Control, and Computing (Allerton)",
+            "volume": "",
+            "issn": "",
+            "pages": "998--1003",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Group testing to eliminate efficiently all defectives in a binomial sample",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sobel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Groll",
+                    "suffix": ""
+                }
+            ],
+            "year": 1959,
+            "venue": "Bell Syst. Tech. J",
+            "volume": "38",
+            "issn": "5",
+            "pages": "1179--1252",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Estimating false-negative detection rate of sars-cov-2 by rt-pcr. medRxiv",
+            "authors": [
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Wikramaratna",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Robert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mahan",
+                    "middle": [],
+                    "last": "Paton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jose",
+                    "middle": [],
+                    "last": "Ghafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lourenco",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Born again group testing: Multiaccess communications",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "31",
+            "issn": "2",
+            "pages": "185--191",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Evaluation of COVID-19 RT-qPCR test in multi-sample pools. medRxiv",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Yelin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Aharony",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Shaer-Tamar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Argoetti",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Messer",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Berenbaum",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Shafran",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kuzli",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Gandali",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hashimshony",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Mandel-Gutfreund",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Halberthal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Geffen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Szwarcwort-Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kishony",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2020.03.26.20039438"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Parallel feature selection inspired by group testing",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Porwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ngo",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "R\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Govindaraju",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "27",
+            "issn": "",
+            "pages": "3554--3562",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "n\u00d7k a set of groups; \u03c3, s \u2208 [0, 1] n the specificities and sensitivities of the test for each group in G; \u03c6 : [0, 1] N \u00d7 {0, 1} n\u00d7N a utility function. Output: The utility of the groups U",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "record conditional entropies of all tests so far 15 if f i > f i\u22121 then 16 g = g \u222a {\u03b9 u * } // incorporate candidate 17 p = T u * ,\u00b7 // update vector of positive in group across particles = P new , h = h new // update probability & entropy after adding g 21 break at time t using Bayes rule:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "We follow the setup described as testing environment",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "/specificity of policy as a function of marginal threshold. 4 cycles of 8 tests (32 in total) , infection rate 0/specificity of policy as a function of marginal threshold. 5 cycles of 8 tests (40 in total) , infection rate 0",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "As in",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "In this plot we show that the kernel choice, as well as the number of particles used, has little impact on the overall performance of the G-MIMAX algorithm in the settings that we have considered.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "(1)) \u2212 (\u03c3 gj + s gj \u2212 1)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "To simplify these equations let us introduce some notations:e \u2212\u00b5i = q i 1 \u2212 q i for i \u2208 [1, n] , e \u03b3 0 j = \u03c3 gj + s gj \u2212 1 1 \u2212 s gj for j \u2208 [1, m] , e \u03b3 1 j = \u03c3 gj + s gj \u2212 1 s gj for j \u2208 [1, m] .",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "while if Y gj = 1 (positive test), then",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

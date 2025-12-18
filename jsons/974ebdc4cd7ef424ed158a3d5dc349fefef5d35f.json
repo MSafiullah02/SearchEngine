@@ -1,0 +1,495 @@
+{
+    "paper_id": "974ebdc4cd7ef424ed158a3d5dc349fefef5d35f",
+    "metadata": {
+        "title": "SSW Library: An SIMD Smith-Waterman C/C++ Library for Use in Genomic Applications",
+        "authors": [
+            {
+                "first": "Mengyao",
+                "middle": [],
+                "last": "Zhao",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Boston College",
+                    "location": {
+                        "addrLine": "140 Commonwealth Avenue, Chestnut Hill",
+                        "postCode": "02467",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Wan-Ping",
+                "middle": [],
+                "last": "Lee",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Boston College",
+                    "location": {
+                        "addrLine": "140 Commonwealth Avenue, Chestnut Hill",
+                        "postCode": "02467",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Gabor",
+                "middle": [
+                    "T"
+                ],
+                "last": "Marth",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Boston College",
+                    "location": {
+                        "addrLine": "140 Commonwealth Avenue, Chestnut Hill",
+                        "postCode": "02467",
+                        "region": "MA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The Smith-Waterman (SW) algorithm, which produces the optimal pairwise alignment between two sequences, is frequently used as a key component of fast heuristic read mapping tools and variation detecting tools. To allow the fast Single-Instruction-Multiple-Data (SIMD) SW been widely used in third-party software, we wrote a C/C++ library, which extends Farrar's Striped SW (SSW) to return the full information of the optimal alignment, and necessary information of a next-optimal alignment while keeping the same speed as the original algorithm that only returns the optimal score. Availability: The SSW library and its corresponding alignment tool are available at: https://github.com/mengyao/Complete-Striped-Smith-Waterman-Library",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The time complexity and memory requirement of the original SW algorithm (Smith and Waterman, 1981) make it impractical for mapping sequencing reads to large (e.g. mammalian) genome reference sequences. Several improvements have been made that result in substantial acceleration, using e.g. SIMD (Alpern et al., 1995) and Graphics Processing Unit (GPU) instructions (Liu et al., 2009 (Liu et al., , 2010 Ligowski et al., 2011) , with Farrar's SSW implementation (Farrar, 2007) achieving the fastest internal parallelization on the widely available SIMD processors.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 98,
+                    "text": "(Smith and Waterman, 1981)",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 295,
+                    "end": 316,
+                    "text": "(Alpern et al., 1995)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 365,
+                    "end": 382,
+                    "text": "(Liu et al., 2009",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 383,
+                    "end": 402,
+                    "text": "(Liu et al., , 2010",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 403,
+                    "end": 425,
+                    "text": "Ligowski et al., 2011)",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 461,
+                    "end": 475,
+                    "text": "(Farrar, 2007)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "With the exception of the SSEARCH program (Pearson, 1991) , however, existing accelerated SW implementations only return the optimal SW alignment score, rendering them less useful for read mapping where the objective is to obtain the map location and detailed alignment of a short sequence fragment to a typically much longer reference sequence. It is often also useful to know whether or not the alignment is \"unique\" i.e. whether there is a single best read mapping position. This question can be answered by obtaining the best alternative alignment to see whether its score is the same as (in which case the read mapping is not unique) or lower than (in which case the read mapping is unique) that of the optimal alignment. Although the latest version of SSEARCH (Pearson, 1991) can return detailed alignment corresponding to the optimal score, it is much slower than even unaccelerated SW implementations for short reference sequences (Supplemental Figure S1 ). Furthermore, because the software is not written in a library format it is cumbersome to integrate into third-party * To whom correspondence should be addressed.",
+            "cite_spans": [
+                {
+                    "start": 42,
+                    "end": 57,
+                    "text": "(Pearson, 1991)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 766,
+                    "end": 781,
+                    "text": "(Pearson, 1991)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 953,
+                    "end": 962,
+                    "text": "Figure S1",
+                    "ref_id": null
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "software. The aim of the present work is to provide a fast SW implementation with all essential output necessary for use in read mapping tools that is readily integrated with other C/C++ software.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We adopted the improvement of the \"lazy F loop\" proposed by SWPS3 (Szalkowski et al., 2008) to speed up Farrar's method. Besides this, we made the new following additions: (1) We record the optimal alignment ending positions during the SIMD SW calculation, and generate the detailed alignment by a reversed SIMD SW and a banded SW. When the score matrix is filled, we store the maximal score of each column in a \"max\" array, and record the complete column that has the maximal score. Next, we locate the optimal alignment ending position on the reference and the query by seeking the maximal score in the array and the recorded column, resp.. The reversed SIMD SW locates the best alignment beginning position from the ending position by calculating a smaller scoring matrix. Then, the banded SW (whose band is defined by the beginning and ending positions) generates the detailed alignment. (2) We determine a next optimal alignment score by seeking the second largest score in the \"max\" array. To avoid a sub-alignment of the primary alignment returned, we mask the elements in the region of the primary alignment of the \"max\" array and locate the second largest score from the unmasked elements ( Figure 1 ).",
+            "cite_spans": [
+                {
+                    "start": 66,
+                    "end": 91,
+                    "text": "(Szalkowski et al., 2008)",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1200,
+                    "end": 1208,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "ALGORITHM AND IMPLEMENTATION"
+        },
+        {
+            "text": "The SSW library is an application program interface (API) that can be used as a component of C/C++ software to perform optimal protein or genome sequence alignment. The library returns the SW score, alignment location and traceback of the optimal alignment, and the alignment score and location of the suboptimal alignment. We bundled the library as an executable alignment tool that can be used directly to perform protein or DNA alignments. Notably, this tool can be used to align sequencing reads to very large reference genome sequences e.g. the human genome.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Usage"
+        },
+        {
+            "text": "We compared SSW's performance (with and without returning the detailed alignment, SSW-C and SSW, resp.) to Farrar's accelerated SW and SSEARCH (version 36.3.5c) on a Linux machine with 800 MHz x86 64 AMD processors. We ran each program on a single thread.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Performance"
+        },
+        {
+            "text": "To measure the speed of protein database searching, we aligned protein sequences of varying length ( ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Performance"
+        },
+        {
+            "text": "2 2 T A 2 2 0 0 T 4 2 1 G 2 2 2 6 4 3 2 T 4 4 2 5 4 2 2 T 3 2 2 4 7 5 4 G 2 2 2 5 9 7 6 5 4 3 6 T 7 7 6 5 7 6 mask%length%=%5% mask%length%=%5% 2 nd %best% Fig. 1 . Illustration of alignment traceback and suboptimal alignment score determination. An example SW score matrix is shown (penalties for match, mismatch, gap open and extension are 2, -1, -2, and -1 resp.). The bottom row indicates the maximum score for each column. The algorithm locates the optimal alignment ending position (the black cell with score 9) using the array of maximum scores, and then traces back to the alignment start position (the black cell with score 2) by searching a much smaller, locally computed score matrix (circled by the black rectangle). Finally, a banded SW calculates the detailed alignment by searching the shaded sub-region. The scores connected by solid arrows belong to the optimal alignment. The max array records the largest score of each column. After the optimal alignment score (marked by 'best') is found, its neighborhood is masked, and the second largest score is reported outside the masked region (marked by 2nd best). The scores connected by dashed-line arrows trace the suboptimal alignment.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 156,
+                    "end": 162,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "C G C G A T G A A T T G G A C T T G G query G"
+        },
+        {
+            "text": "and TrEMBL, a total of 6,751,887,709 aa residues in 20,662,136 sequences), for all four algorithms (see Figure 2 (A)). SSEARCH did not return alignment results against the entire UniProt database, and we were only able to test it against one half of the TrEMBL sequences. Our SSW algorithm was the fastest or equally fast to SSEARCH across the entire protein sequence length range we tested.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 104,
+                    "end": 112,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "C G C G A T G A A T T G G A C T T G G query G"
+        },
+        {
+            "text": "To benchmark genome sequence alignment, we tested the programs with both simulated data and real sequencing reads. We selected 1Kb -10Mb regions from human chromosome 8, and using an Illumina read simulator (http://www.seqan.de/projects/mason/) we generated a thousand 100 bp-long sequences from these regions. We then aligned these reads back to their corresponding reference sequences with each of the four algorithms, and compared running time (see Figure 2 (B)). Finally, we compared running times using four sets of a thousand real sequencing reads representing three different sequencing technologies, aligned to four different reference genomes: (1) ABI capillary reads (1,388 bp average length) against the severe acute respiratory syndrome (SARS) virus (29,751 bp); (2) Ion Torrent reads (236 bp) against E. coli (4.94 \u00d7 10 3 bp); (3) Illumina reads (100 bp) against T. gondii (6.08 \u00d7 10 7 bp); and (4) Illumina reads against human chromosome 1 (2.49 \u00d7 10 8 bp) as shown in Figure 2 (C). The genome alignment performance of these programs under another set of SW parameters is shown in Supplemental Figure S1 . These results indicate that even while returning a full optimal alignment and one suboptimal score, our SSW algorithm is just as fast as Farrar's accelerated version. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 452,
+                    "end": 460,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 983,
+                    "end": 991,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1108,
+                    "end": 1117,
+                    "text": "Figure S1",
+                    "ref_id": null
+                }
+            ],
+            "section": "C G C G A T G A A T T G G A C T T G G query G"
+        },
+        {
+            "text": "We developed and made available a fast SW library using an SIMD acceleration. By returning not only optimal alignment score but also the actual alignment, as well as a secondary optimal or suboptimal alignment score, the SSW library is easily adopted by other, often heuristic genomic sequence analysis programs that require global or local SW alignment. SSW has already been adopted in two programs developed by our group: the split-read mapping program SCISSORS (https://github.com/wanpinglee/scissors) and the mobile element insertion (MEI) detector program TANGRAM (https://github.com/jiantao/Tangram).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Microparallelism and high performance protein matching",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Alpern",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Carter",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Gatlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Procceedings of the 1995 ACM/IEEE Supercomputing Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Striped smith-waterman speeds database searches six times over other simd implementations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Farrar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Bioinformatics",
+            "volume": "23",
+            "issn": "2",
+            "pages": "156--61",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Accurate scanning of sequence databases with the smith-waterman algorithm",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ligowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Rudnicki",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "GPU Computing Gems",
+            "volume": "",
+            "issn": "",
+            "pages": "155--157",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Cudasw++: optimizing smithwaterman sequence database searches for cuda-enabled graphics processing units",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Maskell",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "BMC Res Notes",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Cudasw++2.0: enhanced smithwaterman protein database search on cuda-enabled gpus based on simt and virtualized simd abstractions",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Maskell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "BMC Res Notes",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Searching protein sequence libraries: comparison of the sensitivity and selectivity of the smith-waterman and fasta algorithms",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Pearson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Genomics",
+            "volume": "11",
+            "issn": "3",
+            "pages": "635--50",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Identification of common molecular subsequences",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Waterman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "J Mol Biol",
+            "volume": "147",
+            "issn": "1",
+            "pages": "195--202",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Swps3 -fast multi-threaded vectorized smith-waterman for ibm cell/b.e. and x86/sse2",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Szalkowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ledergerber",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kr\u00e4henb\u00fchl",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dessimoz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "BMC Res Notes",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "60-2,432 aa) against the UniProt Knowledgebase release 2012 01 (including Swiss-Prot c Oxford University Press 2012. 1 arXiv:1208.6350v1 [q-bio.GN]",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Running time for different SW implementations. Log-scaled running time is shown on the y-axis for SSW without (red) and with (blue) detailed alignment, Farrar's implementation (green) and SSEARCH (pink). (A) Running times are shown for searching protein sequences against the full UniProt database (left) and one half of the TrEMBL database (right). All SW implementations used the BLOSUM50 scoring matrix with gap open penalty -12 and extension penalty -2. (B) The running time of aligning 1,000 simulated Illumina reads to human reference sequences of various lengths; and (C) of aligning 1,000 real sequencing reads to various microorganism genomes and the human chromosome 1 are shown. Farrar's implementation cannot handle long sequences as human chromosome 1, so its corresponding running time is not shown here.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Funding: This work has been funded by R01 HG4719 to GTM.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ACKNOWLEDGEMENT"
+        }
+    ]
+}

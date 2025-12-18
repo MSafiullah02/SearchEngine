@@ -1,0 +1,957 @@
+{
+    "paper_id": "2313bc846086535eb7501f444512a82ba244973d",
+    "metadata": {
+        "title": "Efficient Database Search via Tensor Distribution Bucketing",
+        "authors": [
+            {
+                "first": "Mihir",
+                "middle": [],
+                "last": "Mongia",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": "mmongia@andrew.cmu.edu.com"
+            },
+            {
+                "first": "Benjamin",
+                "middle": [],
+                "last": "Soudry",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Arash",
+                "middle": [
+                    "Gholami"
+                ],
+                "last": "Davoodi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Hosein",
+                "middle": [],
+                "last": "Mohimani",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": "hoseinm@andrew.cmu.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In mass spectrometry-based proteomics, one needs to search billions of mass spectra against the human proteome with billions of amino acids, where many of the amino acids go through posttranslational modifications. In order to account for novel modifications, we need to search all the spectra against all the peptides using a joint probabilistic model that can be learned from training data. Assuming M spectra and N possible peptides, currently the state of the art search methods have runtime of O(MN). Here, we propose a novel bucketing method that sends pairs with high likelihood under the joint probabilistic model to the same bucket with higher probability than those pairs with low likelihood. We demonstrate that the runtime of this method grows sub-linearly with the data size, and our results show that our method is orders of magnitude faster than methods from the locality sensitive hashing literature.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "The online version of this chapter (https://",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "One of the fundamental challenges in mass-spectrometry based proteomics is to identify proteins present in a cell culture by searching their mass spectrometry fingerprint against all the peptides in a proteomic database/reference. When the number of mass spectra and the size of the reference proteome increase, this search becomes very slow, especially in cases where post-translational modifications are allowed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Given a peptide sequence, the existing methods construct a binary-valued spectra from each peptide, where we have ones at the positions peaks are present and zeros otherwise. Then a probabilistic model is trained to learn the joint probability distribution P (spec, pep) between the predicted spectra and the discretized mass spectra ( Fig. 1 ) [10] . Given a spectra spec and a set of peptides P ep = {pep 1 , pep 2 . . . pep N }, the goal is to find the peptide(s) pep \u2208 P ep that maximize P (spec|pep). This task motivates the following problem. ",
+            "cite_spans": [
+                {
+                    "start": 345,
+                    "end": 349,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 336,
+                    "end": 342,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "the following maximum likelihood problem that generalizes the problem of matching peptides to spectra. Let A = {a 1 , a 2 , . . . a m } and B = {b 1 , b 2 , . . . b n } be discrete alphabets where m, n \u2208 N. Let P be a joint distribution on the alphabets A and B such that i=m i=1 j=n j=1 P(a i , b j ) = 1. Let S \u2208 N and P(X, Y ) = s=S s=1 P(x s , y s ) where X = (x 1 , x 2 , . . . , x S ), Y = (y 1 , y 2 , . . . , y S ) and x s \u2208 A, y s \u2208 B for 1 \u2264 s \u2264 S. Given a data point Y \u2208 B S and a set of classes 1 X 1 , \u00b7 \u00b7 \u00b7 , X N \u2286 A S our goal is to accurately and efficiently predict the class X t , 1 \u2264 t \u2264 N , that generated Y .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Database Search Problem In Probabilistic Settings (DPPS).Consider"
+        },
+        {
+            "text": "Note in reference to mass-spectrometry based proteomics, the classes {X 1 , \u00b7 \u00b7 \u00b7 , X N } model the set of peptides P ep = {pep 1 , pep 2 . . . pep N } and Y models a spectra spec. We address the DPPS problem by solving the following optimization problem:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Database Search Problem In Probabilistic Settings (DPPS).Consider"
+        },
+        {
+            "text": "A naive way to solve this optimization problem is to compute P(Y |X t ) for each 1 \u2264 t \u2264 N , and find the maximum among them. The complexity of this approach grows linearly with N , and thus is prohibitively slow for practical applications as N grows large.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Database Search Problem In Probabilistic Settings (DPPS).Consider"
+        },
+        {
+            "text": "As stated above, the issue with the naive way of solving DPPS is that brute force calculation of P(Y |X) for every X \u2208 {X 1 , \u00b7 \u00b7 \u00b7 , X N } is a slow algorithm. Another domain where brute force calculation is necessary is nearest neighbor search. In nearest neighbor search, there is a data point Y \u2208 R S and a set of points X 1 , X 2 , X 3 . . . X N \u2208 R S . The goal is to quickly solve the following minimization problem: arg min",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "where Y \u2212 X 2 stands for the Euclidean norm. This problem is equivalent to (1) in the special case where the probability distribution P is continuous and",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "For high-dimensional data, the exact nearest neighbor search problem grows linearly with the number of data points [9] . Therefore, researchers consider the approximate nearest neighbor (ANN) search problem. In the ANN-search problem, the objective is to find X \u2208 X 1 , X 2 , . . . X N such that",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "and c > 1 is referred to as the \"approximation factor\". A common algorithm for solving this problem is locality sensitive hashing [2, 6, 7, 9] (Algorithm 1). This algorithm takes as input hashes h that satisfy the following constraints for some R > 0, and 0 < P 2 \u2264 P 1 \u2264 1:",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 134,
+                    "end": 136,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 137,
+                    "end": 139,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 140,
+                    "end": 142,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "where hashes h satisfying (4) and (5) are called (R, cR, P 1 , P 2 ) -sensitive hashes. As stated in Gionis et al. [7] , \"The key idea is to hash the points using several hash functions so as to ensure that, for each function, the probability of collision is much higher for objects which are close to each other than for those which are far apart. Then, one can determine near neighbors by hashing the query point and retrieving elements stored in buckets containing that point.\"",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Outputs: A class X \u2208 X that is the most similar to Y . Preprocessing:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "hj(X) = (h1,j(X), h2,j(X), . . . hr,j(X)) Store {hj(x)|x \u2208 X } in a hash table H j Query:.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "Search hj(Y ) in H j , i.e. find all X \u2208 X that satisfy hj(Y ) = hj(X). Among all the positives (all the X \u2208 X that satisfy the line above), report the X that has the smallest Euclidean distance from Y .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "The locality sensitive hashing algorithm takes a query point Y and aims to find the point that is the most similar to it in a database. The algorithm does this by first applying r hash functions to the query point in each band j, 1 \u2264 j \u2264 b. Then in each band, the algorithm considers all points X in the database, that have been hashed to the same values as Y in all of the r hash functions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "Currently, LSH is limited to a number of distance metrics including manhattan distance (L 1 ), and euclidean distance (L 2 ). In order to use LSH for other similarity measures, one needs to transform them to L 1 , L 2 metrics for which standard hashes are known. While it is possible to transform the DPPS problem to an approximate nearest neighbor search problem with standard metrics, in this paper we show such transformations result in algorithms with suboptimal complexity. In this paper, we design buckets for the DPPS problem that significantly outperform standard LSH algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "We address the DPPS problem by defining pairs of relations (one for each alphabet) that are sensitive to the specific joint distribution that pairs of data points belong. Another distinctive feature of these hash relations, which we refer to as buckets, is that elements in the domain can be mapped to more than one element in the range. We refer to this framework as distribution sensitive bucketing. In distribution sensitive bucketing, the buckets U x :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "..Z} satisfy the following constraints for some 0 \u2264 \u03b2 \u2264 \u03b1 \u2264 1:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "Here, Z \u2208 N and for some set R, we define 2 R to be the set of all subsets of R. We refer to the buckets that satisfy (6), (7), (8), (9) , and (10) as (P, Q, \u03b1, \u03b2, \u03b4 x , \u03b4 y ) -sensitive buckets. For (P, Q, \u03b1, \u03b2, \u03b4 x , \u03b4 y ) -sensitive buckets, it is the case that (i) the probability of a jointly generated pair being mapped to the same value is \u03b1, (ii) the probability of random pairs X, Y being mapped to the same value is \u03b2, and (iii) the complexity of assigning points to the buckets is proportional to \u03b4 x and \u03b4 y . Thus intuitively, we would like to maximize \u03b1 while minimizing \u03b2,\u03b4 x , and \u03b4 y .",
+            "cite_spans": [
+                {
+                    "start": 133,
+                    "end": 136,
+                    "text": "(9)",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "The rest of the document will proceed as follows. In Sect. 3, we assume an oracle has given us a family of (P, Q, \u03b1, \u03b2, \u03b4 x , \u03b4 y ) -sensitive buckets, and we design an algorithm to solve (1) based on this family. In Sect. 4, we provide a way to construct these buckets. In Sect. 5 we derive the overall complexity of the algorithm presented in Sect. 3 and in Sect. 6, we propose an algorithm for constructing optimal buckets. Finally, in Sect. 7, we detail our experiments on simulated and real mass spectra.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. Locality Sensitive Hashing"
+        },
+        {
+            "text": "In the this section we introduce an algorithm for solving (1) when an oracle has given a family of distribution sensitive buckets and we refer to this algorithm as Distribution Sensitive Bucketing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Sensitive Bucketing Algorithm"
+        },
+        {
+            "text": "In contrast to the locality sensitive hashing algorithm that attempts to find the pairs of data points that are very similar to each other, the goal of distribution sensitive bucketing is to find pairs of data points that are jointly generated from a known joint probability distribution. Algorithm 2 describes a procedure to solve (1) using a family of distribution sensitive buckets. Here we use r rows and b bands, and in each band we check whether the query Y has a collision with a data point X in each of the r rows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distribution Sensitive Bucketing Algorithm"
+        },
+        {
+            "text": "Among all the positives (all the X \u2208 X that satisfy the line above, report the X that maximizes P(Y |X).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 2. Distribution Sensitive Bucketing"
+        },
+        {
+            "text": "In the previous section, we assumed an oracle has given us a set of distribution sensitive buckets, and we designed an algorithm to solve (1) using this family of buckets. In this section, we present an approach for constructing distribution sensitive buckets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "Let A and B be arbitrary binary tensors of dimensions m k \u00d7 Z and n k \u00d7 Z, respectively. To construct distribution sensitive buckets, for each pair of buckets we choose positions 1 \u2264 S 1 \u2264 S 2 . . . \u2264 S k \u2264 S randomly, and we define buckets U x S1,S2,...,S k and U y S1,S2,...,S k as follows: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "U y S1,S2,...,S k (Y ) = z \u2208 {1, . . . , Z} |B YS 1 ,YS 2 ,...,YS k ,z = 1 (12) As there is a straightforward way to convert a tensor to a matrix, in the rest of this paper we treat A and B as m k by Z and n k by Z binary matrices. Furthermore, for any matrix M and u, v \u2208 N we use the notation M [u, v] to refer to the entry belonging to the uth row and vth column of M . In the rest of this section, we derive \u03b1, \u03b2, \u03b4 x , and \u03b4 y for the proposed family of buckets. ",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 79,
+                    "text": "(12)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Constructing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "and I z denotes a vector ones of dimension z",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "Proof. For a proof of Theorem 1, see Supplementary Section 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "In Sect. 3, we provided Algorithm 2 to solve (1) given a family of Distribution Sensitive Buckets, and in the previous section we constructed a family of Distribution Sensitive Buckets based on m k \u00d7 Z and n k \u00d7 Z matrices, A and B. In this section, we analyze the expected complexity of Query portion of Algorithm 2 given the generative process defined in in DPPS. We first analyze the complexity given a specific instance of Y and X = X 1 , X 2 , X 3 . . . X N , and then derive the expected complexity. In Algorithm 2, the computational work for each query can be broken into (i) searching members of U j (Y ) in a hash table containing X\u2208X U j (X) in order to find positives and (ii) computing P(Y |X) for all the positives. Since searching a hash table is O(1) complexity, the computational work of (i) is equivalent to |U j (Y )|. Computing U j (Y ) requires forming the cartesian product U 1,j (Y ) \u00d7 U 2,j (Y )\u00d7, . . . , \u00d7U r,j (Y ). Thus, the total size of U j y over b bands can be upper bounded by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "The computational work of (ii) is equal to the number of positives. The number of positives can be calculated in the following way:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "The expectation of the sum of (17) and (18) given the generative process in DPPS is then given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "Note that here we assumed that almost all of the pairs are independently generated. This assumption is due to the fact that only one X \u2208 X is responsible for generating Y . Now the question is how do we select b? The probability of a jointly generated X, Y pair being called a positive (i.e. U x j (X) = U y j (Y ) for at least one j), which we refer to as the T rue P ositive Rate, can be calculated in the following way:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "We usually want to maintain a true positive rate of nearly 1, e.g. T rue P ositive Rate \u2265 1 \u2212 where is a small number. This can be realized by setting",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "Therefore, the overall expected complexity given the generative process in DPPS, can be upper bounded by the following expression 2 and X is already preprocessed:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "\u2212 ln \u03b1 r N\u03b2 r + \u2212 ln \u03b1 r \u03b4 r y (22)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "In Sects. 4 and 5, we described how to construct a family of distributive sensitive buckets using matrices A and B, and we derived the complexity of Algorithm 2 based on these matrices. In this section we present an approach to find the optimal matrices based on integer linear programming.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Designing Distribution Sensitive Buckets"
+        },
+        {
+            "text": "Algorithm 3 presents a integer linear programming approach for finding matrices A and B that optimize the complexity (22) using (13) , (14) , (15), and (16). Our approach is based on the assumption that matrix A is identity. The reason behind this assumption is that any matrix B is non-intersecting with the identity matrix.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "(13)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "(14)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Integer Linear Programming Method"
+        },
+        {
+            "text": "Inputs: m \u00d7 n matrix P, Q, k, r, x, y , Px \u2190 PIm,Py \u2190 InP,Q \u2190 PxPy",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 3. Designing distribution sensitive buckets through integer linear programming"
+        },
+        {
+            "text": "We often need to design buckets for larger values of k in order to design more efficient algorithms for solving (1) . However, the size of P k grows exponentially with k and thus Algorithm 3 will not run efficiently for k > 10. Thus, we use Algorithm 4 to filter P k to a smaller matrix P k , which only keeps the rows and columns in P k with sum above , and then pass this matrix, which we denote as P k , as an input to Algorithm 3.",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 3. Designing distribution sensitive buckets through integer linear programming"
+        },
+        {
+            "text": "Inputs: P, k \u2208 N, \u2264 1 Outputs: P k P 0 \u2190 1 for t = 1 to k do P t \u2190 P t\u22121 \u2297 P Remove any row/column in P t with sum below Report P k .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 4. Filtering of kronecker product matrix"
+        },
+        {
+            "text": "In this section we verify the advantage of our Distribution Sensitive Bucketing approach with several experiments. In the first experiment, we compare the performance of Distribution Sensitive Bucketing to several commonly used methods in the Locality Sensitive Hashing literature on a range of theoretical distributions P. Although these methods are not directly applicable to our problem, we can transform the DPPS problem into problems where these methods work. In the second experiment, we apply the Distribution Sensitive Bucketing algorithm along with the same methods from the Locality Sensitive Hashing literature to the problem of peptide identification from mass spectrometry signals. In this problem, given millions of peptides X = X 1 , X 2 , X 3 . . . X N and a discretized mass spectrum Y , our goal is to find a peptide X \u2208 X that maximizes P(Y |X) = s=S s=1 P(y s |x s ) where P can be learned from a training data set of known peptide-spectra pairs. We use the probabilistic model introduced in Kim et al. [10] , which is trained to score a mass spectra against a peptide sequence accounting for neutral losses and the intensity of peaks (see Supplementary Figure 1 ).",
+            "cite_spans": [
+                {
+                    "start": 1023,
+                    "end": 1027,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1174,
+                    "end": 1182,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "In this experiment we compared the complexity of 3 algorithms -LSH-Hamming, Inner Product Hash [13] , and Distribution Sensitive Bucketing -on a range of probability distributions. LSH-Hamming and Inner Product Search can not be directly applied to the DPPS problem as LSH-Hamming and Inner Product Hash only work when {X 1 , \u00b7 \u00b7 \u00b7 , X N } and Y both belong to the same alphabet. Nevertheless, through the following transformations, the DPPS problem can be transformed to a nearest neighbor search problem with hamming distance and the maximum inner product search problem. To transform the DPPS problem to nearest neighbor search with hamming distance, map each element in the alphabets A = {a 1 , \u00b7 \u00b7 \u00b7 , a m } and B = {b 1 , \u00b7 \u00b7 \u00b7 , b n } to either 0 or 1. As a result, for each X \u2208 {X 1 , , X N }, X \u2208 {0, 1} S and Y \u2208 {0, 1} S . To transform DPPS to the maximum inner product search problem, first change the objective function to log(P(Y |X)) = s=S s=1 log(P(y s |x s ). Observe that log(P(y s |x s )) can be expressed as the dot product of a one hot vector of size n (the size of the alphabet B) with a vector log(P(y|x s ) \u2208 R n . Now we can concatenate all the vectors (one for each 1 \u2264 s \u2264 S) into signals v Y and w X of length Sn. The dot product of these two vectors will be log(P(Y |X)). Thus one can then apply maximum inner product search (MIPS) to the set X = {w X |X \u2208 {X 1 , \u00b7 \u00b7 \u00b7 , X N }} and query vector v Y in order to solve the DPPS problem.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiment 1. Theoretical Complexity"
+        },
+        {
+            "text": "We benchmark the algorithms using probability distribution P(t) = P 1 t + In Fig. 2 , we plot the asymptotic complexity of each of the three algorithms. The asymptotic complexity can be expressed as O(N \u03bb ), for some \u03bb. The value of \u03bb is plotted versus t in Fig. 2 . As one can see, Distribution Sensitive Bucketing has a lower asymptotic complexity than LSH-Hamming for 0 \u2264 t \u2264 .5 and for t \u2265 .5 Distribution Sensitive Bucketing and LSH-Hamming have the same asymptotic complexity. Inner Product Hash is always worse than Distribution Sensitive Bucketing by a large margin.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 77,
+                    "end": 83,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 258,
+                    "end": 264,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experiment 1. Theoretical Complexity"
+        },
+        {
+            "text": "In this experiment we evaluated the performance of Distribution Sensitive Bucketing on simulated spectra and peptides. We simulated the mass spectra and peptides using the probabilistic model from Kim et al. [10] . For each of the algorithms, we choose the parameters so that they theoretically achieve a 95% true positive rate. In Figure 2 of the Supplementary, we verify experimentally that we indeed achieve a 95% True Positive Rate. Figure 3 shows the number of positive calls for our method in comparison to the brute force method, LSH-Hamming, and Inner Product Hash. Here, we changed the number of peptides from 100 to 100,000 and computed the average number of positives per spectrum averaged over 5,000 spectra. Figure 4 shows the runtime of brute force search, LSH-Hamming, and Inner Product Hash versus Distribution Sensitive Bucketing. Distribution Sensitive Bucketing is 20X faster than brute force while LSH -Hamming is only 2X faster than brute force. Inner Product Hash is always as slow as brute force search.",
+            "cite_spans": [
+                {
+                    "start": 208,
+                    "end": 212,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 332,
+                    "end": 340,
+                    "text": "Figure 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 437,
+                    "end": 445,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 721,
+                    "end": 729,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Experiment 2"
+        },
+        {
+            "text": "We applied Distribution Sensitive Bucketing, LSH-Hamming, Inner Product Hash, and brute force search to the problem of mass spectrometry database search in proteomics. Here we search a dataset of 93,587 spectra against the human proteome sequence. We tune the parameters of Distribution Sensitive Bucketing, LSH-Hamming, and Inner Product Hash on a smaller test data set to get a 95% True Positive rate and then apply the algorithms on the larger data set. For distribution sensitive bucketing, this resulted in a 91% true positive rate and 50X decrease in the number of positives in comparison to brute force search. Distribution Sensitive Bucketing also led to 30X reduction in time compared to brute force search. LSH-Hamming resulted in a 2X reduction in positives and a 2X reduction in computation time while achieving a True Positive Rate of 93%. Inner Product Hash did not improve on brute force search. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 3 -Mass Spectrometry Database Search in Proteomics"
+        },
+        {
+            "text": "In this paper we introduce a problem from computational biology which requires computing a joint likelihood of all pairs of data points coming from two separate large data sets. In order to speed up this brute force procedure, we develop a novel bucketing method. We show theoretically and experimentally our method is superior to methods from the locality sensitive literature.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Near-optimal hashing algorithms for approximate nearest neighbor in high dimensions",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Andoni",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "47th Annual IEEE Symposium on Foundations of Computer Science (FOCS 2006)",
+            "volume": "",
+            "issn": "",
+            "pages": "459--468",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Near-optimal hashing algorithms for approximate nearest neighbor in high dimensions",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Andoni",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Commun. ACM",
+            "volume": "51",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "An optimal algorithm for approximate nearest neighbor searching fixed dimensions",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Arya",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Mount",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Netanyahu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Silverman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "J. ACM (JACM)",
+            "volume": "45",
+            "issn": "6",
+            "pages": "891--923",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Similarity estimation techniques from rounding algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Charikar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the Thiry-fourth Annual ACM Symposium on Theory of Computing",
+            "volume": "",
+            "issn": "",
+            "pages": "380--388",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Set similarity search beyond MinHash",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Christiani",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pagh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 49th Annual ACM SIGACT Symposium on Theory of Computing",
+            "volume": "",
+            "issn": "",
+            "pages": "1094--1107",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Locality-sensitive hashing scheme based on p-stable distributions",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Datar",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Immorlica",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Mirrokni",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the Twentieth Annual Symposium on Computational Geometry",
+            "volume": "",
+            "issn": "",
+            "pages": "253--262",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Similarity search in high dimensions via hashing",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gionis",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "99",
+            "issn": "",
+            "pages": "518--529",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Approximate algorithms for high-dimensional geometric problems",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Invited Talk at DIMACS Workshop on Computational Geometry",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Approximate nearest neighbors: towards removing the curse of dimensionality",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Indyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the 30th Annual ACM Symposium on Theory of Computing",
+            "volume": "",
+            "issn": "",
+            "pages": "604--613",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "MS-GF+ makes progress towards a universal database search tool for proteomics",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Pevzner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Nat. Commun",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "MSFragger: ultrafast and comprehensive peptide identification in mass spectrometrybased proteomics",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Kong",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Leprevost",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Avtonomov",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mellacheruvu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Nesvizhskii",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Nat. Methods",
+            "volume": "14",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Mining of Massive Datasets",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rajaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Ullman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "On symmetric and asymmetric LSHS for inner product search",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Neyshabur",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srebro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1410.5518"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "In defense of MinHash over SimHash",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shrivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Artificial Intelligence and Statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "886--894",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Predicted spectra of three peptide FAG, KLT, and AMR are shown. Their mass spectra are shown in the bottom. The joint probability distribution between the predicted and mass spectra of the peptides, can be learned.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "S2,...,S k (X) = z \u2208 {1, . . . , Z} |A XS 1 ,XS 2 ,...,XS k ,z = 1",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Denote two buckets U x and U y and their corresponding matrices as A and B, respectively. These buckets satisfy (10) if for any row i of A and row j of B there is at most one column c where both A[i, c] = 1 and B[j, c] = 1. A and B satisfying this constraint are called non-intersecting. Theorem 1. Given a pair of bucket U x and U y and a corresponding pair of matrices A and B that satisfy the non-intersecting constraint, it can be shown that U x and U y are (P, Q, \u03b1, \u03b2, \u03b4 x , \u03b4 y )-sensitive where",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "For each algorithm we plot the theoretical asymptotic complexity of search for different values of t, which corresponds to different mixtures of distributions P1 and P2. By theoretical asymptotic complexity we mean the value \u03bb for which the complexity of the algorithm is O(N \u03bb ) The empirical number of positive calls by brute force search, Distribution Sensitive Bucketing, LSH-Hamming, and Inner Product Hash. Note in this case that Brute Force and Inner Product Hash perform the same. Distribution Sensitive Bucketing has 20X less positive calls than brute force search and 10X less positive calls than LSH-Hamming.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "The run time of Distribution Sensitive Bucketing (Algorithm 2), in comparison to brute force, LSH-Hamming, and Inner Product Hash. Distribution Sensitive Bucketing has a 20X reduction in time compared brute force. LSH-Hamming has a reduction of 2X compared to brute force.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. This work was supported by a research fellowship from the Alfred P. Sloan Foundation and a National Institutes of Health New Innovator Award (DP2GM137413).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

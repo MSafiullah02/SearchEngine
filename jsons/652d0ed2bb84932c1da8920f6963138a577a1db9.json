@@ -1,0 +1,1732 @@
+{
+    "paper_id": "652d0ed2bb84932c1da8920f6963138a577a1db9",
+    "metadata": {
+        "title": "VGCN-BERT: Augmenting BERT with Graph Embedding for Text Classification",
+        "authors": [
+            {
+                "first": "Zhibin",
+                "middle": [],
+                "last": "Lu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Montreal",
+                    "location": {
+                        "settlement": "Montreal",
+                        "country": "Canada"
+                    }
+                },
+                "email": "zhibin.lu@umontreal.ca"
+            },
+            {
+                "first": "Jian-Yun",
+                "middle": [],
+                "last": "Nie",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Montreal",
+                    "location": {
+                        "settlement": "Montreal",
+                        "country": "Canada"
+                    }
+                },
+                "email": "nie@iro.umontreal.ca"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Much progress has been made recently on text classification with methods based on neural networks. In particular, models using attention mechanism such as BERT have shown to have the capability of capturing the contextual information within a sentence or document. However, their ability of capturing the global information about the vocabulary of a language is more limited. This latter is the strength of Graph Convolutional Networks (GCN). In this paper, we propose VGCN-BERT model which combines the capability of BERT with a Vocabulary Graph Convolutional Network (VGCN). Local information and global information interact through different layers of BERT, allowing them to influence mutually and to build together a final representation for classification. In our experiments on several text classification datasets, our approach outperforms BERT and GCN alone, and achieve higher effectiveness than that reported in previous studies.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Text classification is a fundamental problem in natural language processing (NLP) and has been extensively studied in many real applications. In recent years, we witnessed the emergence of text classification models based on neural networks such as convolutional neural networks (CNN) [15] , recurrent neural networks (RNN) [13] , and various models based on attention [27] . BERT [8] is one of the self-attention models that uses multi-task pre-training technique based on large corpora. It often achieves excellent performance, compared to CNN/RNN models and traditional models, in many tasks [8] such as Namedentity Recognition (NER), text classification and reading comprehension.",
+            "cite_spans": [
+                {
+                    "start": 285,
+                    "end": 289,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 324,
+                    "end": 328,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 369,
+                    "end": 373,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 381,
+                    "end": 384,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 595,
+                    "end": 598,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The deep learning models excel by embedding both semantic and syntactic information in a learned representation. However, most of them are known to be limited in encoding long-range dependency information of the text [2] . The utilization of self-attention helps alleviate this problem, but the problem still remains. The problem stems from the fact that the representation is generated from a sentence or a document only, without taking into account explicitly the knowledge about the language (vocabulary). For example, in the movie review below:",
+            "cite_spans": [
+                {
+                    "start": 217,
+                    "end": 220,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\"Although it's a bit smug and repetitive, this documentary engages your brain in a way few current films do.\" both negative and positive opinions appear in the sentence. Yet the positive attitude \"a way few current films do\" expresses a very strong opinion of the innovative nature of the movie in an implicit way. Without connecting this expression more explicitly to the meaning of \"innovation\" in the context of movie review comments, the classifier may underweight this strong opinion and the sentence may be wrongly classified to be negative. On this example, self-attention that connects the expression to other tokens in the sentence may not help.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In recent studies, approaches have also been developed to take into account the global information between words and concepts. The most representative work is Graph Convolutional Networks (GCN) [16] and its variant Text GCN [32] , in which words in a language are connected in a graph. By performing convolution operations on neighbor nodes in the graph, the representation of a word will incorporate those of the neighbors, allowing to integrate the global context of a domain-specific language to some extent. For example, the meaning of \"new\" can be related to that of \"innovation\" and \"surprised\" through the connections between them. However, GCNs that only take into account the global vocabulary information may fail to capture local information (such as word order), which is very important in understanding the meaning of a sentence. This is shown in the following examples, where the position of \"work\" in the sentence will change the meaning depending on its context: -\"skip work to see it at the first opportunity.\" -\"skip to see it, work at the first opportunity.\"",
+            "cite_spans": [
+                {
+                    "start": 194,
+                    "end": 198,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 224,
+                    "end": 228,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, inspired by GCN [16, 32] and self-attention mechanism in BERT, we propose to combine the strengths of both mechanisms in the same model. We first construct a graph convolutional network on the vocabulary graph based on the word co-occurrence information, which aims at encoding the global information of the language, then feed the graph embedding and word embedding together to a self-attention encoder in BERT. The word embedding and graph embedding then interact with each other through the self-attention mechanism while learning the classifier. This way, the classifier can not only make use of both local information and global information, but also allow them to guide each other via the attention mechanism so that the final representation built up for classification will integrate gradually both local and global information. We also expect that the connections between words in the initial vocabulary graph can be spread to more complex expressions in the sentence through the layers of self-attention.",
+            "cite_spans": [
+                {
+                    "start": 31,
+                    "end": 35,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 36,
+                    "end": 39,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We call the proposed model VGCN-BERT. Our source code is available at https://github.com/Louis-udm/VGCN-BERT.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We carry out experiments on 5 datasets of different text classification tasks (sentiment analysis, grammaticality detection, and hate speech detection). On all these datasets, our approach is shown to outperform BERT and GCN alone.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The contribution of this work is twofold:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-Combining global and local information: There has not been much work trying to combine local information captured by BERT and global information of a language. We demonstrate that their combination is beneficial. -Interaction between local and global information through attention mechanism: We propose a tight integration of local information and global information, allowing them to interact through different layers of networks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As aforementioned, attention mechanisms [28, 31] based on various deep neural networks, in particular the self-attention mechanism proposed by Vaswan et al. [27] , have greatly improved the performance in text classification tasks. The representation of a word acquired through self-attention can incorporate the relationship between the word and all other words in a sentence by fusing the representations of the latter. BERT (Bidirectional Encoder Representations from Transformers) [8] , which leverages a multi-layer multi-head self-attention (called transformer) together with a positional word embedding, is one of the most successful deep neural network model for text classification in the past years. The attention mechanism in each layer of the encoder enhances the new representation of the input data with contextual information by paying multi-head attentions to different parts of the text. A pre-trained BERT model based on 800M words from BooksCorpus and 2,500M words from English Wikipedia is made available. It has also been widely used in many NLP tasks, and has proven effective. However, as most of other attention-based deep neural networks, BERT mainly focuses on local consecutive word sequences, which provides local context information. That is, a word is placed in its context, and this generates a contextualized representation. However, it may be difficult for BERT to account for the global information of a language.",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 44,
+                    "text": "[28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 45,
+                    "end": 48,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 157,
+                    "end": 161,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 485,
+                    "end": 488,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Self-attention and BERT"
+        },
+        {
+            "text": "Global relations between words in a language can be represented as a graph, in which words are nodes and edges are relations. Graph Neural Network (GNN) [2, 5] based on such a graph is good at capturing the general knowledge about the words in a language. A number of variants of GNN have been proposed and applied to text classification tasks [7, 12, 16, 21, 33] , of which Kipf et al. [16] creatively presented Graph Convolutional networks (GCN) based on spectral graph theory. GCN first builds a symmetric adjacency matrix based on a given relationship graph (such as a paper citation relationship), and then the representation of each node is fused according to the neighbors and corresponding relationships in the graph during the convolution operation.",
+            "cite_spans": [
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 157,
+                    "end": 159,
+                    "text": "5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 344,
+                    "end": 347,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 348,
+                    "end": 351,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 352,
+                    "end": 355,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 356,
+                    "end": 359,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 360,
+                    "end": 363,
+                    "text": "33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 387,
+                    "end": 391,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Convolutional Networks (GCN)"
+        },
+        {
+            "text": "Text GCN is a special case of GCN for text classification proposed by Yao et al. [32] recently. Different from general GCN, it is based on a heterogeneous graph where both words and documents are nodes. The relationships among nodes, however, are measured in three different ways, which are co-occurrence relations among words, tf-idf measure between documents and words, and self similarity among documents. In terms of convolution, Text GCN uses the same algorithm as GCN. GCN and its variants are good at convolving the global information in the graph into a sentence, but they do not take into account local information such as the order between words. When word order and other local information are important, GCN may be insufficient. Therefore, it is natural to combine GCN with a model capturing local information such as BERT.",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 85,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Convolutional Networks (GCN)"
+        },
+        {
+            "text": "Some recent studies have combined GCN with BERT. Shang et al. [23] applied a combination to the medication recommendation task, which predict a medical code given the electronic health records (EHR), i.e., a sequence of historical medical codes, of a patient. They first embed the medical codes from a medical ontology using Graph Attention Networks (GAT), then feed the embedding sequence of the medical code in an EHR into BERT for code prediction. Nevertheless, the order in the code sequence is discarded in the transformer since it is not applicable in their scenario, making it incapable of capturing all the local information as in our text classification tasks.",
+            "cite_spans": [
+                {
+                    "start": 62,
+                    "end": 66,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Existing Combinations of GCN and BERT"
+        },
+        {
+            "text": "Jong et al. [14] proposed another combination to the citation recommendation task using paper citation graphs. This model simply concatenates the output of GCN and the output of BERT for downstream predictive tasks. We believe that interactions between the local and global information are important and can benefit the downstream prediction tasks. In fact, through layers of interactions, one could allow the information captured in GCN be applied to the input text, and the representation of the input text be spread over GCN. This will produce the effect we illustrated in the earlier example of movie review (a way few current films do vs. innovation). This is the approach we propose in this paper.",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 16,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Existing Combinations of GCN and BERT"
+        },
+        {
+            "text": "One may question about the necessity to explicitly use graph embedding to cope with global dependency information, as some studies [18, 25] have shown that word embedding trained on a corpus, such as Word2Vec [19] , GloVe [22] , FastText [10] , can capture some global connections between words in a language. We believe that a vocabulary graph can still provide additional information given the fact that the connections between words observed in word embeddings are limited within a small text window (usually 5 words). Long-range connections are missing. In addition, by building a vocabulary graph on an application-specific document collection, one can capture application-dependent dependencies, in addition to the general dependencies in the pre-trained models.",
+            "cite_spans": [
+                {
+                    "start": 131,
+                    "end": 135,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 136,
+                    "end": 139,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 209,
+                    "end": 213,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 222,
+                    "end": 226,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 238,
+                    "end": 242,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Existing Combinations of GCN and BERT"
+        },
+        {
+            "text": "The global language information can take multiple forms. In this paper, we consider lexical relations in a language, i.e. a vocabulary graph. Any vocabulary graph can be used to complement BERT (e.g. Wordnet). In this paper, we consider a graph constructed using word co-occurrences with documents. Local information from a text is captured by BERT. The interaction between them is achieved by first selecting the relevant part of the global vocabulary graph according to the input sentence and transforming it into an embedding representation. We use multiple layers of attention mechanism on concatenated representation of input text and the graph. These processes are illustrated in Fig. 1 . We will provide more details in the following subsections. 12 Layers of Self Attention 1th 12th Fig. 1 . Illustration of VGCN-BERT. The embeddings of input sentence (Phase 1) are combined with the vocabulary graph (Phase 2) to produce a graph embedding, which is concatenated to the input sentence (Phase 3). Note that from the vocabulary graph, only the part relevant to the input is extracted and embedded. In Phase 4, several layers of self-attention are applied to the concatenated representation, allowing interactions between word embeddings and graph embedding. The final embedding at the last layer is fed in a fully connected layer (Phase 5) for classification.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 686,
+                    "end": 692,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 791,
+                    "end": 797,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "Our vocabulary graph is constructed using normalized point-wise mutual information (NPMI) [3] , as shown in Eq. 1:",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 93,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Vocabulary Graph"
+        },
+        {
+            "text": "where i and j are words,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary Graph"
+        },
+        {
+            "text": "is the number of sliding windows containing a word or a pair of words, and #W is the total number of sliding windows. To obtain long-range dependency, we set the window to the whole sentence. The range of value of NPMI is [-1,1]. A positive NPMI value implies a high semantic correlation between words, while a negative NPMI value indicates little or no semantic correlation. In our approach, we create an edge between two words if their NPMI is larger than a threshold. Our experiments show that the performance is better when the threshold is between 0.0 and 0.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary Graph"
+        },
+        {
+            "text": "A general GCN [16] is a multi-layer (usually 2 layers) neural network that convolves directly on a graph and induces embedding vectors of nodes based on properties of their neighborhoods. Formally, consider a graph G = (P, E) 1 , where P (with |P | = n) and E are sets of nodes and edges, respectively. For a single convolutional layer of GCN, the new representation is calculated as follows:",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 18,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "where X \u2208 R n\u00d7m is the input matrix with n nodes and m dimensions of the feature, W \u2208 R m\u00d7h is a weight matrix,\u00c3 = D \u2212 1 2 AD \u2212 1 2 is the normalized symmetric adjacency matrix, where D ii = j A ij . The normalization operation for A is to avoid numerical instabilities and exploding/vanishing gradients when used in a deep neural network model [16] .",
+            "cite_spans": [
+                {
+                    "start": 345,
+                    "end": 349,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "The graph nodes of GCN are \"task entities\" such as documents that need to be classified. It requires all entities, including those from training set, validation set, and test set, to be presented in the graph, so that no node representation is missing in downstream tasks. This limits the application of GCN in many predictive tasks, where the test data is unseen during the training process.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "In our case, we aim to convolve the related words instead of the documents in the corpus for classification. Therefore, the graph of our proposed GCN is constructed on the vocabulary instead of the documents. Thus, for a single document, assuming the document is a row vector x consisting of words in the vocabulary, a layer of convolution is defined in Eq. 3:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "where\u00c3 T =\u00c3 represent the vocabulary graph. x\u00c3 extracts the part of vocabulary graph relevant to the input sentence x. W holds the weights of the hidden state vector for the single document, with dimension |V | \u00d7 h. Then for m documents in a mini-batch, the one-layer graph convolution in Eq. 3 becomes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "and the corresponding 2-layer Vocabulary GCN with ReLU function is as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "where m is the mini-batch size, v is the vocabulary size, h is the hidden layer size, c the class size or sentence embedding size. Every row of X mv is a vector containing document features, which can be a bag-of-words vector, or word embedding of BERT. The above equation aims to produce a layer of convolution of the graph, which captures the part of the graph relevant to the input (through X mv\u00c3vv ), then performs 2 layers of convolution, combining words from input sentence with their related words in vocabulary graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Vocabulary GCN"
+        },
+        {
+            "text": "When BERT is applied to text classification, a typical solution contains three parts. The first part is the word embedding module with the position information of the word; the second part is the transformer module using multi-layer multihead self-attention stacking; and the third part is the fully connected layer using the output sentence embedding for classification. Self-attention operates with a query Q against a key K and value V pair. The attention score is calculated as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Integrating VGCN into BERT"
+        },
+        {
+            "text": "where the denominator is a scaling factor used to control the scale of the attention score, d k is the dimension of the query and key vectors. Using these attention scores, every word can get a weighted vector representation encoding the contextual information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Integrating VGCN into BERT"
+        },
+        {
+            "text": "Instead of using only word embeddings of the input sentence in BERT, we feed both the vocabulary graph embedding obtained by Eq. 5 and the sequence of word embeddings to BERT transformer. This way, not only the order of the words in the sentence is retained, but also the background information obtained by VGCN is utilized. The overall VGCN-BERT model is schematically illustrated in Fig. 1 . Through the attention score calculated by Eq. 6, local embedding and global embedding are fully integrated after layer-by-layer interaction in 12-layer and 12-heads self-attention encoder. The corresponding VGCN can then be formulated as:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 385,
+                    "end": 391,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Integrating VGCN into BERT"
+        },
+        {
+            "text": "where W hg , which was originally used for classification, becomes the output of size g of graph embedding (hyperparameter) whose dimension is the same as every word embedding; m is the size of the mini-batch; e is the dimension of word embedding, and v is the vocabulary size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Integrating VGCN into BERT"
+        },
+        {
+            "text": "We evaluate VGCN-BERT and compare it with baseline models on 5 datasets to verify whether our model can leverage both local and global information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment"
+        },
+        {
+            "text": "In addition to the original BERT model, we also use several other neural network models as baselines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-MLP: Multilayer perceptron with 2 hidden layers (512 and 100 nodes), and bag-of-words model with TF weighting.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-Bi-LSTM [11] : The BERT's pre-trained word embeddings are used as input to the Bi-LSTM model. -Text GCN: The original Text GCN model uses the same input feature as MLP model, and we use the same training parameters as in [32] . -VGCN: This model only uses VGCN, corresponding to Eq. 7, but the output dimension becomes the class size. BERT's pre-trained word embeddings are used as input. The output of VGCN is relayed to a fully connected layer with Softmax function to produce the classification score. This model only uses the global information from vocabulary graph. -BERT: We use the small version (Bert-base-uncased) pre-trained BERT [8] .",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 13,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 222,
+                    "end": 226,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 642,
+                    "end": 645,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-Vanilla-VGCN-BERT: Vanilla combination of BERT and VGCN is similar to [14] , which produces two separate representations through BERT and GCN, and then concatenates them. ReLU and a fully connected layer are applied to the combined representation for classification. The main difference of this model with ours is that it does not allow interactions between the input text and the graph.",
+            "cite_spans": [
+                {
+                    "start": 71,
+                    "end": 75,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "We ran our experiments on the following five datasets:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "-SST-2. The Stanford Sentiment Treebank is a binary single-sentence classification task consisting of sentences extracted from movie reviews with human annotations of their sentiment [24] . We use the public version 2 which contains 6,920 examples in training set, 872 in validation set and 1,821 in test set, for a total of 4,963 positive reviews and 4,650 negative reviews. The average length of reviews is 19.3 words. -MR is also a movie review dataset for binary sentiment classification, in which each review only contains one sentence [20] 3 . We used the public version in [26] 4 . It contains 5,331 positive and 5,331 negative reviews. The average length is 21.0 words. -CoLA. The Corpus of Linguistic Acceptability is a binary single-sentence classification task. CoLA is manually annotated for acceptability (grammaticality) [29] . We use the public version which contains 8,551 training data and 1,043 ation data 5 , for a total of 6,744 positive and 2,850 negative cases. The average length is 7.7 words. Since we do not have the label for the test set, we split 5% of the training set as validation set and use the original validation set as the test set. -ArangoHate [1] is a resampled dataset merging the datasets from [30] and [6] . It contains 2,920 hateful documents and 4,086 normal documents. The average length is 13.3 words. Since the dataset is not pre-divided into training, validation and test sets, we randomly split it into three sets at the ratio of 85:5:10.",
+            "cite_spans": [
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 541,
+                    "end": 545,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 580,
+                    "end": 584,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 835,
+                    "end": 839,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1181,
+                    "end": 1184,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1234,
+                    "end": 1238,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 1243,
+                    "end": 1246,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "-FountaHate is a large four-label dataset for hate speech and offensive language detection [9] . It contains 99,996 6 tweets with cross-validated labels and is classified into 4 labels: normal (53,851), spam (14,030), hateful (27, 150) and abusive (4, 965) . The average length is 15.7 words. Since the dataset is not pre-divided into training, validation and test sets, we split it into three sets at the ratio of 85:5:10 after shuffle.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 94,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 226,
+                    "end": 230,
+                    "text": "(27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 231,
+                    "end": 235,
+                    "text": "150)",
+                    "ref_id": null
+                },
+                {
+                    "start": 248,
+                    "end": 251,
+                    "text": "(4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "965)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "We removed URL strings and @-mentions to retain the text content, then the text was lower-cased and tokenized using NLTK's TweetTokenizer 7 . We use BERTTokenizer function to split text, so that the vocabulary for GCN is always a subset of pre-trained BERT's vocabulary. When computing NPMI on a dataset, the whole sentence is used as the text window to build the vocabulary graph. The threshold of NPMI is set as 0.2 for all datasets to filter out non-meaningful relationships between words.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing and Setting"
+        },
+        {
+            "text": "In the VGCN-BERT model, the graph embedding output size is set as 16, and the hidden dimension of graph embedding as 128. We use the Bert-baseuncased version of pre-trained BERT, and set the max sequence length as 200. The model is then trained in 9 epochs with a dropout rate of 0.2. The following are other parameter settings for different datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing and Setting"
+        },
+        {
+            "text": "-SST-2: mini-batch = 16, learning rate = 1e\u22125, L 2 loss weight decay = 0.01. -CoLA and MR: mini-batch = 16, learn. rate = 8e\u22126, L 2 loss decay = 0.01. -ArangoHate: mini-batch = 16, learn. rate = 1e\u22125, and L 2 loss decay = 1e\u22123.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing and Setting"
+        },
+        {
+            "text": "-FountaHate: mini-batch = 12, learn. rate = 4e\u22126, and L 2 loss decay = 2e\u22124.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing and Setting"
+        },
+        {
+            "text": "These parameters are set based on our preliminary tests. We also use the default fine-tuning learning rate and L 2 loss weight decay as in [8] . The baseline methods are set with the same parameters as in the original papers.",
+            "cite_spans": [
+                {
+                    "start": 139,
+                    "end": 142,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preprocessing and Setting"
+        },
+        {
+            "text": "We use the cross-entropy as the loss function for all models, except for Founta-Hate dataset where we use the mean squared error as the loss function in order to leverage the annotators' voting information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss Function"
+        },
+        {
+            "text": "We use Adam as training optimizer for all models. For cases where the label distributions are uneven (CoLA (2.4:1), ArangoHate (1.4:1) and FountaHate (10.9:5.5:2.8:1)), comput class weight function 8 from scikit-learn [4] is used as the weighted loss function. The weight of each the classes (W c ) is calculated by",
+            "cite_spans": [
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Loss Function"
+        },
+        {
+            "text": "where #dataset is the total size of dataset and #classes is the number of classes and #every class is the count of every class.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Loss Function"
+        },
+        {
+            "text": "We adopt the two most widely used metrics to evaluate the performance of the classifiers -the weighted average F1-score, and the macro F1-score [17] .",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 148,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "The main results on weighted average F1-Score and macro F1-Score on test sets are presented in Table 1 . The main observation is that VGCN-BERT outperforms all the baseline models (except against Vanilla-VGCN-BERT on MR dataset). In particular, it outperforms both VGCN and BERT alone, confirming the advantage to combine them. Among the models that only use local information, we see that BERT outperforms MLP, Bi-LSTM. Between the models that exploit a vocabulary graph -VGCN and Text-GCN, the performance is similar.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 95,
+                    "end": 102,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experimental Result"
+        },
+        {
+            "text": "Vanilla-VGCN-BERT and VGCN-BERT are two models that combine local and global information. In general, these models perform better than the other baseline models. This result confirms the benefit of combining local information and global information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Result"
+        },
+        {
+            "text": "Comparing VGCN-BERT with Vanilla-VGCN-BERT, we see that the former generally performs better. The difference is due to the interactions between local and global information. The superior performance of VGCN-BERT clearly shows the benefit of allowing interactions between the two types of information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Result"
+        },
+        {
+            "text": "To better understand the behaviors of BERT, and its combination with VGCN, we visualize the attention distribution of the [CLS] token in the self-attention module of BERT, VGCN-BERT and Vanilla-VGCN-BERT models. As the vocabulary graph is embedded into vectors of 16 dimensions, it is not obvious to show what meaning corresponds to each dimension. To facilitate our understanding, we show the top two words from the sub-graph related to the input sentence, which are strongly connected to each of the 16 dimensions of graph embedding. More specifically, w each word embedding of a document is input to Eq. 7, we only need to broadcast the result of XA and element-multiply it by W to obtain the representation value of the words involved. The equation for obtain the involved words' id is as follow:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Visualization"
+        },
+        {
+            "text": "IDs involved = arg sort(Z[:, g]), where x is a document in row vector, g \u2208 [1, G], G = 16 is the size of graph embedding. For example, the first dimension of graph embedding shown in Fig. 2 corresponds roughly to the meaning of \"[boundary, innovations]\". In Fig. 2 , we show the attention paid to each word (embedding) and each dimension of graph embedding (second part). As BERT does not use graph embedding, the attention paid to graph embedding is 0. In VGCN-BERT, we see that graph embedding draws an important part of attention.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 183,
+                    "end": 189,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 258,
+                    "end": 264,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Visualization"
+        },
+        {
+            "text": "For the movie review \"Although it's a bit smug and repetitive, this documentary engages your brain in a way few current films do.\", the first half of the sentence is explicitly negative, while the remaining part expresses a positive attitude in an implicit way, which makes the sentence difficult to judge. For this example, BERT pays a very high attention to \"do\", and a quite high attention to \"this\". These words do not bear much meaning in sentiments. The final classification results by BERT is 0 (negative) while the true label is 1 (positive).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Visualization"
+        },
+        {
+            "text": "Vanilla-VGCN-BERT concatenates graph embedding with BERT without interaction between them. We can see that still no attention is paid to graph embedding, showing that such a simplistic combination cannot effectively leverage vocabulary information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Visualization"
+        },
+        {
+            "text": "Finally, for VGCN-BERT, we see that a considerable part of attention is paid to graph embedding. The graph embedding is produced by integrating gradually the local information in the sentence with the global information in the graph. At the end, several dimensions of the graph embedding imply the meaning of \"innovation\", to which quite high attentions are paid. This results in classifying the sentence to the correct class (positive).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Visualization"
+        },
+        {
+            "text": "The meaning of \"innovation\" is not produced immediately, but after a certain number of layers in BERT. In fact, through the layers of BERT, local information in the input sentence is combined to generate a higher level representation. In this example, at a certain layer, the expression \"a way few current films do\" is grouped and represented as an embedding similar to the meaning of \"innovation\". From then, the meaning related to \"innovation\" in the graph embedding is capture through self-attention, and reinforced later on through interactions between the local and global information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Visualization"
+        },
+        {
+            "text": "In this study, we propose a new VGCN-BERT model to integrate a vocabulary graph embedding module with BERT. The goal is to complement the local information captured by BERT with the global information on the vocabulary, and allow both types of information to interact through the layers of attention mechanism. Our experiments on classification on 5 datasets show that the graph embedding does bring useful global information to BERT and this improves the performance. In comparison with BERT and VGCN alone, our model can clearly lead to better results, showing that VGCN-BERT can indeed take advantage of both mechanisms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        },
+        {
+            "text": "As future work, we will consider using other types of vocabulary graph such as Wordnet, in addition to a graph created by co-occurrences. We believe that Wordnet contains useful connections between words that NPMI cannot cover. It is thus possible to combine several lexical resources into the vocabulary graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Hate Speech Detection is Not as Easy as You May Think: A Closer Look at Model Validation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arango",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Perez",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Poblete",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Relational inductive biases, deep learning, and graph networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Battaglia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1806.01261"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Normalized (pointwise) mutual information in collocation extraction",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Bouma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the Biennial GSCL Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "API design for machine learning software: experiences from the scikit-learn project",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Buitinck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ECML PKDD Workshop: Languages for Data Mining and Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "108--122",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A comprehensive survey of graph embedding: problems, techniques and applications",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "30",
+            "issn": "9",
+            "pages": "1616--1637",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Automated hate speech detection and the problem of offensive language",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Davidson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Warmsley",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Macy",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Weber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 11th International AAAI Conference on Web and Social Media",
+            "volume": "",
+            "issn": "",
+            "pages": "512--515",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Convolutional neural networks on graphs with fast localized spectral filtering",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Defferrard",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Bresson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vandergheynst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "3844--3852",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Bert pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.04805"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Large scale crowdsourcing and characterization of twitter abusive behavior",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Founta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "11th International Conference on Web and Social Media, ICWSM 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Bag of tricks for efficient text classification",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Grave",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Joulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bojanowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "3--7",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Speech recognition with deep recurrent neural networks. In: Acoustics, Speech and Signal Processing (ICASSP)",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mohamed",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "6645--6649",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Deep convolutional networks on graph-structured data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Henaff",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bruna",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1506.05163"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Long short-term memory",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hochreiter",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Neural Comput",
+            "volume": "9",
+            "issn": "8",
+            "pages": "1735--1780",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "A context-aware citation recommendation model with BERT and graph convolutional networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jeong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Shin",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Choi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1903.06464"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Convolutional neural networks for sentence classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "1746--1751",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Classification evaluation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lever",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Krzywinski",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Altman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nat. Methods",
+            "volume": "13",
+            "issn": "8",
+            "pages": "603--604",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nmeth.3945"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Neural word embedding as implicit matrix factorization",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Goldberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems 27: Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2177--2185",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Efficient estimation of word representations in vector space",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "1st International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Seeing stars: exploiting class relationships for sentiment categorization with respect to rating scales",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "115--124",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Large-scale hierarchical text classification with recursively regularized deep graph-CNN",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1063--1072",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Glove: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "14",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Pre-training of graph augmented transformers for medication recommendation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence",
+            "volume": "2019",
+            "issn": "",
+            "pages": "5953--5959",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2019/825"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Recursive deep models for semantic compositionality over a sentiment treebank",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "14",
+            "issn": "",
+            "pages": "1631--1642",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "On the equivalence between node embeddings and structural graph representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Srinivasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "PTE: predictive text embedding through large-scale heterogeneous text networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Mei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1165--1174",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Attention-based LSTM for aspect-level sentiment classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "606--615",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Neural network acceptability judgments",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Warstadt",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bowman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.12471"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Are You a Racist or Am I Seeing Things?",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Waseem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Annotator Influence on Hate Speech Detection on Twitter",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Hierarchical attention networks for document classification",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Dyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Hovy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NAACL",
+            "volume": "",
+            "issn": "",
+            "pages": "1480--1489",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Graph convolutional networks for text classification",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Sentence-state LSTM for text representation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "317--327",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Weighted average F1-Score and (Macro F1-score) on the test sets. We run 5 times under the same preprocessing and random seed. Macro F1-score and Weighted F1-Score are the same on SST-2 and MR. Bold indicates the highest score and underline indicates the second highest score.Fig. 2. Visualization of the attention that the token [CLS](used as sentence embedding) pays to other tokens. The first part corresponds to word embeddings of the sentence. The second part is the graph embedding. [word1, word2] indicates the approximate meaning of a dimension in graph embedding.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

@@ -1,0 +1,2364 @@
+{
+    "paper_id": "23202067b68fabd242f610252e7813b2ef116710",
+    "metadata": {
+        "title": "Efficient Suspected Infected Crowds Detection Based on Spatio-Temporal Trajectories",
+        "authors": [
+            {
+                "first": "Huajun",
+                "middle": [],
+                "last": "He",
+                "suffix": "",
+                "affiliation": {},
+                "email": "hehuajun@my.swjtu.edu.cn"
+            },
+            {
+                "first": "Ruiyuan",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {},
+                "email": "ruiyuan.li@jd.com"
+            },
+            {
+                "first": "Rubin",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {},
+                "email": "wangrubin3@jd.com"
+            },
+            {
+                "first": "Jie",
+                "middle": [],
+                "last": "Bao",
+                "suffix": "",
+                "affiliation": {},
+                "email": "baojie3@jd.com"
+            },
+            {
+                "first": "Yu",
+                "middle": [],
+                "last": "Zheng",
+                "suffix": "",
+                "affiliation": {},
+                "email": "zheng.yu@jd.com"
+            },
+            {
+                "first": "Tianrui",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {},
+                "email": "trli@swjtu.edu.cn"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Virus transmission from person to person is an emergency event facing the global public. Early detection and isolation of potentially susceptible crowds can effectively control the epidemic of its disease. Existing metrics can not correctly address the infected rate on trajectories. To solve this problem, we propose a novel spatio-temporal infected rate (IR) measure based on human moving trajectories that can adequately describe the risk of being infected by a given query trajectory of a patient. Then, we manage source data through an efficient spatio-temporal index to make our system more scalable, and can quickly query susceptible crowds from massive trajectories. Besides, we design several pruning strategies that can effectively reduce calculations. Further, we design a spatial first time (SFT) index, which enables us to quickly query multiple trajectories without much I/O consumption and data redundancy. The performance of the solutions is demonstrated in experiments based on real and synthetic trajectory datasets that have shown the effectiveness and efficiency of our solutions. PVLDB Reference Format: Huajun He et al. Efficient Suspected Infected Crowds Detection Based on Spatio-Temporal Trajectories. PVLDB, 12(xxx): xxxxyyyy, 2019.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Human to human virus-borne infections has been a public health concern. A new coronavirus was named \"SARS-CoV-2,\" and the disease it caused was called \"Coronavirus Disease 2019\" (abbreviated as \"COVID-19\") [25] . COVID-19 pandemic is an urgent emergency facing the world. In the absence of a vaccine, early detection, early reporting, early With the rapid development of mobile internet and locate service, massive spatio-temporal data have been generating from applications. Human activity trajectory is a typical spatio-temporal data, including longitude, latitude, and time. Given a trajectory Q of the confirmed patient, Suspected Infected Crowds Detection (SICD) aims to detect close contacts through the spatio-temporal correlation of trajectories. As shown in Figure 1 , we search the ordinary people who have occurred within the spatio-temporal range which can be infected with the location where the patient has appeared and then determine the probability of infection rate based on their contact distance and duration. SICD helps local governments to investigate suspected people and find close contacts, isolate and protect them in time to prevent further spread of the epidemic. For improving the accuracy of SICD, it is necessary to consider the spatiotemporal correlation in each location of Q to describe the infection rate. The data volume of the underlying trajectory database used for SICD is enormous. To avoid massive memory consumption, we leverage a spatio-temporal index to manage trajectories in the NoSQL database.",
+            "cite_spans": [
+                {
+                    "start": 206,
+                    "end": 210,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 767,
+                    "end": 775,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In the epidemiological analysis, analyzing the relationship between people in spatial and temporal is a very standard and important analytical method. By looking at the spatial and temporal relationship, we can draw accurate close contact conclusions. In the 19th century, Snow [21] , studied spatio-temporal data such as maps and found that the source of pollution in cholera cases was not air, but from public pumps on Broad Street and transmitted through contaminated drinking water. At his appeal, authorities closed and diverted pump valves to control cholera. The successful prevention of cholera is directly related to the result of spatio-temporal data analysis and is the most classic example of spatio-temporal big data analysis.",
+            "cite_spans": [
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[21]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We can acquire the multiple spatio-temporal data information related to the risk of infection within the given spatiotemporal ranges through the trajectory of human activity. Moving trajectory is typical spatio-temporal data. By investigating the patient's moving trajectory, we can know who the patient is in close contact. In response to this de- mand, Tang discovered object groups that travel together from streaming trajectories [19] . In his study, in order to find travel companions, the system needs to cluster the objects of each snapshot of the query trajectory and intersect the clustering results, and retrieve the objects that move together. It is an efficient system with high precision, and it can discover crowds with a long companion. However, it can not find crowds whose local companion is long in one snapshot but total companion is short in all snapshots. Besides, many scholars have done much research on the spatial and temporal similarity between trajectories. Some of these methods mainly focus on how to extend existing trajectory similar search algorithms (e.g., ED, DTW, and Frchet [20] ). They have excellent performance for detecting duplicated or redundant trajectories in the database. However, to ensure accuracy, they require the consistency of the sampling rate of the two trajectories to be relatively high, and they lack the anti-noise ability. Some other trajectory similarity algorithms study the spatio-temporal correlation. They calculate spatial and temporal correlations separately and then combine them into overall similarity. A liner combination method (e.g., [16] ) combines the spatial and temporal into a spatio-temporal similarity metric. Other existing trajectory similarities (e.g., [2, 3] ) use a time interval to limit the resemblance of two trajectories. Unfortunately, they calculate similarity on the entire trajectory. However, in the actual data set, the human trajectory is not always successive and may has a larger spatial and temporal range. Therefore, in many applications, the trajectory must be segmented. However, the local segment similarity of the trajectory is not comprehensive in existing metrics. Hence, in this paper, we propose a measure that weights every segment of the trajectory, because the longer a segment of the query trajectory stays, the more possible that others will meet it. In each segment, we consider not only spatial nearing but also temporal proximity in every location, which makes sure the spatio-temporal closed location has a high infected rate. COVID-19 [25] is an urgent emergency facing the world. It has an incubation period. Thus, people infected with COVID-19 do not immediately have severe symptoms after they infect the human body, with an average of 5 to 6 days and a range of 1 to 14 days. Coronavirus infection during the incubation period is also infectious. Therefore, it is necessary to confirm all GPS records of the confirmed diagnosis from the prior incubation period, which is a large amount of data with a large spatio-temporal range. However, most of the existing solutions should load all data into memory, which limits the scalability. In this paper, we first divide the long and large trajectory into several sub-segments with suitable length and spatio-temporal range. Then, we build an XZ2T [9] index to manage large segments in the NoSQL database via an efficient platform JUST [9] , which guarantees the scalability of our solutions. Many methods mainly focus entirely on similarity. Thus, they are slow due to the large consumption for calculating big trajectory similarity. Therefore, recent researches (e.g., [17, 14, 16, 18] ) have focused on some pruning strategies to save time. They build indexes on trajectories to avoid computing all trajectories similarity, which greatly accelerates query speed. In this paper, we only search the smaller spatio-temporal range of each segment to reduce the range of the candidate set and propose some pruning strategies, which help reduce the computation. In most scenarios, it is always to query close contacts for multiple patients. Thus, we build an efficient SFT index to reallocate segments with the similar spatiotemporal range together, which effectively reduces the I/O cost and data redundancy.",
+            "cite_spans": [
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1110,
+                    "end": 1114,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1606,
+                    "end": 1610,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1735,
+                    "end": 1738,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1739,
+                    "end": 1741,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 2552,
+                    "end": 2556,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 3313,
+                    "end": 3316,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 3401,
+                    "end": 3404,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 3636,
+                    "end": 3640,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 3641,
+                    "end": 3644,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 3645,
+                    "end": 3648,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 3649,
+                    "end": 3652,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Using our algorithm, we helped Beijing find more than 500 high-risk close contacts within 20 days. Until March 1, we assisted Suqian in discovering a quarter of newly diagnosed patients with COVID-19 in the city. Within China, 18 provinces and cities such as Guangzhou, Nanjing, and Chengdu used this algorithm as part of the high-risk population analysis system.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "To sum up, the contributions of this paper are as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We propose a new infection rate (IR) metric that takes into account both the spatial and temporal proximity in all segments of trajectory and is suitable for the Suspected Infected Crowds Detection (SICD). It can also use to recognize similar trajectories, detect close contacts, mine companion, and monitor high-risk groups.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We store primary trajectories in the NoSQL database and only need to search a small spatio-temporal range data when it comes to a query trajectory, which reduces the memory consumption and guarantees the scalability of our solutions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We leverage some effective pruning strategies to avoid many invalid calculations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We develop an SFT index to reduce I/O communication and data redundancy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 We conduct extensive experiments on trajectory sets to validate the performance of the proposed algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "The rest of the paper is organized as follows. Section 2 introduces the basic definitions and trajectory infected rate. The framework of our solution is presented in Section 3. The trajectory infected rate query is described in Section 4, while the trajectory infected rate join query for multiple patients is in Section 5. The experimental results are presented in Section 6. Related work is illustrated in Section 7, and conclusions and future works are shown in Section 8.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this section, we introduce the basic definitions and spatio-temporal operations in our present approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PRELIMINARIES"
+        },
+        {
+            "text": "The trajectory is a typical representation of a set of spatiotemporal locations for the same user. A location in the trajectory is of the form (longitude, latitude, time), and t 2 = 10:05:00 t 1 = 9:00:00 all locations of trajectory are sorted by its timestamp. A trajectory is defined as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory"
+        },
+        {
+            "text": "Definition 1. A trajectory T of moving object is a timeordered locations < l1, l2, ..., ln >, where location li = (pi, ti), i \u2208 [1, n], with pi is a spatial point, ti is a timestamp, and n is the location size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory"
+        },
+        {
+            "text": "In order to fully depict the virus carrier's infected trajectory, we must collect all of its spatio-temporal records generated by GPS terminals from the incubation period to isolation. However, records may not be collected continuously, such as when the terminal is shut down for a while. Thus, the spatial or temporal interval between the two nearest records may be extremely large. If the entire trajectory is stored as a whole, a sizeable spatio-temporal range is required to contain this trajectory, and collected records may be intermittent that two nearest GPS records cannot be directly connected. Meanwhile, the spatio-temporal nearest locations always have similar characteristics. Storage together can improve the efficiency of the infected rate calculation because data redundancy can be avoided. Therefore, the trajectory must be segmented. In this paper, we use the stay point detection algorithm [13] to segment the trajectory. As shown in Figure 2 , we divide trajectory into four segments marked with red boxes, where the spatial distance and time interval between any two locations in any segment do not exceed fixed thresholds (e.g., 200m and 30minutes in Figure 2 ), respectively. Definition 2. A trajectory T can be represented by segments. T =< s1, s2, ..., sm >, where m is the segment size of this trajectory, segment si =< li1, li2, ..., l ik > is a subtrajectory, and segments are sorted by the timestamps of their start locations.",
+            "cite_spans": [
+                {
+                    "start": 910,
+                    "end": 914,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 954,
+                    "end": 962,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1174,
+                    "end": 1182,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Segmentation"
+        },
+        {
+            "text": "In this paper, we focus on spatio-temporal operations over virus carrier's moving trajectories to link their close contact users. Thus, in this part, we discuss spatio-temporal operations of our propose approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "Carriers of COVID-19 affect people with whom they have close contact. Therefore, the factors of infected rate are related to the spatio-temporal distance between the ordinary person and the patient. Thus, each position where the carrier appears has an influential spatio-temporal range.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "Definition 3. Given a location l, a spatial infected range threshold \u03b8 d and a temporal infected range threshold \u03b8t. ST R(l, \u03b8 d , \u03b8t) represents an influential spatio-temporal range of location l. Formally, ST R(l, \u03b8 d , \u03b8t) = {R|\u2200r \u2208 R(|r.t\u2212l.t| \u2264 \u03b8t\u2227dist(r.p, l.p) \u2264 \u03b8 d )} In the range ST R(l, \u03b8 d , \u03b8t) of location l, we calculate spatiotemporal correlation of l for trajectory. Definition 4. Given a location l, a trajectory T , a distance threshold \u03b8 d and a time threshold \u03b8t. The spatio-temporal correlation is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "where st dist(l, v) is the spatio-temporal correlation between l and a location v of trajectory T . Formally,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "where parameter \u03bb \u2208 [0, 1] controls the relative importance of the spatial and temporal correlation. dist(l.p,v.p)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "normalize the effects of spatial distance and time interval to the same range. Note, while trajectory T does not intersect with ST R(l, \u03b8 d , \u03b8t), the spatiotemporal correlation st cor(l, T ) is 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spatiotemporal Operations"
+        },
+        {
+            "text": "Given a segment s of virus carrier's trajectory and a trajectory T , the infected rate between s and T is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Segment Infected Rate"
+        },
+        {
+            "text": "where l is a location of s and |s| represents the number of locations that s owns.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Segment Infected Rate"
+        },
+        {
+            "text": "Given a virus carrier's query trajectory Q and a trajectory T , the infected rate between Q and T is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory Infected Rate"
+        },
+        {
+            "text": "where si is a segment of Q and P (si) represents the potential infected probability of each segment in Q. The probability P (si) is determined by time span in segment, on account of more time the carrier stays more risk of infection the others may have. Therefore, P (si) is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory Infected Rate"
+        },
+        {
+            "text": "where m represents the number of segments in the query trajectory Q, si.st represents the start time of segment and si.et represents the end time of segment, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Trajectory Infected Rate"
+        },
+        {
+            "text": "Given a query trajectory Q, a set of trajectories T and a threshold \u03b8, the trajectory infected rate query(IRQ) finds a set of trajectories T from the set whose trajectory infected rate exceeds \u03b8, i.e., \u2200T \u2208 T (IR(Q, T ) > \u03b8).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Definitions"
+        },
+        {
+            "text": "Given a set of query trajectories Q, a set of trajectories T and a threshold \u03b8, the trajectory infected rate join query(IRJQ) finds a set of all trajectory pairs from the two sets whose trajectory infected rate exceeds \u03b8, i.e., \u2200(Qi, Tj) \u2208 Q 1 T(IR(Qi, Tj) > \u03b8). Figure 3 depicts the architecture of the trajectory infected rate query, which consists of three processes: Data Preprocessing, Indexing and Storing, and Infectivity Query.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 263,
+                    "end": 271,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Problem Definitions"
+        },
+        {
+            "text": "In many applications, trajectory preprocessing is not only necessary for filtering noise but also crucial for indexing and storing. As depicted in the bottom-most box of Figure 3 , the process of preprocessing contains two main tasks: 1) noise filtering, which eliminates outlier GPS records that may be caused by the weak signal of GPS terminals; 2) segmentation, which breaks a long trajectory into suitable short trajectories. This paper mainly focuses on the trajectory indexing and infectivity query. For more details about trajectory preprocessing, please refer to our previous work [13] .",
+            "cite_spans": [
+                {
+                    "start": 589,
+                    "end": 593,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 170,
+                    "end": 178,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Data Preprocessing"
+        },
+        {
+            "text": "As shown in the middle box of Figure 3 , we use the XZ2T index to organize the segment and then store it as a table into the NoSQL database via JUST [9] , which can efficiently and conveniently manage big spatio-temporal data.",
+            "cite_spans": [
+                {
+                    "start": 149,
+                    "end": 152,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 30,
+                    "end": 38,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "Spatio-temporal range query is a necessary step in our algorithm. Indexing is essential for the processing of spatiotemporal query. Thus, we build an XZ2T index on the segment to effectively support the spatio-temporal range query.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "XZ2T index is an extension of the XZ2 index [4] , which projects a geographical polygon with a time range onto a one-dimensional value. XZ2 index is based on XZ-Ordering, a Space-Filling Curve for Spatially Extended Objects. It uses a sophisticated coding scheme for a polygon, which maps the polygon into the integer domain. As shown in Figure 4 (a), XZ2 index divides the root element into four sub-elements with equal size, which are numbered from 0 to 3. Then, the XZ2 index recursively numbers each sub-space until the maximum resolution is reached. Finally, we can get a sequence formed by successively traversing numbers. A polygon is represented by the most appropriate element or xelement of the xz2 index, which can completely cover the polygon. The xelement is an enlarged area of the element in xz2 index (i.e., the xelement of \"210\" represents the area covered by the element \"21\", and the width and height of t2 are lower than \"210\". Thus, instead of \"21\", we can use \"210\" represents t2. Similarly, \"12\" represents t1, \"221\" represents t3, \"0\" represents t4, respectively). However, XZ2 index only supports spatial data. Therefore, considering the time dimension, the XZ2T index is designed, which allocates each disjoint period an XZ2 index, as shown in ",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 47,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 338,
+                    "end": 346,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "In Equ (6), epoch is the reference time (e.g., 1970-01-01T00:00:00), and periodLen is the span of a period. U nit represents the unit of time (e.g., day, week, month, year).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "To support offline infectivity query and avoid all trajectories is persisted in memory because memory resources are expensive and insufficient, we store segments of trajectory to NoSQL database (e.g., HBase) via JUST. The key of our table is consisted by a shard, XZ2T index, and sid:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "where shard is a hash number to achieve load balance; XZ2T encodes the segment's spatio-temporal information; sid is the unique id of each segment.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Indexing and Storing"
+        },
+        {
+            "text": "The top-most box of Figure 3 shows two tasks of infectivity query, including Infected Rate Query(IRQ) and Infected Rate Join Query(IRJQ). IRQ finds trajectories that had close contact with a virus carrier (see Section 4). IRJQ finds trajectory pairs from two sets whose infectivity exceeds \u03b8 (see Section 5). In the following sections, we introduce the details of IRQ and IRJQ.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 20,
+                    "end": 28,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Infectivity Querying"
+        },
+        {
+            "text": "We propose a spatio-temporal correlation-based infectivity query. First, we break the long query trajectory Q to suitable segments S. Second, we extract and extend the spatio-temporal range of each segment. Third, we query all infected segments covered by the spatio-temporal ranges of Figure 5 : A sample of spatio-temporal query.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 286,
+                    "end": 294,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Main idea"
+        },
+        {
+            "text": "S from database and aggregate the same trajectory's segments together (Section 4.2). Furthermore, we prune the trajectories whose infected rate can not greater than \u03b8. After pruning, we calculate the infectivity between the remain trajectories and Q. Finally, we filter the trajectories whose infected rate is lower than \u03b8 out and return the results (Section 4.3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Main idea"
+        },
+        {
+            "text": "In this solution, we must query segments from database with XZ2T-Index around each location of the query trajectory. However, there are many locations need to access database that cause the massive queries and data redundancy. Thus, we cluster close locations to a spatio-temporal range and use this range to query the data once from the database.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Main idea"
+        },
+        {
+            "text": "The raw long trajectory may need a large spatial and temporal range to cover it entirely. For example, a trajectory may go to many places for ten days. Hence, we break the trajectory where the spatial distance and time interval of any two nearest locations exceeds the fixed thresholds. As shown in Figure 5 , the query trajectory Q (the trajectory with blue in Figure 5 ) is divided into two segments (s1 and s2). Each segment has a mbr (minimum bounding rectangle, e.g., the red solid line rectangle of Figure 5 ) that covers all locations and a time range that starts from the first location's time and ends of the last location's time (e.g., the solid red lines between q1.t and q3.t in Figure 5 ). Then, we extend the mbr outward \u03b8 d (e.g., the red dotted line rectangle in Figure 5 ) and enlarger the time range of \u03b8t (e.g., the red dotted lines near q1.t and q3.t in Figure 5 ), where \u03b8 d and \u03b8t control the infected spatio-temporal range. Later we query segments from the database via extended spatio-temporal ranges. As shown in Figure 5 , the query trajectory Q is divided into two segments s1 and s2. Segments of trajectory t1 and t2 are queried by s1 and t1 and t3 are queried by s2, respectively. We group segments of the same trajectory together. Finally, t1, t2 and t3 are the candidate trajectories of the query trajectory Q.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 299,
+                    "end": 307,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 362,
+                    "end": 370,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 505,
+                    "end": 513,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 691,
+                    "end": 699,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 779,
+                    "end": 787,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 874,
+                    "end": 882,
+                    "text": "Figure 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1038,
+                    "end": 1046,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Main idea"
+        },
+        {
+            "text": "We store data in the NoSQL database. Each segment is saved as the form of \"(key, value)\" with file dictionary sort index, and the key consists of XZ2T index and other information. Thus, generating accurate and smaller key scan ranges for query processing can significantly reduce I/O costs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Query from XZ2TTable"
+        },
+        {
+            "text": "Key Scan Ranges Generation. First, we give a spatiotemporal range of the query segment, which represents as a time range and a spatial range. Second, we extract the period numbers overlapped by the time range. Third, we generate the spatial scan ranges calculated by the XZ2 index [4] . Later, for each period number, we execute the scans. Finally, we refine the result to make sure that exactly in the spatio-temporal field.",
+            "cite_spans": [
+                {
+                    "start": 281,
+                    "end": 284,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Query from XZ2TTable"
+        },
+        {
+            "text": "The spatial scan range is generated as follows: (1) Starting the recursive access from the root node by the breadth-first search; (2) if the current node intersects the spatial query window partly, the index value of this node is added to the scan queue and recursive access child nodes until arriving the max resolution; (3) if the query window completely covers the current node, we put the index range represented by it and all its child nodes into the scan queue; (4) when the leaf nodes intersect, the index values of the leaf nodes are put into the queue; (5) if there is no intersecting node, the node is skipped directly. Finally, we combine the consecutive values in the scan queue to form the final scan range.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Query from XZ2TTable"
+        },
+        {
+            "text": "The calculation of IRQ is time-consuming. Therefore, we develop several pruning strategies to avoid unnecessary calculations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "Lemma 1. Let s represents a segment of query trajectory Q whose extended spatio-temporal range intersects with the candidate trajectory T . T must satisfy Equ (7):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "Proof Thus, if s\u2208Q\u2229T P (s) < \u03b8, the IR(Q, T ) < \u03b8. Therefore, s\u2208Q\u2229T P (s) must be equal or greater than \u03b8.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "Lemma 2. The IR(s, T ) must satisfy Equ (8):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "Proof. Let si represents a segment of Q. , then IR(Q, T ) < \u03b8, and thus trajectory T can be entirely pruned. (9):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "where qs is the segment of Q.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "Proof. By combining Lemmas 1 and 2, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": ", then IR(Q, T ) < \u03b8, namely, the trajectory T can be entirely pruned. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "then IR(Q, T ) < \u03b8. Therefore, trajectory T can be entirely pruned.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Pruning"
+        },
+        {
+            "text": "In Algorithm 1, the infected rate query arguments are a query trajectory Q, a threshold \u03b8, and a candidate set T, if pruned = f alse and totalIR < \u03b8 then 30:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "result.add(Ti); 31: end if 32: end for 33: return result; and the query result is a trajectory set of close contacts for Q. Initially, we let an empty ArrayList to hold the result, and S is a set of segments of Q. Then, for each scanned trajectory Ti, we let IRP = IR(s, T ) * P (s) simplify Lemmas 2-4. The lines 5-8 for Lemma 1, lines 12-15 for Lemma 2, lines 17-19 for lemma 3, and lines 23-25 for Lemma 4. If Ti does not satisfy any Lemmas 1-4, then we use the instructions (e.g., continue and break) to stop further computing IRP of Ti (e.g., in line 8, the sum of P (s) is not greater than \u03b8, then we stop calculating IR(Q, Ti) and continue to check the next trajectory Ti+1, and the IRP is lower than \u03b8 in line 13, then break calculate the IRP of the left segments of Q and start to check next trajectory). If Ti is not pruned, then it is added to the result in line 30. Then in line 33 of Algorithm 1 , we return the final result after all trajectories of T have been checked and calculated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "To process plenty of trajectories infected rates, we develop a join query solution, named Infected Rate Join Query (IRJQ). Figure 6 depicts the architecture of IRJQ, which consists of three processes: Data Preprocessing, Candidates Extraction, and Infectivity Exploration. Data Preprocessing. As depicted in the top-most box of Figure 6 , we first filter noise locations of trajectories out. After that, we extract segments of trajectories by the rules described in Figure 2 . Later, we use the XZ2T index to organize segments and then store them into the NoSQL database via JUST. The details of the steps in data preprocessing are described in Sections 3.1 and 3.2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 123,
+                    "end": 131,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 328,
+                    "end": 336,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 466,
+                    "end": 474,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Basic Idea"
+        },
+        {
+            "text": "Candidates Extraction. The middlebox of Figure 6 shows the procedure of candidates extraction, which allocates the coarse-grained high infect rate candidates to the query set. First, we load the query set; Second, we detect segments of this set; Third, we build an SFT-Tree (Spatial First Time Tree) index for all segments, which can minimize queries and communication on a small of data redundancy. Then, we query the candidates covered by the spatio-temporal ranges of leaf nodes in the SFT-Tree. This procedure will be a detailed introduction in Section 5.2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 40,
+                    "end": 48,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "Basic Idea"
+        },
+        {
+            "text": "Infectivity Exploration. The bottom-most box of Figure 6 shows the procedure of infectivity exploration. First, we prune some candidates, which are not the close contacts; Then, we calculate the infectivity of the segment. Meanwhile, we use a map to record some trajectory that can be further pruned. Later, we group all infectivity of the same trajectory's segments, and calculate the trajectory infectivity; Last, we filter trajectories whose infectivity is lower than \u03b8. This procedure is described in detail in Section 5.3.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 48,
+                    "end": 56,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "Basic Idea"
+        },
+        {
+            "text": "Candidates Extraction procedure is based on the segmentation algorithm, an SFT index strategy, and spatio-temporal query. The goal of segmentation is to diminution the long and large query trajectories on several individual segments. We built an SFT index on all query segments, where segments with similar spatio-temporal range are placed in the same SFT leaf node. Then, we extract candidate segments from the database by the extended spatio-temporal range of each leaf node of SFT. Finally, we get coarse-grained candidates from the database with low data redundancy and a small I/O consumption.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidates Extraction"
+        },
+        {
+            "text": "SFT index. SFT (Spatial first Time index) is a two layers index. The segments of the query set are allocated to the leaf node of the SFT index with a suitable spatiotemporal region. Dividing segments into different spatiotemporal ranges can decrease I/O cost and reduce the size of the candidate set when query. As shown is Figure 7 , the SFT index structure is established as follows. First, we divide the spatial domain into four equal-sized regions, numbered from 0 to 3. Next, each region is recursed until reaching the maximum resolution. Then we build a time tree for each leaf node of the spatial first tree. As depicted in Figure 7 (c), data in each spatial region is indexed in time using a one-dimensional R-Tree-like structure [8] . The internal node of the time tree has a one-dimensional time range and the MBR of all the leaf nodes it contains. The leaf node store the segments and the spatio-temporal range of all the segments.",
+            "cite_spans": [
+                {
+                    "start": 738,
+                    "end": 741,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 324,
+                    "end": 332,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF12"
+                },
+                {
+                    "start": 631,
+                    "end": 639,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF12"
+                }
+            ],
+            "section": "Candidates Extraction"
+        },
+        {
+            "text": "For each segment, there is data with spatial and temporal information. As shown in Figure 7 (a), we first allocate the segments whose lower points of their MBR are located in the same node of the quadtree to the leaf node. Then, for segments in the same spatial node, we construct the T-Tree according to the start times of their time ranges. The index of the time layer is shown in Figure 7 (c). In the actual construction process, in order to reduce the size of the T-Tree, we improve its insertion and add the function of merging consecutive time ranges. Assuming that the time range [t1, t2] has reached T in T-Tree, a new time range [t3, t3] also reaches T, and the two time ranges cross, then we combine [t1, t2] and [t3, t4] together, delete the [t1, t2] node and insert the [t1, t4] node, which not only reduces the size of the T-Tree, but also facilitates merging time ranges.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 83,
+                    "end": 91,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF12"
+                },
+                {
+                    "start": 383,
+                    "end": 391,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF12"
+                }
+            ],
+            "section": "Candidates Extraction"
+        },
+        {
+            "text": "When the data in a node of T-Tree reaches the threshold, it will be split, e.g., T R7 and T R8 are crossed in time, but their merged time range is more extensive than the threshold. Thus they are regarded as two leaves, respectively. The T-Tree split will be re-divided into two parts according to the new time range, and then the T-Tree index will be rebuilt.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidates Extraction"
+        },
+        {
+            "text": "ST Query. After building the SFT index, the segments of the query set are distributed in leaf nodes of the SFT index with individual spatio-temporal range. Therefore, we start with the root node, and when accessing the leaf node, we extract its spatio-temporal range and expand this range to the infection range, and then query candidates from the database like Section 4.2.2. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Candidates Extraction"
+        },
+        {
+            "text": "The infected rate join query needs to return all pairs of two sets. A trajectory Qi of the query set Q are divided into several segments distributed in leaf nodes of the SFT index. In Section 5.2, we have extracted candidates for each leaf node. Thus, we should first calculate the segment infected rate in each node where Qi has segment located. Then, we merge all the segment infected rates between Qi and other trajectories, respectively. However, the calculate of the infected rate is time-consuming. Therefore, we use some pruning strategies, which do not need to calculate the infected rate of all candidates of Qi to exclude those trajectories that are not close to Qi in spatial and temporal.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Infectivity Exploration"
+        },
+        {
+            "text": "Pruning. In each leaf node with Qi, we first filter segments for Qi whose spatial or temporal distance exceeds \u03b8 d or \u03b8t. The pruning strategy Lemma 2 can also be used to the infected rate join query, but we need to use two maps to record which trajectories have been cropped and which trajectories can be used for further calculations. Then, we only need to calculate the trajectories in the remaining map for Qi.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Infectivity Exploration"
+        },
+        {
+            "text": "The pseudocode of IRJQ is shown in Algorithm 2 and Algorithm 3. The query arguments are the query set Q and a threshold \u03b8 in Algorithm 2. We first build an SFT index sf t for segments of the query set Q in lines 1-5 of Algorithm 2. Then, we search from the root node of sf t through depth-first strategy. The search processing is shown in Algorithm 3. In lines 1-24 of Algorithm 3 calculate the IR between segments and candidates in the leaf node. If the visited node is not the leaf node, then search the child nodes while it has, as shown in lines 26-27. In line 2, we call spatio-temporal query to extract candidates from the basic database. For each segment s in the leaf node, we scan candidates one by one. If the spatio-temporal of any candidate c is not covered by s, then skip c. line 12, we calculate IRP = IR(s, c) * P (s). In line 13, we judge IRP by lemma 2. If it lower than \u03b8 \u2212 1 + P (s), then update remain and removed map and continue to check the next candidate, else we put the candidate in remain map and record IRP for (s.id, c.id) in result. After visiting all leaf nodes, in line 9 of Algorithm 2, we refine the result, where candidates in removed map or not in remain map will be Algorithm 3 Extract candidates and pruning function. Input: A node of SFT index node; removed records the pruned trajectory pair; remain records remain candidate trajectories; result records the value of segments IRP. Output:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "1: if node.type = LEAF then 2: candidates = st query(node.mbr, node.tr, \u03b8 d , \u03b8t) 3:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "for each s \u2208 node.data do 4:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "for each c \u2208 candidates do 5:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "// st f ilter return true when the spatial or temporal distance exceeds \u03b8 d or \u03b8t, else return false 6 :",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 102,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if st f ilter(s, c) then continue; 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "end if 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if remain = \u2205 and !remain.has(s.id, c.id) then continue; 9:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "end if 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if remove.has(s.id, c.id) then continue; 11:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "end if 12:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "IRP = IR(s, c) * P (s); 13:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if IRP < \u03b8 \u2212 1 + P (s) then // Lemma 2 14:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if remain = \u2205 then 15:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "remain pruned. In lines 10-11, we reduce the result by key (key = s.id + c.id) and then filter the final results out whose value are lower than \u03b8.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "We have implemented our algorithms and conducted extensive experiments on real and synthetic spatial data sets to verify our proposed techniques.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "Datasets. To evaluate the efficiency and correctness, we use the GPS records from the mobile phones, MPG 2 and Synthetic data sets (MPG2, MPG3, MPG4, MPG5) which 2 http://suo.im/69LJCp are generated by copying & offsetting one to four times of MPG to test the scalability of our solutions. As shown in Table 1 , there are 160,840 trajectories in MPG, with an average of 19 points. The query trajectory set 1 is a labeled down-sampled data set of the MPG. Setting. All of the algorithms were implemented in Java and Scala. All the experiments were conducted on a cluster of 5 nodes, with each node equipped with CentOS 7.4, 8-core CPU, 32GB RAM, and 1T disk. In our experiments, we compare the run time and veracity of IRQ and IRJQ. The run time is the average query time. The accuracy is the portion of correctly labeled trajectories in the query result, and the recall is the number of query trajectories whose query results are not empty. We analyze the effect of preference parameter \u03bb, precision threshold \u03b8, distance threshold \u03b8 d , time threshold \u03b8t, query data size, and source data size for IRQ and IRJQ. We also verify the effect of the different resolution of quadtree on the IRJQ algorithm. Table 2 gives the default parameters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 302,
+                    "end": 309,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 1202,
+                    "end": 1209,
+                    "text": "Table 2",
+                    "ref_id": "TABREF6"
+                }
+            ],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "We first analyze the pruning effectiveness of our algorithms using the default parameters. The experimental results are shown in Table 3 . We can see that the IRQ and IRJQ have better performance than the unpruned algorithms IRQ UP and IRJQ UP. The join algorithms (e.g., IRJQ and IRJQ UP) outperform simple query algorithms (IRJQ and IRJQ UP) by almost an order of magnitude on MPG and MPG5. After pruning, IRQ saves 27% and 17%, and IRJQ improves 27% and 29% query time on the sets of MPG, respectively. Figure 8 shows the effect of the preference parameter \u03bb on efficiency and accuracy. On the dataset MPG, the runtime of IRJQ and IRJQ UP is around 200ms and not affected by the varying of \u03bb. IRQ is more effective than IRQ UP, and saves about 200ms compare to IRQ UP. On the dataset MPG5, the runtime of IRJQ is around 400ms and much faster than IRQ. Then we discuss the recall and accuracy under the influence of \u03bb. We only analyze the recall and accuracy of IRQ because IRQ and IRJQ have the same accuracy. The accuracy of IRQ varies with \u03bb, which is lower at \u03bb = 0.0 and \u03bb = 1.0 on dataset MPG because only the side affected by spatial or temporal is considered. As the number of candidates from the spatio-temporal query on the database does not change but the final result has a little difference. Thus the recall rate remains at around 0.7 on the dataset MPG. However, on the dataset MPG5, the recall increases with \u03bb, because more trajectories are queried in the same spatial region, which increases the number of the final results. Figure 9 shows the effect of precision threshold \u03b8. On the datasets of MPG and MPG5, the runtime of pruned algorithms (IRQ and IRJQ) decreases with an increasing threshold \u03b8 and unpruned algorithms (IRQ UP and IRJQ UP) keep the approximately same value, which verify the efficiency of our pruning strategies. The recall decreases with the threshold because the larger \u03b8, the fewer trajectories are satisfied. Meanwhile, the accuracy rate still maintains at a relatively high value. Figure 10 shows the effect of distance threshold \u03b8 d . The running time increases as \u03b8 d increases because both the candidates and the computation are increased. IRJQ's runtime only increases slightly, but the increase in IRQ is pronounced. The spatio-temporal ranges infected by every lo- cation are enlarged with the increase of \u03b8 d . Thus more candidates are selected in our algorithms, which increases the recall. Figure 11 shows the effect of distance threshold \u03b8t. The running time slightly increases as \u03b8t increases. The temporal range expands as \u03b8t increases, but the data covered by each location does not increase significantly. Therefore, the running time maintains at a relatively fixed value, and the recall increases with a small numerical. Figure 13 shows the effect of query size. The query trajectories from 460 to 2300, represented as 20% to 100%, respectively. Note that unlike other times, the runtime here is the total time to complete the calculation of all trajectories. We can see that as the amount of data for query trajectories doubles, the cumulative runtime of IRQ and IRQ UP almost doubles. Consequently, the total runtime of IRJQ and IRJQ UP is still below 500 seconds, because we build an efficient index on trajectories that effectively reduce the number of time to access the database and greatly avoid data redundancy.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 129,
+                    "end": 136,
+                    "text": "Table 3",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 506,
+                    "end": 514,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF15"
+                },
+                {
+                    "start": 1544,
+                    "end": 1552,
+                    "text": "Figure 9",
+                    "ref_id": "FIGREF16"
+                },
+                {
+                    "start": 2026,
+                    "end": 2035,
+                    "text": "Figure 10",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 2444,
+                    "end": 2453,
+                    "text": "Figure 11",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 2781,
+                    "end": 2790,
+                    "text": "Figure 13",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Pruning Effectiveness"
+        },
+        {
+            "text": "In Figure 12 , we analyze the impact of the resolution of the SFT index. We see that the resolution equals 15 performs better than other resolutions. When the resolution is equal to 14, the spatial-temporal range distribution in the leaf nodes is more dispersed. Thus the spatial and temporal range of a single query will be relatively large, which will cause more data redundancy and some unnecessary data. When the resolution is greater than 15, although the distribution of the spatio-temporal range in the leaf node is very concentrated, it also means that it needs to query the database more times, which increases the I/O overhead. Figure 14 shows the effect of basic dataset size. We generate five datasets with equal increments in turn, as shown in Table 1 . We represent MGP as 20%, MPG2 as 40%, MPG3 as 60%, MPG2 as 80%, and MPG5 as 100%, respectively. We see that the increase of the data set has a great impact on the IRQ, which owns to spatio-temporal query gets several times of the candidate set, which increases the calculations. Although IRJQ's query time has also increased, it has not increased exponentially. It is attributed to the SFT index, which makes the close spatio-temporal ranges query only once on the database.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 12,
+                    "text": "Figure 12",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 638,
+                    "end": 647,
+                    "text": "Figure 14",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 757,
+                    "end": 764,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Effect of Resolution"
+        },
+        {
+            "text": "Many trajectory related metrics have been proposed [20, 1, 5, 24, 14, 6, 10, 26, 12, 22, 11] , which can be roughly classified as two types: (1) The point-based metrics, such as the Euclidean distance (ED) [7] , Dynamic Time Warping (DTW) [1] and Frchet [20] ; and (2) The segment based metrics, such as the metric in [23] and Longest Common Subsequence (LCSS) [28] . In general, the above methods all treat temporal attributes as simple time series. The temporal attribute is one of the important attributes. Combining the spatial and temporal attributes can be used as a judgment criterion for the correlation measure of trajectory. Point-Based Metrics. Correlation measurement methods based on trajectory points can be further divided into global matching methods and local matching methods. Euclidean distance [7] is mainly by calculating the Euclidean distance between corresponding points between trajectories, and then accumulating the sum as the final metric value. Euclidean distance is the simplest. It only needs to be summed up, and the time complexity is O(N). However, it also has serious limitations: (1) The sampling rate and trajectory points must be consistent; (2) The principle of monotonic continuity must be met, and local time distortion is not supported;",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 55,
+                    "text": "[20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 56,
+                    "end": 58,
+                    "text": "1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 59,
+                    "end": 61,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 62,
+                    "end": 65,
+                    "text": "24,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 66,
+                    "end": 69,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 70,
+                    "end": 72,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 73,
+                    "end": 76,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 77,
+                    "end": 80,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 81,
+                    "end": 84,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 85,
+                    "end": 88,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 206,
+                    "end": 209,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 239,
+                    "end": 242,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 254,
+                    "end": 258,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 318,
+                    "end": 322,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 361,
+                    "end": 365,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 814,
+                    "end": 817,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Trajectory Correlation Metrics"
+        },
+        {
+            "text": "(3) Sensitive to noise. The Frchet distance [20] measure was proposed by Frchet et al. It is usually described intuitively: the dog rope distance when a person walks a dog. DTW [1] locally stretches or scales the trajectories, so that trajectories of different sampling rates and different lengths can be compared. The DTW distance is the cumulative sum of the distances between all the optimal matching trajectory points. Segment-Based Metrics. Based on the trajectory segment similarity measures, by segmenting the trajectories and comparing the similarity of each segment separately, the time complexity is greatly reduced. However, the local information of the trajectory is not fully considered. Thus the accuracy is relatively low. Longest Common Subsequence (LCSS) mainly considers similar parts between trajectories as a measure of trajectory correlation, so it can skip some trajectory points due to matching distance exceeding the threshold, which makes it robust to noise. In [23] , the trajectory is divided into several segments, and then the divideand-conquer strategy is used to calculate the discrete segment Hausdorff or discrete segment Frchet distance. However, the distance measures they use do not adequately describe spatial and temporal proximity. Our metric takes into account the spatial and temporal correlation of each location at the same time and uses a divide-and-conquer algorithm for the weighted trajectory segments. It is not only appropriately describes the spatiotemporal closed trajectories, but also greatly reduces the complexity.",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 48,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 177,
+                    "end": 180,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 987,
+                    "end": 991,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Trajectory Correlation Metrics"
+        },
+        {
+            "text": "Trajectory correlation searches are widely studied [14, 15, 18, 23, 12] . The procedure typically involves a definition step and a query processing step. First, a metric is defined to measure the spatial and temporal correlations be-tween two trajectories. Second, an efficient strategy is developed to search spatiotemporally close trajectories for a query trajectory. For example, the BCT [27] algorithm proposed by Zheng uses Euclidean distance for trajectory search. Rong et al. [12] proposed a similar measure for trajectory segments and used a distributed framework. This framework first divides trajectories into several segments and then groups nearby segments to find common trajectories, which is helpful to reduce I/O consumption. Shang et al. [14] presented a two-phase divide-and-conquer trajectory similarity join framework. It first finds similar trajectories for each trajectory. Then it merges the results to the final result. Like [12] , we proposed a clearer metric, and then grouped segments that are closed spatially and temporally with an efficient Spatial First Time (SFT) index. Furthermore, in order to speed up query time, many frameworks have designed effective pruning strategies, which reduce the search space. Many studies [14, 15] have analyzed the low bounds of their metrics to reduce search nodes. In our algorithm, we propose four effective prune strategies to avoid unnecessary calculations.",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 55,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 56,
+                    "end": 59,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 64,
+                    "end": 67,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 68,
+                    "end": 71,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 391,
+                    "end": 395,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 483,
+                    "end": 487,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 755,
+                    "end": 759,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 949,
+                    "end": 953,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1253,
+                    "end": 1257,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1258,
+                    "end": 1261,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Trajectory Correlation Search."
+        },
+        {
+            "text": "In this paper, we studied a novel trajectory infection rate based on spatio-temporal correlation, the goal of which is to detect suspected infected crowds of COVID-19 and also targets many applications such as close contacts detection, companion mining, high-risk groups prediction and trajectory similarity recommendation. We proposed a new trajectory metric that accommodates misaligned trajectory points. We first broke down the longer and larger trajectories into several short and suitable segments and used an active spatiotemporal index (XZ2T) to manage a large number of segments in the NoSQL database, which reduce memory consumption and guarantee the scalability by avoid loading all trajectories into memory. We then developed efficient algorithms for segments with infected weight. We explored several pruning strategies for our proposed algorithms to avoid many calculations. For batch query, we designed an SFT index that groups similar segments only once to access the database to reduce I/O communication and data redundancy. We then devised experimental studies on real and synthetic datasets to verify the effectiveness and efficiency of our algorithms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Many exciting directions for future research exist. First, it is significant to extend our algorithms for supporting topk close contacts query without a threshold \u03b8. Second, it is vital to use some sample data to determine the parameters to be set in the algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "This work was supported by the National Key R&D Program of China (2019YFB2101800).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ACKNOWLEDGEMENT"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Anticipatory dtw for efficient similarity search in time series databases",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Assent",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wichterich",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Krieger",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kremer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Seidl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the VLDB Endowment",
+            "volume": "2",
+            "issn": "",
+            "pages": "826--837",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Efficient trajectory joins using symbolic representations",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bakalov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hadjieleftheriou",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Keogh",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tsotras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 6th international conference on Mobile data management",
+            "volume": "",
+            "issn": "",
+            "pages": "86--93",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Continuous spatiotemporal trajectory joins",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bakalov",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Tsotras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "International conference on GeoSensor Networks",
+            "volume": "",
+            "issn": "",
+            "pages": "109--128",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Xz-ordering: A space-filling curve for objects with spatial extension",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "B\u00f6xhm",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Klump",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-P",
+                    "middle": [],
+                    "last": "Kriegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "International Symposium on Spatial Databases",
+            "volume": "",
+            "issn": "",
+            "pages": "75--90",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Massjoin: A mapreduce-based method for scalable string similarity joins",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE 30th International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "340--351",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Efficient similarity join of large sets of moving object trajectories",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Trajcevski",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Scheuermann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "15th International Symposium on Temporal Representation and Reasoning",
+            "volume": "",
+            "issn": "",
+            "pages": "79--87",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Fast subsequence matching in time-series databases",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ranganathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Manolopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "Acm Sigmod Record",
+            "volume": "23",
+            "issn": "2",
+            "pages": "419--429",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "R-trees: A dynamic index structure for spatial searching",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Guttman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "Proceedings of the 1984 ACM SIGMOD international conference on Management of data",
+            "volume": "",
+            "issn": "",
+            "pages": "47--57",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Just: Jd urban spatio-temporal data engine",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Shapes based trajectory queries for moving objects",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Su",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 13th annual ACM international workshop on Geographic information systems",
+            "volume": "",
+            "issn": "",
+            "pages": "21--30",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Review on trajectory similarity measures",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Magdy",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Sakr",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mostafa",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "El-Bahnasy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE seventh international conference on Intelligent Computing and Information Systems (ICICIS)",
+            "volume": "",
+            "issn": "",
+            "pages": "613--619",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Fast and scalable distributed set similarity joins for big data analytics",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Silva",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE 33rd International Conference on Data Engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "1059--1070",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Cloudtp: A cloud-based flexible trajectory preprocessing framework",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE 34th International Conference on Data Engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "1601--1604",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Trajectory similarity join in spatial networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Jensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kalnis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Parallel trajectory-to-location join",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Jensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kalnis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Transactions on Knowledge and Data Engineering",
+            "volume": "31",
+            "issn": "6",
+            "pages": "1194--1207",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Personalized trajectory matching in spatial networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Jensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kalnis",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "The VLDB Journal",
+            "volume": "23",
+            "issn": "3",
+            "pages": "449--468",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Discovery of path nearby clusters in spatial networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Jensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kalnis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-R",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE Transactions on Knowledge and Data Engineering",
+            "volume": "27",
+            "issn": "6",
+            "pages": "1505--1518",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Signature-based trajectory similarity join",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ta",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Knowledge and Data Engineering",
+            "volume": "29",
+            "issn": "4",
+            "pages": "870--883",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "On discovery of traveling companions from streaming trajectories",
+            "authors": [
+                {
+                    "first": "L.-A",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-C",
+                    "middle": [],
+                    "last": "Hung",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-C",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "2012 IEEE 28th International Conference on Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "186--197",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Trajectory similarity measures",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toohey",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Duckham",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Sigspatial Special",
+            "volume": "7",
+            "issn": "1",
+            "pages": "43--50",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "An effectiveness study on trajectory similarity measures",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Su",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sadiq",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the Twenty-Fourth Australasian Database Conference",
+            "volume": "137",
+            "issn": "",
+            "pages": "13--22",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Distributed trajectory similarity search",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Phillips",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the VLDB Endowment",
+            "volume": "10",
+            "issn": "",
+            "pages": "1478--1489",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "String similarity search and join: a survey",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Frontiers of Computer Science",
+            "volume": "10",
+            "issn": "3",
+            "pages": "399--417",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "A comparative study on the clinical features of covid-19 pneumonia to other pneumonias",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Clinical Infectious Diseases",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Towards efficient search for activity trajectories",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "2013 IEEE 29Th international conference on data engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "230--241",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Searching similar trajectories by locations",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "US Patent",
+            "volume": "9",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Trajectory segmentation map-matching approach for large-scale, high-resolution gps data",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Holden",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Gonder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Transportation Research Record",
+            "volume": "2645",
+            "issn": "1",
+            "pages": "67--75",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "This work is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License. To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-nd/4.0/. For any use beyond those covered by this license, obtain permission by emailing info@vldb.org. Copyright is held by the owner/author(s). Publication rights licensed to the VLDB Endowment. Proceedings of the VLDB Endowment, Vol. 12, No. xxx ISSN 2150-8097. DOI: https://doi.org/10.14778/xxxxxxx.xxxxxxx isolation, and early treatment 1 have proven to be the most effective measures to prevent the spread of the epidemic.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "An example of Suspected Infected Crowds Detection.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "A sample of segmentation.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "The framework of our solutions.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "The example of XZ2 and XZ2T index.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Figure 4 (b). Specifically, given a segment's spatio-temporal range (mbr, st, et), we first calculate the period number bin of st according Equ (6), then calculate its XZ2 index number by using XZ-ordering function XZ2(mbr). Finally, we combine the period number and XZ2 index to indicate the spatio-temporal range of segment. Note, our segmentation algorithm guarantees the span of et \u2212 st not greater than periodLen and et belongs to the same bin of st. bin = U nit.between(t, epoch)/periodLen",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Clearly IR(s, T ) \u2208 [0, 1]. If T does not intersect with s, IR(s, T ) equals 0, and the maximum value of IR(s, T ) is 1. Thus, based on Equ 4, we have that IR(Q, T ) = s\u2208Q P (s) * IR(s, T ) \u2264 s\u2208Q\u2229T P (s) * IR(s, T ) + s\u2208Q \u2229T P (s) * IR(s, T ) \u2264 s\u2208Q\u2229T P (s)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "(sj) * IR(sj, T ) \u2264 P (si) * IR(si, T ) + m j=1,j =i P (sj) \u2264 P (si) * IR(si, T ) + 1 \u2212 P (si) Thus, if IR(si, T ) < \u03b8\u22121+P (s i ) P (s i )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "The structure of IRJQ.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "IR(s, T ) must satisfy Equ",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Let si represent a segment which intersects with the candidate trajectory T . Then IR(si, T ) \u2265 \u03b8 \u2212 i\u22121 j=1 IR(sj, T ) * P (sj) \u2212 m j=i+1,s j \u2208Q\u2229T P (sj) (si) * IR(si, T ) = IR(si, T ) * P (si) + (sj) * IR(sj, T ) \u2264 IR(si, T ) * P (si) +",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "A sample of SFT index.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "Infected Rate Join Query. Input: The query set Q, A threshold \u03b8. Output: All trajectory pairs form Q and database whose infectivity exceeds \u03b8 1: sf t = new SF T (); //new index 2: for each Q \u2208 Q do 3: S = segmentation(Q); 4: sf t.insert(S) 5: end for 6: removed = new M ap(),remain = new M ap(); 7: result = new ArrayList(); 8: search(sf t.root, removed,remain,result); 9: result.f ilter(removed, remain); //filtering. 10: f inalResult = result.reduceByKey(v1 + v2); 11: return f inalResult.f ilter(v \u2265 \u03b8);",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF15": {
+            "text": "The",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF16": {
+            "text": "The effect of \u03b8.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF18": {
+            "text": "The effect of \u03b8 d .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF19": {
+            "text": "The effect of \u03b8t. The effect of resolution.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF21": {
+            "text": "The",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF22": {
+            "text": "The effect of data size.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF3": {
+            "text": "Algorithm 1 Infected Rate Query. Input: The query trajectory, Q; The candidate trajectories, T; A threshold, \u03b8; Output: Trajectories with infected rate exceed \u03b8;",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "TR 13 TR 14 TR 15 TR 11 TR 12 TR 9 TR 10 TR 7 TR 8",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

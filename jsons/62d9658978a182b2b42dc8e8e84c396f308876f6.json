@@ -1,0 +1,1377 @@
+{
+    "paper_id": "62d9658978a182b2b42dc8e8e84c396f308876f6",
+    "metadata": {
+        "title": "Using evolutionary Expectation Maximization to estimate indel rates",
+        "authors": [
+            {
+                "first": "Ian",
+                "middle": [],
+                "last": "Holmes",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The Expectation Maximization (EM) algorithm, in the form of the Baum-Welch algorithm (for hidden Markov models) or the Inside-Outside algorithm (for stochastic context-free grammars), is a powerful way to estimate the parameters of stochastic grammars for biological sequence analysis. To use this algorithm for multiplesequence evolutionary modelling, it would be useful to apply the EM algorithm to estimate not only the probability parameters of the stochastic grammar, but also the instantaneous mutation rates of the underlying evolutionary model (to facilitate the development of stochastic grammars based on phylogenetic trees, also known as Statistical Alignment). Recently, we showed how to do this for the point substitution component of the evolutionary process; here, we extend these results to the indel process. Results: We present an algorithm for maximum-likelihood estimation of insertion and deletion rates from multiple sequence alignments, using EM, under the single-residue indel model owing to Thorne, Kishino and Felsenstein (the 'TKF91' model). The algorithm converges extremely rapidly, gives accurate results on simulated data that are an improvement over parsimonious estimates (which are shown to underestimate the true indel rate), and gives plausible results on experimental data (coronavirus envelope domains). Owing to the algorithm's close similarity to the Baum-Welch algorithm for training hidden Markov models, it can be used in an 'unsupervised' fashion to estimate rates for unaligned sequences, or estimate several sets of rates for sequences with heterogenous rates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "A cornerstone of stochastic grammar-based profiling of DNA, protein and RNA sequences is the fast and accurate estimation of the probability parameters of the model, given a 'training set'. This is achieved for hidden Markov models (HMMs) using the Baum-Welch algorithm, and for stochastic context-free grammars (SCFGs) using the Inside-Outside algorithm (Durbin et al., 1998) ; both are examples of the Expectation Maximization (EM) algorithm (Dempster et al., 1977) .",
+            "cite_spans": [
+                {
+                    "start": 355,
+                    "end": 376,
+                    "text": "(Durbin et al., 1998)",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 444,
+                    "end": 467,
+                    "text": "(Dempster et al., 1977)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Currently, most HMM-and SCFG-based methods are consensusor pair-based; they do not use the underlying phylogenetic tree directly in their training [although consensus methods use it indirectly, when over-represented clades are downweighted in the estimation of the consensus profile (Durbin et al., 1998) ]. The full power of evolutionary methods to model mutation rates and phylogenetic correlations is therefore unused. This may be because evolutionary models relating multiple sequences, using an arbitary phylogeny, are more complicated than consensus models, which effectively assume a star-shaped phylogeny (with the consensus sequence at the centre of the star). Nonetheless, there has been some progress in implementing stochastic evolutionary models for multiple sequence alignment and profiling (Mitchison and Durbin, 1995; Hein et al., 2000; Hein, 2001; Holmes and Bruno, 2001; Holmes and Rubin, 2002; Holmes, 2003; Mikl\u00f3s et al., 2004) . To develop this work further, a natural step is to extend the probabilistic results used for HMMs and SCFGs to the evolutionary domain.",
+            "cite_spans": [
+                {
+                    "start": 283,
+                    "end": 304,
+                    "text": "(Durbin et al., 1998)",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 805,
+                    "end": 833,
+                    "text": "(Mitchison and Durbin, 1995;",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 834,
+                    "end": 852,
+                    "text": "Hein et al., 2000;",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 853,
+                    "end": 864,
+                    "text": "Hein, 2001;",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 865,
+                    "end": 888,
+                    "text": "Holmes and Bruno, 2001;",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 889,
+                    "end": 912,
+                    "text": "Holmes and Rubin, 2002;",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 913,
+                    "end": 926,
+                    "text": "Holmes, 2003;",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 927,
+                    "end": 947,
+                    "text": "Mikl\u00f3s et al., 2004)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Previous work demonstrated the potential of the EM algorithm as a quick and effective tool for finding maximum-likelihood (ML) rate matrices for point substitution processes (Holmes and Rubin, 2002) . As with all EM algorithms, this algorithm proceeds by repeated application of an E-step followed by an M-step. During the Estep, limited information about the inferred evolutionary history is gathered in the form of certain 'sufficient statistics', which are then used during the M-step to improve the estimate of the rate parameters. Specifically, these sufficient statistics are (1) the expected composition of the root sequence\u015d i , (2) the expected number of times,\u00fb ij , that each mutation of type i \u2192 j occurred and (3) the expected length of time,\u0175 i , that each residue was available for substitution. All expectations are taken over the posterior distribution of substitution histories. In the M-step, equilibrium frequencies are set proportional to\u015d i and substitution rates equal to\u00fb ij /\u0175 i . This process converges extremely rapidly and, assuming the absence of significantly suboptimal local minima in the likelihood function (which in practise is often the case), results in ML substitution rate matrices. This paper presents an EM algorithm for the estimation of indel rates in the TKF91 model of sequence evolution (Thorne et al., 1991) . The main insight is that the analogues of the sufficient statistics (1)\u015d i , (2)\u00fb ij and (3)\u0175 i for the TKF91 indel process are (1) the expected initial sequence length, (2) the expected number of insertions and deletions and (3) the expected mean sequence length over the evolutionary interval (together with the length of the interval itself, T ). We have implemented the algorithm in freely available software. We show that it accurately and quickly recovers the true indel length on simulated data; in contrast, the 'naive' or 'parsimonious' estimate that associates every observed gap with a single indel event is shown to underestimate the true indel rate by a small amount. Previous ML parameterization approaches have relied on sampling methods, which are significantly slower, albeit less prone to local minima in the likelihood function (Metzler et al., 2001) . We report on an application of the algorithm to estimate indel rates in coronavirus proteins.",
+            "cite_spans": [
+                {
+                    "start": 174,
+                    "end": 198,
+                    "text": "(Holmes and Rubin, 2002)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1333,
+                    "end": 1354,
+                    "text": "(Thorne et al., 1991)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 2204,
+                    "end": 2226,
+                    "text": "(Metzler et al., 2001)",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "Using methods, such as this rate-based EM algorithm, a number of novel sequence analysis approaches become feasible. For example, it is theoretically possible to do multiple sequence alignment without manually setting scoring parameters; instead, unbiased estimates of these parameters can be obtained quickly, directly and accurately from the data. The algorithms described here can be coupled with a recent 'structural EM' algorithm for the estimation of the ML phylogenetic topology (Friedman et al., 2001) . Another application is phylogenetic profiling: previous workers, such as Thorne et al. (1996) , have shown that it is possible to partition heterogenous multiple alignments using the varying signature of the substitution process, e.g. to predict secondary structure in proteins or transcription factor binding sites in promoters (Kellis et al., 2003) . Using methods based on the TKF model, it is now possible to use similar methods to partition the alignment according to the indel rates, and to estimate the relevant heterogenous rate parameters in an unsupervised fashion, from aligned or unaligned sequences, using EM, exactly as one might do with a single-sequence or pair HMM (Durbin et al., 1998) . Thus, this algorithm represents a further step in combining the achievements of HMM-based profiling and evolutionary modelling for multiple-sequence comparative genomics.",
+            "cite_spans": [
+                {
+                    "start": 486,
+                    "end": 509,
+                    "text": "(Friedman et al., 2001)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 585,
+                    "end": 605,
+                    "text": "Thorne et al. (1996)",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 841,
+                    "end": 862,
+                    "text": "(Kellis et al., 2003)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1194,
+                    "end": 1215,
+                    "text": "(Durbin et al., 1998)",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We assume some familiarity with continuous-time Markov models for sequence evolution. For a more thorough introduction, the reader is referred to Thorne et al. (1991) or Felsenstein (2003) .",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 166,
+                    "text": "Thorne et al. (1991)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 170,
+                    "end": 188,
+                    "text": "Felsenstein (2003)",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MODELS"
+        },
+        {
+            "text": "Following Thorne et al. (1991) , we make the simplifying assumption that the evolutionary model can be separated into independent components: the point substitution process, modelled as a continuous-time finite-state Markov chain at each site of the sequence, and the indel process, modelled as a linear birth-death process with immigration.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 30,
+                    "text": "Thorne et al. (1991)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MODELS"
+        },
+        {
+            "text": "The two models share certain features, in that they are both continuous-time Markov models. We begin by introducing some notation for such models, then describe each in detail.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MODELS"
+        },
+        {
+            "text": "A continuous-time Markov chain is specified by parameters \u03d1 = {\u03c0, R}. Here, the initial distribution is \u03c0 and the transition rate matrix is R.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Continuous-time Markov models"
+        },
+        {
+            "text": "The probability of the model being in state j at time t, given that it started in state i at time 0, is M ij (t), where M(t) = e Rt is the matrix exponential.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Continuous-time Markov models"
+        },
+        {
+            "text": "The substitution model is a finite-state continuous-time Markov chain. If the substitution model is reversible, then the rate matrix R obeys detailed balance (\u03c0 i R ij = \u03c0 j R ji ) and is related to a symmetric matrix S (by S ij = R ij \u03c0 i /\u03c0 j ). The eigenvalues \u00b5 (k) and orthonormal eigenvectors v (k) of S (satisfying Sv (k) = \u00b5 (k) v (k) and v (k) \u00b7 v (l) = \u03b4 kl ) can easily be found using standard algorithms (Press et al., 1992) , yielding the following result for the entries of M(t)",
+            "cite_spans": [
+                {
+                    "start": 339,
+                    "end": 342,
+                    "text": "(k)",
+                    "ref_id": null
+                },
+                {
+                    "start": 416,
+                    "end": 436,
+                    "text": "(Press et al., 1992)",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The point substitution model"
+        },
+        {
+            "text": "In contrast to the substitution model, the state space for the TKF91 indel model is infinite (the sequence length is unbounded). However, much of the theory from continuous-time Markov models still applies. The TKF91 model describes the evolution of a single sequence under the action of two kinds of mutation event: (1) point substitutions, which act on a single residue only (this process uses the finite-state Markov chain framework described in the previous section); and (2) single-residue indels, which insert or delete a single residue (Thorne et al., 1991) . Insertions occur at rate \u03bb per available site; deletions at rate \u00b5.",
+            "cite_spans": [
+                {
+                    "start": 543,
+                    "end": 564,
+                    "text": "(Thorne et al., 1991)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "Consider first the simple example where we ignore the alignment and just look at the sequence length. We then have a linear birthdeath process with immigration whose state space is the non-negative integers (Karlin and Taylor, 1975) . The rate matrix is sparse:",
+            "cite_spans": [
+                {
+                    "start": 207,
+                    "end": 232,
+                    "text": "(Karlin and Taylor, 1975)",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "We assume that the process is always started at equilibrium.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "To find the likelihood of an individual alignment, consider starting with some ancestral sequence of length L and allowing it to evolve for some time t. A feature of the TKF91 model is that this process can be simplified by splitting the ancestral sequence into a series of independently evolving 'links'. For a sequence of length L, there are L + 1 such links, including one immortal link (representing the insertion site at the leftmost end of the sequence) and L mortal links (representing each ancestral residue of the sequence, and the insertion site immediately to its right).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "Starting from the initial (ancestral) state, we allow each link to evolve stochastically for some time t, and then examine the new (descendant) state of the link. We may describe this descendant state as follows: first, by the number of newly inserted residues (n); and second (for mortal links) by specifying whether the original ancestral residue survived or was deleted. Let the probability distribution of n be r n (t) for immortal links and p n (t) + q n (t) for mortal links, where p n accounts for the survival of the ancestral residue and q n accounts for its deletion. Then it can be shown (Thorne et al., 1991) that",
+            "cite_spans": [
+                {
+                    "start": 599,
+                    "end": 620,
+                    "text": "(Thorne et al., 1991)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "This probabilistic model for pairwise alignments can be expressed as a pairwise HMM using, e.g. the notation of Durbin et al. (1998) , as shown in Figure 1 .",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 132,
+                    "text": "Durbin et al. (1998)",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 147,
+                    "end": 155,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "The restriction to single-residue indel events leads to the geometric term \u03b2 n in the above expressions, and is therefore roughly equivalent to using a linear gap penalty to score a sequence alignment. This is widely acknowledged to be unrealistic (Thorne et al., 1992; Hein et al., 2000; Knudsen and Miyamoto, 2003; Mikl\u00f3s et al., 2004) . Models that incorporate more realistic length distributions over indel sequences are less tractable than TKF91: such models have been analysed using simulation and combinatoric approximations, but have not yet yielded any algebraic expression for the alignment likelihood (Knudsen and Miyamoto, 2003; Mikl\u00f3s et al., 2004) . A tractable alternative is provided by the TKF92 model, which essentially replaces the single residues of TKF91 with artificial, indivisible, multi-residue 'fragments'. The lengths of these fragments are geometrically distributed. Where TKF91 is a birth-death process on residues, TKF92 is a birth-death process on fragments.",
+            "cite_spans": [
+                {
+                    "start": 248,
+                    "end": 269,
+                    "text": "(Thorne et al., 1992;",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 270,
+                    "end": 288,
+                    "text": "Hein et al., 2000;",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 289,
+                    "end": 316,
+                    "text": "Knudsen and Miyamoto, 2003;",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 317,
+                    "end": 337,
+                    "text": "Mikl\u00f3s et al., 2004)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 612,
+                    "end": 640,
+                    "text": "(Knudsen and Miyamoto, 2003;",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 641,
+                    "end": 661,
+                    "text": "Mikl\u00f3s et al., 2004)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The TKF91 indel model"
+        },
+        {
+            "text": "We now describe the EM algorithms for estimating model parameters. Again, we start with a general theory for continuous-time Markov models, and then proceed to the specific cases (the point substitution model and the TKF91 indel model).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ALGORITHMS"
+        },
+        {
+            "text": "Let h represent a 'history' of the process: that is, a complete specification of the state of the system at all times. The situation we wish to address is the one where we observe some data O which partially constrains the allowable histories h. For example, we might know what state the process is in at times t = 0 and t = T , but not in between. The state of the process at times 0 < t < T thus constitutes missing information. The EM algorithm (Dempster et al., 1977) consists of maximizing the following sum over possible histories with respect to \u03d1",
+            "cite_spans": [
+                {
+                    "start": 448,
+                    "end": 471,
+                    "text": "(Dempster et al., 1977)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "Previous work (Holmes and Rubin, 2002) showed that, if we break the time interval [0, T ] into small intervals t, we obtain",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 38,
+                    "text": "(Holmes and Rubin, 2002)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "where\u015d i is the expected number of paths that start in state i,\u0175 i is the expected wait in state i (i.e. the amount of time spent in i) and u ij is the expected usage of transition i \u2192 j . Note that i\u015d i = 1 and i\u0175 i = T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "Here, f (\u03d1, t) is a function that does not depend on the 'new' parameters \u03d1 . In fact f (\u03d1, t) \u223c \u2212 log( t).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "Ultimately, we are interested in the infinitesimal limit t \u2192 dt. In this limit\u015d,\u0175 and\u00fb retain their interpretations as the expected initial state occupancy, the expected waiting time and the expected transition usage. The function f is problematic: lim t\u21920 f (\u03d1, t) = \u2212\u221e. However, f can effectively be dropped from Q, as it disappears when we differentiate with respect to \u03d1 to maximize the expected log-likelihood of the new parameters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "We want to maximize Q while ensuring that R is a valid rate matrix (i.e. j R ij = 0) and \u03c0 is a normalized probability vector (i.e. i \u03c0 i = 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "Introducing these constraints via Lagrange multipliers {A 1 \u00b7 \u00b7 \u00b7 A m , B} and dropping f , the function to be maximized is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for continuous-time Markov models"
+        },
+        {
+            "text": "Suppose that the observed data O comprises the initial state a and the final state b. Then\u015d",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the substitution model"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the substitution model"
+        },
+        {
+            "text": "The maximum of L is at \u03c0 i =\u015d i / j\u015d j , R ij =\u00fb ij /\u0175 i (for j = i) and R ii = \u2212 j R ij .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the substitution model"
+        },
+        {
+            "text": "We substitute into Equation (6) the definitions of R in terms of \u03bb , \u00b5 , given in Section 2.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the TKF91 model"
+        },
+        {
+            "text": "For the equilibrium distribution \u03c0, use independent geometric length parameter g, so that \u03c0 i = g i (1 \u2212 g) (as long as the process stays reversible, we will end up with g = \u03bb/\u00b5)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the TKF91 model"
+        },
+        {
+            "text": "i\u015d i i is the expected initial sequence length,\u1e90 = i\u0175 i i is the expected total time accrued by mortal links, T is the expected time accrued by the immortal link,D = i\u00fb i,i\u22121 is the expected number of deletions,\u00ce = i\u00fb i,i+1 is the expected number of insertions and f (\u03d1) does not depend on \u03d1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the TKF91 model"
+        },
+        {
+            "text": "Note the Lagrange multipliers A, B disappear, since our definitions for R and \u03c0 are already normalized. The maximum of L is g = S/(\u015c + 1), \u03bb =\u00ce /(\u1e90 + T ), \u00b5 =D/\u1e90.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the TKF91 model"
+        },
+        {
+            "text": "The Supplementary information describes a procedure for calcu-lating\u015c,\u1e90,D and\u00ce from sequence data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The EM algorithm for the TKF91 model"
+        },
+        {
+            "text": "We implemented the above-described EM algorithm for estimating indel rates in under 300 lines of C. The implemented code is available free of charge under the GNU Public License from the website www.biowiki.org. [The related EM algorithm for estimating substitution rates was previously implemented in the xrate program, available from the same website (Holmes and Rubin, 2002) .]",
+            "cite_spans": [
+                {
+                    "start": 353,
+                    "end": 377,
+                    "text": "(Holmes and Rubin, 2002)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulated data"
+        },
+        {
+            "text": "To test the EM algorithm, we ran extensive numerical simulations, generating random pairwise alignments under the TKF model and comparing the expected insertion counts (\u00ce ) and site-times (\u1e90) with the actual values of these counts, known from the simulation. We also looked at the following 'naive' estimates of these quantities: for I , we simply counted the number of insertions in the simulated alignments, while for Z, we multiplied the lapsed time T by the average of the ancestor and descendant sequence lengths. Figure 2 shows the results of these simulations. There is extremely close agreement between the computed expectations (\u00ce ,\u1e90) and the actual values of these statistics. As for the 'naive' estimates, we observe that simply counting the number of insertions in the pairwise alignment is a systematically biased underestimate of I , as expected (because some insertions were deleted before being observed). However, perhaps surprisingly, the naive estimate of Z (based on the average of the ancestor and descendant sequence lengths) turned out to be rather good. On closer investigation, we found that the naive Z estimate deteriorates significantly when \u03bb is much less than \u00b5, and also appears to perform worse at larger timescales. In practise, for and accrued site-time (right) obtained by simulation with \u03bb = 0.0457, \u00b5 = 0.0458 (mean sequence length 50 residues), T ranging from 0.5 to 2, 10 5 trials per timepoint. The average over each 10 5 trials is plotted; to give an impression of error on the individual estimates, one in every 5 \u00d7 10 4 individual trials is also plotted. The 'naive' estimates, taken without correcting for statistical bias, are also shown. The target values are shown as a dashed straight line. long sequences (so \u03bb \u00b5) that are closely related (so T is small), the naive estimator for Z may be appropriate, although it seems likely that I and D will still be underestimates.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 519,
+                    "end": 527,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Simulated data"
+        },
+        {
+            "text": "To test the application of the indel EM algorithm to experimental data, we estimated the indel rates for multiple alignments of Coronavirus protein domains, including domains from the SARS coronavirus (Marra et al., 2003) . Lengths of the SARS domains in amino acids are reported below. The first domain is GS1 (629 amino acids) and the second is GS2 (626 amino acids); both are derived from peptide cleavage of the 'Spike' surface glycoprotein. The third domain is C16 (277 amino acids), the papain-like peptidase domain from the long RNA polymerase gene product. The analysed proteins were sequenced from viruses responsible for SARS, murine hepatitis, porcine transmissible gastroenteritis, porcine epidemic diarrhoea, equine arteritis and avian infectious bronchitis.",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 221,
+                    "text": "(Marra et al., 2003)",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Biological data"
+        },
+        {
+            "text": "Indel rates were estimated using three different methods: the EM method presented here, a Markov Chain Monte Carlo (MCMC) method and a naive estimate. The MCMC runs included 10 5 datapoints constituting \u223c10 3 effective independent samples. Confidence intervals for the MCMC-estimated rate parameters are reported as m \u00b1 2s where m is the mean and s the standard deviation of the marginal posterior distribution over the relevant parameter. The EM and naive methods do not return error estimates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Biological data"
+        },
+        {
+            "text": "The domain boundaries were first identified by reference to the Pfam database (Bateman et al., 1999) . We then estimated a separate phylogenetic tree for each domain, first estimating a pairwise distance matrix using a 20 \u00d7 20 amino acid substitution rate matrix previously estimated from PFAM alignments by the EM algorithm (Holmes and Rubin, 2002) , then finding an approximate phylogenetic tree using weighted neighbour-joining (Bruno et al., 2000) . The three trees thus estimated are shown in Figures 3-5 .",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 100,
+                    "text": "(Bateman et al., 1999)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 325,
+                    "end": 349,
+                    "text": "(Holmes and Rubin, 2002)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 431,
+                    "end": 451,
+                    "text": "(Bruno et al., 2000)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 498,
+                    "end": 509,
+                    "text": "Figures 3-5",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Biological data"
+        },
+        {
+            "text": "Next, we used the tkfalign program (Holmes and Bruno, 2001 ) to infer ML alignment paths for the missing ancestral sequences, using that program's default values for the indel rates (\u03bb = 0.049505, \u00b5 = 0.050495). We used the alignments containing these inferred ancestral sequences in all subsequent analyses. This strategy is likely to systematically underestimate the true indel rates, since the ML alignment paths will tend to minimize the number of inferred events. Ideally, we should integrate out the ancestral sequences, e.g. by Monte Carlo alignment sampling (Holmes and Bruno, 2001) or multidimensional dynamic programming (Hein, 2001) . However, fixing the alignments simplifies the comparison of the parameter estimation methods.",
+            "cite_spans": [
+                {
+                    "start": 35,
+                    "end": 58,
+                    "text": "(Holmes and Bruno, 2001",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 566,
+                    "end": 590,
+                    "text": "(Holmes and Bruno, 2001)",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 631,
+                    "end": 643,
+                    "text": "(Hein, 2001)",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Biological data"
+        },
+        {
+            "text": "We proceeded to estimate the indel rates, using the three methods described (naive, EM and MCMC). The results of this analysis are shown in Table 1 . We note that the Spike protein has elevated indel rates compared with the peptidase protein, and that the first (5 ) domain has higher rates than the second (3 ) domain. Some caution is, however, needed in interpreting these results, because the indel rate estimates depend strongly on the estimated tree. Since we have estimated independent phylogenies (including branch lengths) for the GS1 and GS2 domains, and since the branch length estimates are dominated by the substitutions in the alignment, what we are actually measuring here is not the absolute indel rate but the ratio of the indel rate to the substitution rate. If substitutions are generally occurring faster in one of the domains (as indeed they are, in the GS1 domain) this may significantly skew the estimate. An absolute comparison of the rates of evolution of the Spike domains can be made by the following procedure. First, estimate a phylogenetic tree for the full alignment of the entire Spike protein (Fig. 6) ; next, estimate \u03bb and \u00b5 independently for the two domains, using the same tree (and branch lengths) for each domain. The results of this test are given in Table 2 . Here, it can be seen that the 'absolute' rate of indel evolution is, in fact, greater in GS1. Thus, the overall picture is that GS1 is mutating faster than GS2, but substitutions are elevated relative to indels. Given the relative mutation rates, we predict that the GS1 domain has more contact interactions with the host immune system than GS2.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 140,
+                    "end": 147,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1125,
+                    "end": 1133,
+                    "text": "(Fig. 6)",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 1290,
+                    "end": 1297,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Biological data"
+        },
+        {
+            "text": "We note that although there is a clear systematic bias to the naive rate estimates, this bias ranges from 2 to \u223c9% and, as such, is usually slightly smaller than the sampling error (as revealed by MCMC). The exception to this is the GS1 domain, for which the bias is slightly larger (but not by much). These results seem to indicate that the naive estimates would probably be acceptable in most practical situations, although in order to avoid the possibility of downstream or compounded errors [e.g. in more elaborate TKF91-derived models containing more parameters (Holmes, 2004) ] it would be better to use the unbiased estimators derived here. The same phylogenetic tree was used for both domains (Fig. 6) . Key to domain names: GS1 is the 5 domain of the SARS coronavirus Spike surface glycoprotein, while GS2 is the 3 domain of the same protein.",
+            "cite_spans": [
+                {
+                    "start": 567,
+                    "end": 581,
+                    "text": "(Holmes, 2004)",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 701,
+                    "end": 709,
+                    "text": "(Fig. 6)",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Biological data"
+        },
+        {
+            "text": "We have shown that the expected initial sequence length (\u015c), numbers of mortal insertions (\u00ce ) and deletions (D), and accrued time for mortal (\u1e90) and immortal (T ) links, along with the expected initial composition (\u015d i ), substitution counts (\u00fb ij ) and accrued times (\u0175 i ) for each residue, constitute 'sufficient statistics' for maximizing the expected log-likelihood of a given set of alignments under the TKF91 evolutionary model. This EM algorithm is orders of magnitude faster than brute-force methods of searching the indel/substitution rate space, requiring only an O((T / t) 2 ) overhead for numerical integration, where t is the timestep for the discretized integral. We have implemented such an EM algorithm and tested it by simulation and application to biological data. In the prevalent situation where a multiple alignment is unknown, the calculation of the sufficient statistics by summing over all alignments takes time O(L N ), where L is the (geometric mean) sequence length and N is the number of sequences. However, a stochastic version of the EM algorithm, which uses MCMC alignment sampling on local neighbourhoods of the tree, can approximate these statistics efficiently (and improve alignment accuracy) in O(SL K ) time, where K is the neighbourhood size (i.e. the number of nodes whose mutual alignment is simultaneously resampled at any one step) and S is the number of sampling steps between stochastic EM updates. Naturally, one can also proceed on the assumption that the best alignment found by an alignment algorithm is the 'true' multiple alignment, although such an assumption may lead to systematic biases, such as undercounting indels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "Recent years have seen considerable interest in the derivation of stochastic evolutionary processes for biological sequences and/or structures (Thorne et al., 1992; Knudsen and Miyamoto, 2003; Mikl\u00f3s et al., 2004; Lunter and Hein, 2004; Siepel and Haussler, 2004; Holmes, 2004) . Several of these are so closely related to TKF91 that the theory derived here is directly applicable. For example, the TKF92 model (Thorne et al., 1992 ) (see also Section 2.3) is a birthdeath process on sequence fragments, rather than residues, so that the number of matches (a quantity appearing in the expressions for the EM-sufficient statistics) is found by counting the number of aligned fragments rather than the number of aligned residues. Similarly, an evolutionary model for RNA secondary structure has recently been described, together with a recipe for computing the sufficient statistics using the Inside-Outside algorithm (Holmes, 2004) . Models that depart more substantially from TKF91, such as 'long indel' models (Knudsen and Miyamoto, 2003; Mikl\u00f3s et al., 2004) and context-sensitive substitution models (Lunter and Hein, 2004; Siepel and Haussler, 2004) , have generally not been solved completely (i.e. we still lack exact algebraic expressions for the sequence likelihood) and so the TKF91 theory developed here will be less directly applicable. These models may mandate different approaches to rate estimation, such as enumeration of mutation trajectories (Mikl\u00f3s et al., 2004) , truncated Taylor expansions (Lunter and Hein, 2004) and variational approximations (Siepel and Haussler, 2004) .",
+            "cite_spans": [
+                {
+                    "start": 143,
+                    "end": 164,
+                    "text": "(Thorne et al., 1992;",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 165,
+                    "end": 192,
+                    "text": "Knudsen and Miyamoto, 2003;",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 193,
+                    "end": 213,
+                    "text": "Mikl\u00f3s et al., 2004;",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 214,
+                    "end": 236,
+                    "text": "Lunter and Hein, 2004;",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 237,
+                    "end": 263,
+                    "text": "Siepel and Haussler, 2004;",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 264,
+                    "end": 277,
+                    "text": "Holmes, 2004)",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 411,
+                    "end": 431,
+                    "text": "(Thorne et al., 1992",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 916,
+                    "end": 930,
+                    "text": "(Holmes, 2004)",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1011,
+                    "end": 1039,
+                    "text": "(Knudsen and Miyamoto, 2003;",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1040,
+                    "end": 1060,
+                    "text": "Mikl\u00f3s et al., 2004)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1103,
+                    "end": 1126,
+                    "text": "(Lunter and Hein, 2004;",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1127,
+                    "end": 1153,
+                    "text": "Siepel and Haussler, 2004)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1459,
+                    "end": 1480,
+                    "text": "(Mikl\u00f3s et al., 2004)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1511,
+                    "end": 1534,
+                    "text": "(Lunter and Hein, 2004)",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1566,
+                    "end": 1593,
+                    "text": "(Siepel and Haussler, 2004)",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        },
+        {
+            "text": "The EM algorithm-in the form of the Baum-Welch algorithm-is one cornerstone of the application of profile HMMs in bioinformatics. We hope that the theoretical developments described here may contribute to the efforts to make evolutionary models similarly useful for probabilistic sequence analysis and phylogenomics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DISCUSSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Pfam 3.1: 1313 multiple alignments match the majority of proteins",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bateman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Nucleic Acids Res",
+            "volume": "27",
+            "issn": "",
+            "pages": "260--262",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Weighted neighbor joining: a likelihood-based approach to distance-based phylogeny reconstruction",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bruno",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Mol. Biol. Evol",
+            "volume": "17",
+            "issn": "",
+            "pages": "189--197",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Maximum likelihood from incomplete data via the EM algorithm",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Dempster",
+                    "suffix": ""
+                }
+            ],
+            "year": 1977,
+            "venue": "J. R. Stat. Soc., B",
+            "volume": "39",
+            "issn": "",
+            "pages": "1--38",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Biological Sequence Analysis: Probabilistic Models of Proteins and Nucleic Acids",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Durbin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Eddy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krogh",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Mitchison",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Inferring Phylogenies",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Felsenstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "0878931775",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A structural EM algorithm for phylogenetic inference",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ninio",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Pe&apos;er",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Pupko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the Fifth Annual International Conference on Computational Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "An algorithm for statistical alignment of sequences related by a binary tree",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Altman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Dunker",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Hunter",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lauderdale",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Pacific Symposium on Biocomputing",
+            "volume": "",
+            "issn": "",
+            "pages": "179--190",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Statistical alignment: computational properties, homology testing and goodness-of-fit",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "J. Mol. Biol",
+            "volume": "302",
+            "issn": "",
+            "pages": "265--279",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Using guide trees to construct multiple-sequence evolutionary HMMs",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the Eleventh International Conference on Intelligent Systems for Molecular Biology",
+            "volume": "",
+            "issn": "",
+            "pages": "147--157",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A probabilistic model for the evolution of RNA structure",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "BMC Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Evolutionary HMMs: a Bayesian approach to multiple alignment",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bruno",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Bioinformatics",
+            "volume": "17",
+            "issn": "",
+            "pages": "803--820",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "An Expectation Maximization algorithm for training hidden substitution models",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "J. Mol. Biol",
+            "volume": "317",
+            "issn": "",
+            "pages": "757--768",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A First Course in Stochastic Processes",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Karlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Taylor",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Sequencing and comparison of yeast species to identify genes and regulatory elements",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kellis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Nature",
+            "volume": "423",
+            "issn": "",
+            "pages": "241--254",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Sequence alignments and pair hidden Markov models using evolutionary history",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Knudsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Miyamoto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "J. Mol. Biol",
+            "volume": "333",
+            "issn": "",
+            "pages": "453--460",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A nucleotide substitution model with nearest-neighbour interactions",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lunter",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Bioinformatics",
+            "volume": "20",
+            "issn": "",
+            "pages": "216--223",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "The genome sequence of the SARS-associated coronavirus",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Marra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Science",
+            "volume": "300",
+            "issn": "",
+            "pages": "1399--1404",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Assessing variability by joint sampling of alignments and mutation rates",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "J. Mol. Evol",
+            "volume": "53",
+            "issn": "",
+            "pages": "660--669",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "A long indel model for evolutionary sequence alignment",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Mikl\u00f3s",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Mol. Biol. Evol",
+            "volume": "21",
+            "issn": "",
+            "pages": "529--540",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Tree-based maximal likelihood substitution matrices and hidden Markov models",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mitchison",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Durbin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "J. Mol. Evol",
+            "volume": "41",
+            "issn": "",
+            "pages": "1139--1151",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Numerical Recipes in C",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Press",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Teukolsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Vetterling",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Flannery",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Phylogenetic estimation of contextdependent substitution rates by maximum likelihood",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Siepel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Haussler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Mol. Biol. Evol",
+            "volume": "21",
+            "issn": "",
+            "pages": "468--488",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "An evolutionary model for maximum likelihood alignment of DNA sequences",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Thorne",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "J. Mol. Evol",
+            "volume": "33",
+            "issn": "",
+            "pages": "114--124",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Inching toward reality: an improved likelihood model of sequence evolution",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Thorne",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "J. Mol. Evol",
+            "volume": "34",
+            "issn": "",
+            "pages": "3--16",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Combining protein evolution and secondary structure",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Thorne",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Mol. Biol. Evol",
+            "volume": "13",
+            "issn": "",
+            "pages": "666--673",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "A Pairwise HMM (Pair HMM) representation of the TKF91 evolutionary model. Transition probabilities are shown beside each transition arrow. The model contains Start (S), End (E), Match (M), Delete (D) and Insert (I) states, plus three null states (closed circles) introduced to simplify the transition probability expressions. (Note that Start and End may also be considered null states.)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Estimated versus actual results for number of insertions (left)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Phylogenetic trees estimated by the neighbour-joining method applied to pairwise amino acid-level distance matrices for the 5 GS1 domain from the coronavirus glycosurface protein 'Spike'. Key: Chicken, AAF69334.1 (murine hepatitis virus); ChickenII, AAF19386.1 (murine hepatitis virus strain II); Cow, NP_150077.1 (bovine coronavirus); SARS, NP_828851.1 (SARS coronavirus); SARSCUHKW1, AAP13567.1 (SARS strain CUHK-W1); SARSUrbani, AAP13441.1 (SARS strain Urbani); Bird, NP_740621.1 (avian infectious bronchitis virus); 229E, NP_073551.1 (human coronavirus strain 229E); PigED, NP_598310.1 (porcine epidemic diarrhea virus); PigTG, NP_058424.1 (porcine transmissible gastroenteritis virus); and Horse, NP_705583.1 (equine arteritis virus).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Phylogenetic trees estimated by the neighbour-joining method applied to pairwise amino acid-level distance matrices for the 3 GS2 domain from the coronavirus glycosurface protein 'Spike'. For sequence accession numbers, see legend toFigure 3.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Phylogenetic trees estimated by the neighbour-joining method applied to pairwise amino acid-level distance matrices for the papain-like peptidase domain from coronavirus RNA polymerase. Key: Chicken, AAF69341.1; ChickenII, AAF19383.1; Cow, NP_742129.1; SARS, NP_828860.1; SARSUrbani, AAP13439.1; and SARSCUHKW1, AAP13575.1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Phylogenetic trees estimated by the neighbour-joining method applied to pairwise amino acid-level distance matrices for the entire 'Spike' coronavirus glycosurface protein (including both domains GS1 and GS2). For sequence accession numbers, see legend to Figure 3.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Indel rates for coronavirus protein domains",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Indel rates for coronavirus Spike protein domains",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The author would like to thank Bob Griffiths, Von Bing Yap and Terry Speed for helpful discussions, and two anonymous reviewers for their suggestions. This work was partially supported by grants from EPSRC (code HAMJW) and MRC (code HAMKA).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ACKNOWLEDGEMENTS"
+        },
+        {
+            "text": "Supplementary data for this paper are available on Bioinformatics online.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "SUPPLEMENTARY DATA"
+        }
+    ]
+}

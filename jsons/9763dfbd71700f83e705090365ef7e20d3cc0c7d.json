@@ -1,0 +1,1361 @@
+{
+    "paper_id": "9763dfbd71700f83e705090365ef7e20d3cc0c7d",
+    "metadata": {
+        "title": "Off-Policy Recommendation System Without Exploration",
+        "authors": [
+            {
+                "first": "Chengwei",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Zhejiang University",
+                    "location": {
+                        "settlement": "Hangzhou",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Tengfei",
+                "middle": [],
+                "last": "Zhou",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Zhejiang University",
+                    "location": {
+                        "settlement": "Hangzhou",
+                        "country": "China"
+                    }
+                },
+                "email": "zhoutengfei@zju.edu.cn"
+            },
+            {
+                "first": "Chen",
+                "middle": [],
+                "last": "Chen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Zhejiang University",
+                    "location": {
+                        "settlement": "Hangzhou",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Tianlei",
+                "middle": [],
+                "last": "Hu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Zhejiang University",
+                    "location": {
+                        "settlement": "Hangzhou",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Gang",
+                "middle": [],
+                "last": "Chen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "CAD and CG State Key Lab",
+                    "institution": "Zhejiang University",
+                    "location": {
+                        "settlement": "Hangzhou",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Recommendation System (RS) can be treated as an intelligent agent which aims to generate policy maximizing customers' long term satisfaction. Off-policy reinforcement learning methods based on Q-learning and actor-critic methods are commonly used to train RS. Though these methods can leverage previously collected dataset for sampling efficient training, they are sensitive to the distribution of off-policy data and make limited progress unless more on-policy data are collected. However, allowing a badly-trained RS to interact with customers can result in unpredictable loss. Therefore, it is highly desirable that the offpolicy method can stably train an RS when the off-policy data is fixed and there is no further interaction with the environment. To fulfill these requirements, we devise a novel method name Generator Constrained Q-learning (GCQ). GCQ additionally trains an action generator via supervised learning. The generator is used to mimic data distribution and stabilize the performance of recommendation policy. Empirical studies show that the proposed method outperforms state-of-the-art techniques on both offline and simulated online environments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Recommender System (RS) is one of the most important applications in artificial intelligence [15, 20] . An intelligent RS can significantly reduce users' searching time, greatly enhance their shopping experience and bring considerable profits to vendors.",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 97,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 98,
+                    "end": 101,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "From the Reinforcement Learning (RL) perspective, RS is an autonomous agent that intelligently learns the optimal recommendation behavior over time to maximize each user's long term satisfaction through interacting with its environment. This offers us the opportunity to solve the recommendation task on top of the recent RL advancement. Considering that a previously collected customers' feedback dataset is often available for recommendation tasks, many researchers adopt the off-policy RL methods to extract patterns from the data [4, 21, 23] .",
+            "cite_spans": [
+                {
+                    "start": 534,
+                    "end": 537,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 538,
+                    "end": 541,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 542,
+                    "end": 545,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Off-policy RL algorithms are often expected to fully exploit off-policy datasets. Nevertheless, these methods can break down when the datasets are not collected by learning agents. Theoretically, [2] points out that Bellman updates could diverge with off-policy data. The divergence issue would surely invalidate the performance of DQN agents. [12, 16] find that in off-policy learning, the fixpoint of Bellman updates may have poor quality even if the update converges. Empirically, [9] shows that off-policy agents perform dramatically worse than the behavioral agent when trained by the same numerical algorithm on the same dataset. Moreover, many researchers observe that these methods can still fail to learn the optimal strategy even when training data are deliberately selected by effective experts. All these observations suggest that off-policy methods are unstable to static datasets.",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 344,
+                    "end": 348,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 349,
+                    "end": 352,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 484,
+                    "end": 487,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The instability of off-policy methods is highly undesirable in training an RS. One would hope that the RS has learned sound policies before deploying into a production environment. If its performance turns out to be unpredictable, deploying the RS would be risky. To stabilize off-policy methods, one can compensate for the performance of the RS by online feedbacks. That is, allow the offpolicy agent to interact with customers and use the customers' feedbacks to stabilize its performance. In practice, collecting user's feedback is time-consuming, and deploying an unstable RS to interact with customers would greatly reduce their satisfaction. As a result, designing a stable off-policy RL method for RS which has reasonable performance for any static training set without further exploration, is a fundamental problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "As indicated in [9, 14] , the instability issue of off-policy methods results from exploration error which is a fundamental problem with off-policy reinforcement learning. exploration error usually behaves as the value function is erroneously estimated on unseen state-action pairs. The exploration error can be unboundedly large, even if the value function can be perfectly approximated [9] . Moreover, it can accumulate during the training iterations [14] . It may misguide the training agent and make the agent take over-optimistic or over-pessimistic decisions. As a result, the training process becomes unstable and potentially diverging unless new data is collected to remedy those errors.",
+            "cite_spans": [
+                {
+                    "start": 16,
+                    "end": 19,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 20,
+                    "end": 23,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 388,
+                    "end": 391,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 453,
+                    "end": 457,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we propose a novel off-policy RL method for RS to diminish the exploration error. Our method can learn recommendation policy successfully from large static datasets without further interacting with the environment. exploration error results from a mismatch in the distribution of data induced by the recommendation policy and the distribution of customers' feedback contained in the training data [9] . The proposed Generator Constrained deep Q-learning (GCQ) utilizes a neural generator to simulate customers' possible feedbacks. This generative model is combined with a Q-network which select the highest valued action to form recommendation policy. Furthermore, to reduce the decision time, we design the generator's architecture based on Huffman Tree. We show that with the generator pruning unlikely actions, the decision complexity can be reduced to O(log |A|) where |A| is the number of actions, namely the number of items.",
+            "cite_spans": [
+                {
+                    "start": 412,
+                    "end": 415,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A typical recommendation process can be formulated as a Markov Decision Process (MDP) (S, A, r, P, \u03b3) which is defined as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "-State space S: The state s u t = {u, i 1 , . . . i ct } contains the active user u and his/her chronological clicked items.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "-Action space A: The action space is the item set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "-Reward r(s u , a u ): Reward is the immediate gain of the RS after action a u .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "-Transition probability P (s u t+1 |s u t , a u t ): The state transits as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "-Discount rate \u03b3: \u03b3 \u2208 [0, 1] is a hyperparameter. It is the tradeoff between the immediate reward and long term benefits.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "The off-policy recommendation problem can be formulated as follows. Let B = {(s u t , a u t , s u t+1 , r u t )} be the dataset collected by a unknown behavior policy. Construct a recommendation policy \u03c0 : S \u2192 A such that the accumulated reward is maximized. For notation simplicity, we may omit the superscript of s u , r u , a u in the following section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Off-Policy Recommendation Problem"
+        },
+        {
+            "text": "Q-learning learns the state-action Q-function Q(s, a), which is the optimal expected cumulative reward when the RS starts in state s and takes action a. The optimal policy \u03c0 can be recovered from the Q-function by choosing the maximizing action that is \u03c0(s) = arg max a\u2208A Q(s, a). The Q-function is a fix point of the following Bellman iteration:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Q-Learning"
+        },
+        {
+            "text": "with (s t , a t , s t+1 , r t ) sampled from B. The above update formula is called Qlearning in reinforcement learning literature. According to [9, 14] , Q-learning may have unrealistic value on unobserved state-action pairs, which results in large exploration error and makes the performance of an RS unstable.",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Q-Learning"
+        },
+        {
+            "text": "To cope with the exploration error, [14] proposes the Batch Constrained Q-Learning (BCQ) method. BCQ avoids exploration error by explicitly constraining an agent's candidate actions in the training set. Specifically, BCQ estimates the Q-function by the following batch constrained Bellman update.",
+            "cite_spans": [
+                {
+                    "start": 36,
+                    "end": 40,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Batch Constrained Q-Learning"
+        },
+        {
+            "text": "where \"(s t+1 , a) \u2208 B\" means that there exist state s and reward r such that (s t+1 , a, s , r ) \u2208 B. Due to the sparsity of recommendation dataset, for most observed state s, there exists at most one action a such that (s, a) \u2208 B. Thus, for most state-action pairs, the BCQ update (3) can be simplified to the following iteration",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Batch Constrained Q-Learning"
+        },
+        {
+            "text": "Such iteration implicitly assumes that the observed action a t+1 is optimal for state s t+1 , which is unrealistic because users' feedbacks are noisy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Batch Constrained Q-Learning"
+        },
+        {
+            "text": "To prevent BCQ from overfitting into noisy data, we propose a new off-policy RL algorithm named Generator Constrained Q-learning (GCQ). GCQ utilizes a neural generator to recover the distribution of observed dataset. Then, the Qfunction is updated on a candidate set sampled from the generator. Specifically, the main iteration of GCQ can be formulated as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generator Constrained Q-Learning"
+        },
+        {
+            "text": "where (s t , a t , s t+1 , r t ) is a randomly sampled tuple from B and g \u03b8 (\u00b7|s) is a neural generator which gives the conditional probability of actions. The size of candidate set c is a hyperparameter of GCQ method. When c is fixed to n, the number of items, GCQ becomes Q-Learning method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generator Constrained Q-Learning"
+        },
+        {
+            "text": "Since the state space of RS is large, it is impossible to compute the Q-function of each state-action pairs. To handle the difficulty, we approximate the unknown Q-function by a deep neural network Q \u03b8 (s, a) a.k.a deep Q-net where \u03b8 is its parameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generator Constrained Q-Learning"
+        },
+        {
+            "text": "Obviously, both Q-net and generator need an encoder to extract features from a state s = {u, i 1 , . . . i T }. According to [3] , a shared encoder generalizes better than multiple task-specified encoders. Therefore, we use the same encoder for Q-net Q \u03b8 (s, \u00b7) and generator g \u03b8 (\u00b7|s). We depict the structure of encoder in Fig. 1(a) . Embedding Layer. The embedding layer maps a user or an item to correspondent semantic vector. Formally, Let U \u2208 R m\u00d7d and V \u2208 R n\u00d7d be the embedding matrix of user and item respectively. The embedding vector of user u and item i can be expressed as follows.",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 128,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 325,
+                    "end": 334,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "where we use X[k] to denote k-th row of matrix X.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "Residual Recurrent Layer. The layer transforms the sequence s u = {u, i 1 , . . . i T } into hidden states. In the field of sequence modeling, GRU [6] and LSTM [10] are arguably the most powerful tools. However, both recurrent structures suffer from gradient vanishing/exploding issues for long sequences. Inspired by that residual network has stable gradients [19] , we proposed a variant of GRU cell with residual structure. Specifically, we use the following recurrent to map the state s into hidden states {h t } t=T t=0 .",
+            "cite_spans": [
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 160,
+                    "end": 164,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 361,
+                    "end": 365,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "where p u is the embedding vector of user u, q it is the embedding vector of item i t , and W is an alignment matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "Fast Attention Layer. The layer utilizes attention mechanism to aggregate hidden states {h t } t=T t=0 into a feature vector e. For efficiency, we adopt a faster linear attention mechanism instead of the common tanh-based ones [7] . The linear attention has two stages. Stage one: compute the signal matrix C t via the following recurrence.",
+            "cite_spans": [
+                {
+                    "start": 227,
+                    "end": 230,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "where \u03b1 t = \u03c3(W \u03b1 h t ) is the forget gate and W \u03b1 its parameter. Stage two: output encoding feature via e = C T h T .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "The output vector e is the encoded feature vector of s.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of State Encoder"
+        },
+        {
+            "text": "Considering that actions with high cumulative rewards shall have close correlations with the current state, we use the inner product of the two object's feature vectors to model the Q-function, that is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of Q-Net"
+        },
+        {
+            "text": "where q a = V[a] is the embedding vector of action a.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of Q-Net"
+        },
+        {
+            "text": "Since Huffman tree uses shorter codes for more frequent items, it results in a faster sampling process and is widely used in NLP tasks [17, 18] . To reduce training time, we build a novel neural structure based on Huffman tree. The proposed structure is depicted in Fig. 1(b) . The Huffman tree is built according to the popularity of items f which is defined by",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 266,
+                    "end": 275,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Architecture of Generator"
+        },
+        {
+            "text": "with #ocurr i being the occurrence number of item i. We assign Huffman code to each node of the tree by the following rules: (a) encode root node by b 0 = 0; (b) for a node with code b 0 b 1 . . . b j , encode its left child by b 0 b 1 . . . b j 0 and right child by b 0 b 1 . . . b j 1. Let z b 0:k \u2208 R d be an embedding vector of a tree node with code b 0:k . For an item a with code b 0:j , its generating probability can be computed as follows. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of Generator"
+        },
+        {
+            "text": "The recommendation policy can be executed in O(d log |A|) flops.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Architecture of Generator"
+        },
+        {
+            "text": "Loss Function of the Generator. We use the negative log-likelihood of the generator to evaluate the performance of the generator.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameter Inference"
+        },
+        {
+            "text": "Loss Function of the Q-Net. According to the framework of fitted Q-iteration [1] , the loss function of Q-net is the mean square error between the Q-net and its bellman update, namely",
+            "cite_spans": [
+                {
+                    "start": 77,
+                    "end": 80,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Parameter Inference"
+        },
+        {
+            "text": "where A = {a i \u223c g \u03b8 (a|s )} c i=1 is the candidate set and (s, a, s , r) \u2208 B.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameter Inference"
+        },
+        {
+            "text": "input : Replay Buffer B, size of candidate set c, regularizer \u03bb, number of iterations K, discount rate \u03b3, learning rate \u03b7",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: Generator Constrained Deep Q-Learning"
+        },
+        {
+            "text": "Joint Inference. Since the Q-net and the generator share the same encoder, We jointly train them via iteratively minimizing the following loss. min \u03b8 qloss(\u03b8) + \u03bbnll(\u03b8) (16) where \u03bb > 0 is a tuning parameter controlling the balance of mean square loss and log-likelihood. The joint loss can be optimized via stochastic gradient descent, as showed in Algorithm 1.",
+            "cite_spans": [
+                {
+                    "start": 169,
+                    "end": 173,
+                    "text": "(16)",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1: Generator Constrained Deep Q-Learning"
+        },
+        {
+            "text": "In this section, we compare the performance of proposed GCQ method with state-of-the-art recommendation methods. We assess the performance of considered methods on both real-world offline datasets and simulated online environments. Besides, empirical studies on the hyperparameter sensitivities and computing time are conducted on several datasets. The baseline methods are listed as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "-MF [13] : It utilizes the latent factor model to predict the unknown ratings.",
+            "cite_spans": [
+                {
+                    "start": 4,
+                    "end": 8,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "-W&D [5] : W&D uses wide & deep neural architecture to learn nonlinear latent factors. -GRU4Rec [11] : It applies GRU to model click sequences.",
+            "cite_spans": [
+                {
+                    "start": 5,
+                    "end": 8,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "-DQN: It recommends items by a deep Q-net. For fairness, We set the Q-net to the same one as the proposed method. -DDPG [8] : DDPG utilizes deterministic policy gradient descent to update parameters. -DEERS [22] : It tries to incorporate a user's negative feedback via sampling from the unclicked items.",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 207,
+                    "end": 211,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We use three publicly available datasets: MovieLens 1M (M1M), MovieLens 10M (M10M) and Amazon 5-core grocery and gourmet food (AMZ) to compare the considered methods. These datasets contain historical ratings of items with scoring timestamps. Now according to timestamps, we can transform the datasets into replay buffers of the form {(s u t , a u t , s u t+1 , r u t )}. For simplicity, we set the dimension of user embedding, the dimension of item embedding, and the dimension of hidden states of the proposed neural architectures to the same value d. We call d the model dimension. We set the model dimension d = 150, the discount factor \u03b3 = 0.9, the size of sampling size c = 50, and the regularizer \u03bb = 0.1 as default. All these hyperparameters are chosen by cross-validation. The hyperparameters of baseline methods are set to default values.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment Settings"
+        },
+        {
+            "text": "According to the temporal order, we use the top 70% tuples in the derived replay buffers for training and hold out the remaining 30% for testing. In an offline environment, we cannot obtain the immediate reward of the recommendation policy. As a result, we cannot use the cumulative reward to evaluate the performance of the compared learning agents. Considering that a Q-net Q \u03b8 (s, a) with high cumulative reward shall assign large value to clicked items and give small value the ignored ones, Q \u03b8 (s, a) can be viewed as a scoring function which ranks the clicked items ahead of ignored ones. Thus, we can use the ranking metric such as Recall@k and Precision@k to evaluate the compared methods. To reduce randomness, we run each model five times and report their average performances in Table 1 and Table 2 . From the tables, we can see that GCQ consistently outperforms DQN. Since the two methods share the same Q-net, such result shows that GCQ has a lower exploration error during the learning process. GCQ also has higher accuracy than DEERS. The reason is that the proposed encoder is more expressive than DEERS's GRU based one. Compared with DDPG, our GCQ consistently has better accuracy. This is because the policy-gradient-based method DDPG has higher variances during the learning process. Both Table 1 and Table 2 exhibit that GCQ outperforms non-RL methods, namely MF, W&D and GRU4Rec. These results demonstrate that taking the long term reward into consideration can improve the accuracy of recommendation. The computational time of compared RL methods is recorded in Table 3 . The table exhibits that GCQ takes significantly less computational time in handling the benchmark datasets. This is because GCQ only takes O(log |A|) flops to make a recommendation decision while the decision complexities of other baseline methods are O(|A|).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 791,
+                    "end": 810,
+                    "text": "Table 1 and Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1309,
+                    "end": 1316,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1321,
+                    "end": 1328,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 1585,
+                    "end": 1592,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Offline Evaluation"
+        },
+        {
+            "text": "To simulate online environment, we train a GRU to model users' sequential decision processes. The GRU takes a user, the user's last clicked 20 items, and a candidate item as input. Then, it outputs the click probability of the candidate item. Such a simulation GRU is widely used in evaluating the online performance of RL-based recommender agent [22] . We split the datasets into the front 10%, the middle 80% and the tail 10% sub-datasets by temporal order. The front sub-dataset is used for initializing the learning agents. The middle sub-dataset is utilized for training the simulation GRU. The simulator will be validated on the tail sub-dataset. After training, we find that the simulator has classification accuracy greater than 75%. Therefore, the simulator quite precisely models a user's click decision. After the simulator is trained, we collect the simulated responses of users and then obtain cumulative reward.",
+            "cite_spans": [
+                {
+                    "start": 347,
+                    "end": 351,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Online Evaluation"
+        },
+        {
+            "text": "The cumulative reward curves are reported in Fig. 2 . From the figure, we find that GCQ yields much higher cumulative rewards than baseline methods. Its superior performance results from the smaller exploration error and better encoder structure. These figures also show that GCQ is more stable than the baseline methods. This confirms that GCQ has a lower exploration error during the learning process.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 45,
+                    "end": 51,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Online Evaluation"
+        },
+        {
+            "text": "We find that the most important hyperparameters include: the model dimension parameter d which controls the model complexity of GCQ; and the size of candidate set c which controls exploration error.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Stability"
+        },
+        {
+            "text": "We report Precision@10 of GCQ under different settings of d in Fig. 3(a) . ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 63,
+                    "end": 72,
+                    "text": "Fig. 3(a)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Model Stability"
+        },
+        {
+            "text": "We proposed a novel Generator Constrained Q-learning technique for recommendation tasks. GCQ reduce the decision complexity of Q-net from O(|A|) to O(log |A|). In addition, GCQ enjoys lower exploration error through better characterization of observed data. Further, GCQ employs a new multi-layer encoder to handle long sequences through attention mechanism and skip connection. Empirical studies demonstrate GCQ outperforms state-of-the-art methods both in efficiency and accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Fitted Q-iteration in continuous action-space MDPs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Antos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szepesv\u00e1ri",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Munos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Residual algorithms: reinforcement learning with function approximation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Baird",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Machine Learning Proceedings",
+            "volume": "",
+            "issn": "",
+            "pages": "30--37",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Effective shared representations with multitask learning for community question answering",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bonadiman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Uva",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Moschitti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Top-k off-policy correction for a reinforce recommender system",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Beutel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Covington",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Belletti",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Chi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Wide & deep learning for recommender systems",
+            "authors": [
+                {
+                    "first": "H.-T",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Levent Koc",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 1st Workshop on Deep Learning for Recommender Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "7--10",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Empirical evaluation of gated recurrent neural networks on sequence modeling",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Gulcehre",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.3555"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "A cheap linear attention mechanism with fast lookups and fixed-size representations",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "De Brebisson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vincent",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1609.05866"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep reinforcement learning in large discrete action spaces",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Dulac-Arnold",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1512.07679"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Off-policy deep reinforcement learning without exploration",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Fujimoto",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Meger",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Precup",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1812.02900"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Learning to forget: Continual prediction with LSTM",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gers",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Cummins",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Session-based recommendations with recurrent neural networks",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hidasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Karatzoglou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1511.06939"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "The fixed points of off-policy TD",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Kolter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2169--2177",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Matrix factorization techniques for recommender systems",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Koren",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Bell",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Volinsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Computer",
+            "volume": "42",
+            "issn": "8",
+            "pages": "30--37",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Stabilizing off-policy Q-learning via bootstrapping error reduction",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1906.00949"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Amazon.com recommendations: item-to-item collaborative filtering",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Linden",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "York",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "IEEE Internet Comput",
+            "volume": "1",
+            "issn": "",
+            "pages": "76--80",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Error bounds for approximate policy iteration",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Munos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "3",
+            "issn": "",
+            "pages": "560--567",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Incrementally learning the hierarchical softmax function for neural language models",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "word2vec parameter learning explained",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Rong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1411.2738"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Norm-preservation: why residual networks can become extremely deep?",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zaeemzadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rahnavard",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.07477"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Deep learning based recommender system: a survey and new perspectives",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CSUR",
+            "volume": "52",
+            "issn": "1",
+            "pages": "1--38",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Deep reinforcement learning for list-wise recommendations",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1801.00209"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Recommendations with negative feedback via pairwise deep reinforcement learning",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "DRN: a deep reinforcement learning framework for news recommendation",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Neural architectures of proposed networks",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Cumulative rewards of compared methods v.s. number of iterations",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "b) records Precision@10 of GCQ under different values of c. The experimental results in Fig. 3(a)(b) fluctuate within an acceptable range. This demonstrates the performance of our model is stable. Precision@10 of GCQ under different settings of hyperparameters",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Offline Recall@k of compared methods",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Computational time of compared methods",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

@@ -1,0 +1,947 @@
+{
+    "paper_id": "20488171771062895127afbb276541247cf2b0e0",
+    "metadata": {
+        "title": "PEARL: Probabilistic Exact Adaptive Random Forest with Lossy Counting for Data Streams",
+        "authors": [
+            {
+                "first": "Ocean",
+                "middle": [],
+                "last": "Wu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Auckland",
+                    "location": {
+                        "settlement": "Auckland",
+                        "country": "New Zealand"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Yun",
+                "middle": [
+                    "Sing"
+                ],
+                "last": "Koh",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Auckland",
+                    "location": {
+                        "settlement": "Auckland",
+                        "country": "New Zealand"
+                    }
+                },
+                "email": "ykoh@cs.auckland.ac.nz"
+            },
+            {
+                "first": "Gillian",
+                "middle": [],
+                "last": "Dobbie",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Auckland",
+                    "location": {
+                        "settlement": "Auckland",
+                        "country": "New Zealand"
+                    }
+                },
+                "email": "g.dobbie@auckland.ac.nz"
+            },
+            {
+                "first": "Thomas",
+                "middle": [],
+                "last": "Lacombe",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Auckland",
+                    "location": {
+                        "settlement": "Auckland",
+                        "country": "New Zealand"
+                    }
+                },
+                "email": "thomas.lacombe@auckland.ac.nz"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In order to adapt random forests to the dynamic nature of data streams, the state-of-the-art technique discards trained trees and grows new trees when concept drifts are detected. This is particularly wasteful when recurrent patterns exist. In this work, we introduce a novel framework called PEARL, which uses both an exact technique and a probabilistic graphical model with Lossy Counting, to replace drifted trees with relevant trees built from the past. The exact technique utilizes pattern matching to find the set of drifted trees, that co-occurred in predictions in the past. Meanwhile, a probabilistic graphical model is being built to capture the tree replacements among recurrent concept drifts. Once the graphical model becomes stable, it replaces the exact technique and finds relevant trees in a probabilistic fashion. Further, Lossy Counting is applied to the graphical model which brings an added theoretical guarantee for both error rate and space complexity. We empirically show our technique outperforms baselines in terms of cumulative accuracy on both synthetic and real-world datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Many applications deal with data streams. Data streams can be perceived as a continuous sequence of data instances, often arriving at a high rate. In data streams, the underlying data distribution may change over time, causing decay in the predictive ability of the machine learning models. This phenomenon is known as concept drift. For example, in a weather prediction model when there is a shift from one season to another, one may observe a decrease in prediction accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Moreover, it is common for previously seen concepts to recur in real-world data streams [3, 5, 12] . If a concept reappears, for example a particular weather pattern, previously learnt classifiers can be reused; thus the performance of the learning algorithm can be improved. Current techniques that deal with recurrent concept drifts [2, 7] are exact methods, relying on meta-information. A drawback of these techniques is their approach to memory management in storing the classifier pool.",
+            "cite_spans": [
+                {
+                    "start": 88,
+                    "end": 91,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 92,
+                    "end": 94,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 95,
+                    "end": 98,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 335,
+                    "end": 338,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 339,
+                    "end": 341,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "These methods create a new classifier after each drift, which leads to a large pool of concepts being created early in the process. This makes identifying previously seen concepts or states more expensive.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Motivated by this challenge, we propose a novel approach for capturing and exploiting recurring concepts in data streams using both probabilistic and exact techniques, called Probabilistic Exact Adaptive Random Forest with Lossy Counting (PEARL). We use an extended Adaptive Random Forest (ARF) as the base classifier [6] . Like ARF, it contains a set of foreground trees, each with a drift detector to track warnings and drifts, and a set of background trees that are created and trained when drift warnings are detected. Beyond that, we keep all the drifted foreground trees in an online tree repository and maintain a set of candidate trees. The candidate trees are a small subset of the online tree repository, which can potentially replace the drifted trees. When the drift warning is detected, a set of candidate trees are selected from this online tree repository by either the State Pattern Matching technique or the Tree Transition Graph. Once the actual drift is detected, the foreground trees are replaced by either their background trees or the more relevant candidate trees. In addition, we periodically update the Tree Transition Graph using a Lossy Counting [8] approximation. The benefit of Lossy Counting is the ability to control the size of the graph and expire less frequently used trees, thus adapting the graph to the dynamic environment of the evolving data.",
+            "cite_spans": [
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1173,
+                    "end": 1176,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The main contribution of this paper is a novel framework for storing and reusing concepts effectively and efficiently, by using both an exact pattern matching technique and a probabilistic graphical model. In particular, the graphical model uses the Lossy Counting approximation for improved performance and guaranteed space complexity. It is shown empirically to outperform baselines in terms of cumulative accuracy gains.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The remainder of this paper is organized as follows: in Sect. 2 we provide an overview of work related to recurring concepts. In Sect. 3 we give an overview of the PEARL framework. In Sects. 4 and 5 we discuss the implementations of the State Pattern Matching and the Tree Transition Graph in detail, followed by a theoretical analysis in Sect. 6. We then evaluate the performance of our techniques on both synthetic and real world datasets in Sect. 7. Finally, Sect. 8 concludes our work and poses directions for future work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There has been some research using probabilistic methods for concept drift adaptation to find recurrent patterns. RePro [14] was proposed to predict concept models for future drifts using historical trends of concept change. The authors use a Markov Chain to model the concept history and have shown that this allows the learner to adjust more quickly to concept change in streams with recurring concepts. Chen et al. [4] proposed a novel drift prediction algorithm to predict the location of future drift points based on historical drift trends which they model as transitions between stream volatility patterns. The method uses a probabilistic network to learn drift trends and is independent of the drift detection technique. ProChange [9] finds both real and virtual drifts in unlabelled transactional data streams using the Hellinger distance, and models the volatility of drifts using a probabilistic network to predict the location of future drifts. The GraphPool framework [1] refines the pool of concepts by applying a merging mechanism whenever necessary by considering the correlation among features. Then, they compare the current batch representation to the concept representations in the pool using a statistical multivariate likelihood test. All of these techniques use an exact mechanism for managing the number of transitions from one model to another, which is computationally expensive.",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 124,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 418,
+                    "end": 421,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 739,
+                    "end": 742,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 981,
+                    "end": 984,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "PEARL extends Adaptive Random Forest (ARF), a classification algorithm for evolving data streams that addresses the concept drift problem. In ARF, there are two types of trees, namely the foreground trees and the background trees. The foreground trees get trained, and make individual predictions. The majority of the individual predictions forge the final prediction output of the ARF (i.e. voting). Additionally, each foreground tree is equipped with two drift detectors, one for detecting drift warnings and the other for detecting actual drifts. The background trees are created and start training from the root when the foreground trees have detected drift warnings. When actual drifts are detected, the background trees then replace the drifted foreground trees. The background trees do not participate in voting until they replace the drifted foreground trees.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PEARL Overview"
+        },
+        {
+            "text": "In ARF, the drifted foreground trees simply get discarded when they get replaced by the background trees. This is particularly wasteful since the same concepts may recur. Besides, the drift warning period may be too short for the background trees to model the recurred concept. In contrast to ARF, PEARL stores drifted foreground trees in an online tree repository, and tries to reuse these trees to replace the drifted foreground trees when concepts recur. However, as the size of the repository can grow as large as the memory allows, it is computationally expensive to evaluate all the repository trees, to find relevant trees to the potentially recurring concepts. As a result, PEARL introduces a third type of tree, called the candidate trees, to the random forest. The candidate trees are a small subset of the repository trees. They are potentially the most relevant trees to the next recurring concept drift. Similar to the background trees, the candidate trees may replace the drifted foreground trees, and they do not participate in voting until such replacements happen.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PEARL Overview"
+        },
+        {
+            "text": "In the PEARL framework, both the background and the candidate trees perform predictions individually during the drift warning period. When actual drifts are detected, PEARL tries to replace the drifted foreground trees with either the background trees or the best performing candidate trees, based on the \u03ba statistics of their individual prediction performance during the drift warning period. Figure 1 gives an overview of the PEARL framework.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 394,
+                    "end": 402,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "PEARL Overview"
+        },
+        {
+            "text": "To find candidate trees efficiently and accurately, PEARL uses a combination of two techniques: an exact technique called the State Matching Process, Fig. 1 . Initially, the state matching process finds candidate trees by matching patterns stored in a State Pattern Buffer. Each of the patterns represents a set of trees in the online repository, that co-occurred in predictions in the past. Meanwhile, PEARL constructs a probabilistic graphical model that captures the tree replacements when drifts are detected, as shown in the Update Phase in Fig. 1 . When the graph model becomes stable, i.e., when the reuse rate of candidate trees surpasses a user set threshold, the state matching process is replaced by the tree transition process to find potential candidate trees. Conversely, when the graph model becomes unstable, PEARL switches back to the state matching process. Details of the two processes are presented in Sects. 4 and 5.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 150,
+                    "end": 156,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 546,
+                    "end": 552,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "PEARL Overview"
+        },
+        {
+            "text": "In this section we detail the state matching process for finding candidate trees, as shown in Fig. 1 . This process is used to find exact match for a set of trees that co-occurred in predictions in the past, and is relevant again when an old concept reappears. This process is the basis of the tree transition process in Sect. 5.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 94,
+                    "end": 100,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "State Matching Process"
+        },
+        {
+            "text": "A state pattern is a snapshot of the status of the repository trees during a stable period i.e., the interval between two consecutive drift detections. Such a snapshot is represented by a sequence of bits, denoting whether each of the repository trees is functioning as a foreground tree during the stable period. Formally, let b 0 , b 1 , b 2 , . . . , b R\u22121 be a sequence of bits, with R being the size of the online tree repository. Each tree in the online tree repository is associated with an ID in the range of [0, R \u2212 1], which corresponds to its position in the bit sequence. Here b i = 1 and b i = 0 denote whether the repository tree with ID = i is functioning as a foreground tree or not, respectively (Note: b i = 0 can also mean the repository has not yet allocated a spot for a tree with ID = i). For example, a pattern 0100110 indicates that the size of the online tree repository is 7 (i.e., R = 7). The repository trees with IDs equal to 1, 4 and 5 are functioning as foreground trees, since the bits at the corresponding positions are set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Matching Process"
+        },
+        {
+            "text": "Initially, the online tree repository allocates spots for all the foreground trees. These foreground trees get allocated the first few tree IDs, and they are represented by the first few bits in the state pattern accordingly. For example, if R = 7 and the random forest consists of 3 foreground trees, the state pattern is then initialized to 1110000.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Construction."
+        },
+        {
+            "text": "The state pattern gets updated during the Update Phase as shown in Fig. 1 . Following the last example, suppose we detect the very first drift on the foreground tree with ID = 0. Firstly, the pattern is updated by turning the first bit off. There are no candidate trees when the very first drift is detected, therefore we simply replace it with its background tree that started growing when the drift warning was detected. The background tree then gets allocated the next available spot in the online tree repository, as well as getting assigned a new ID = 3 which corresponds to the allocated spot. As a result, the state pattern is updated to 0111000.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 67,
+                    "end": 73,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "State Pattern Construction."
+        },
+        {
+            "text": "At a later stage when there are candidate trees outperforming the background trees, we replace the drifted foreground trees with the candidate trees. Similar to the last example, the pattern is updated by first turning the bits representing the drifted trees off, followed by turning on the bits corresponding to the IDs of the candidate trees. Otherwise, just like the last example, a background tree gets assigned a new ID, as well as getting allocated a spot in the online tree repository corresponding to the newly assigned ID.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Construction."
+        },
+        {
+            "text": "The updated state pattern is added to a State Pattern Buffer, which keeps all the updated states, with a user defined limit on size. Each of the state patterns is associated with the frequencies of it being added. To control the size of the buffer, the state patterns are evicted by the Least Recently Used (LRU) policy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Construction."
+        },
+        {
+            "text": "Pattern matching is used to find candidate trees from the online tree repository by comparing the current state pattern with all the patterns in the State Pattern Buffer. The choice of the best matching state pattern follows three requirements: (A) the bits representing the drifted trees must be unset; (B) the pattern must have the lowest edit distance to the current state pattern; (C) the maximum edit distance must not be greater than a user defined threshold \u03b8 \u2208 (d, 2|F |] with d being the number of drifted trees, and F being the number of foreground trees. For patterns that satisfy all the above three requirements, the one with the highest frequency gets matched.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Matching."
+        },
+        {
+            "text": "The set bits in the matched pattern, that are unset in the current state pattern, are the IDs of the repository trees to be added to the set of candidate trees. For instance, suppose the current pattern is 010011 and \u03b8 = 1. A drift warning is detected on the foreground tree with ID = 1, and the state pattern list contains the following 3 patterns with their frequencies f : (1) 010011 with f = 5; (2) 100101 with f = 4; (3) 001011 with f = 1. The edit distance for each pattern is 0, 2, 1, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Matching."
+        },
+        {
+            "text": "Following rule (A), pattern 1 is not matched since the bit corresponding to the drift tree ID is set. Following rules (B) and (C), pattern 2 is not matched despite having a higher frequency than pattern 3, since its edit distance is higher.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Matching."
+        },
+        {
+            "text": "As a result, pattern 3 is matched as its edit distance is no greater than \u03b8. In this case, the repository tree with ID = 2 is added to the set of candidate trees.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "State Pattern Matching."
+        },
+        {
+            "text": "In the state matching process, the total number of patterns is 2 R with R being the size of the online tree repository. The patterns are evicted by the LRU scheme since it is infeasible to store all the patterns in memory. Relevant patterns may be thrown away due to memory constraints. By introducing a graph that models the tree transitions during the pattern matching process, we can retain more information with an addition of polynomial space complexity. As data streams evolve over time, some trees in the online repository may loose relevancy, while new trees are built and stored. Therefore we apply Lossy Counting on the graphical model to adapt to changes in the underlying distribution. In addition, Lossy Counting reduces the space complexity to logarithmic with an error guarantee.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tree Transition Process"
+        },
+        {
+            "text": "Tree Transition Graph. The Tree Transition Graph is a directed graph G = (V, E). The set of nodes V 0 , V 1 , . . . , V R\u22121 represents the tree IDs of the individual trees stored in the online tree repository of size R. A directed edge (u, v) \u2208 E stands for the foreground tree with ID = u is replaced by a repository tree with ID = v, when a drift is detected on the foreground tree u. The edge weight W (u, v) describes the number of times that u transitions to v. The graph is updated during the Update Phase (Fig. 1) . A drifted foreground tree adds an outgoing neighbour when either its background tree or a candidate tree replaces it. If such a transition already exits in E, W (u, v) is incremented by 1. If a background tree replaces the drifted tree and gets added to the online tree repository, a new node representing the background tree is added to the graph first. The Tree Transition Graph becomes stable and replaces the state matching process when the last d drifted trees have a reuse rate c d over a user defined \u03b4 \u2208 (0, 1), where c denotes the number of candidate trees replacing the d drifted trees. When the foreground tree with ID = u detects a drift warning, it is replaced by one of its outgoing neighbours randomly. The probability of a transition (u, v) is",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 512,
+                    "end": 520,
+                    "text": "(Fig. 1)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Tree Transition Process"
+        },
+        {
+            "text": "Lossy Counting. The Lossy Counting algorithm computes approximate frequency counts of elements in a data stream [11] . We apply this technique to approximate the edge weights in the Tree Transition Graph, to improve its summarization of the probabilities of tree transitions, under constant changes in the underlying distribution of the data stream.",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 116,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tree Transition Process"
+        },
+        {
+            "text": "Lossy Counting may be triggered when a drift warning is detected, i.e., before either the state matching and the tree transition processes. Given an error rate , the window size of Lossy Counting is l = 1 , meaning the Lossy Counting is performed after every l drift warning trees. At the window boundaries, all the edge weights get decremented by 1. If an edge weight becomes 0, the edge is removed from E. This may lead to nodes becoming isolated, i.e., when both outdegree and in-degree is 0. Such a node is removed from G and its corresponding repository tree also gets deleted. An example is given in Fig. 2 . Lossy Counting can potentially mitigate the side effects of undesired transitions. If a node u incorrectly transits to a less performant neighbour v and adds the corresponding repository tree v to the candidate trees, the foreground tree u is more likely to be replaced by its background tree instead, when an actual drift is detected. In this case, a new background tree v is added to the online tree repository, and its representation node v and edge (u, v ) are added to the graph. However at the next window boundary of Lossy Counting, this newly added node and the corresponding tree are removed due to low edge weight.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 606,
+                    "end": 612,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Tree Transition Process"
+        },
+        {
+            "text": "First we discuss the Lossy Counting guarantees. Let N be the number of trees with drift warnings, \u2208 (0, 1) be the user specified error rate, and s be the support threshold of the edges such that s > , where (u, v) \u2208 E if W (u, v) > (s \u2212 )N . The window size is 1 . The edge weight count is underestimated by at most N , i.e., N window size = N 1/ = N . There are no false negatives. If the tree transition is genuinely frequent, (u, v) \u2208 E since W (u,v) N > . False positives may occur before the edge weight decay. It is guaranteed to have true edge weight at least (s \u2212 )N . Secondly we discuss the memory analysis. The memory size for pattern matching is O(R \u00b7 P ), with R being the size of online tree repository, and P being the capacity of the State Pattern Buffer. The Tree Transition Graph without Lossy Counting introduces an additional polynomial space complexity O(R \u00b7 |E|) where |E| has an upper bound of R(R \u2212 1). With Lossy Counting the space complexity is guaranteed to be reduced by 1 log( N ) [11] . As a result, the Tree Transition Graph with Lossy Counting is O( 1 log( N ) \u00b7 R \u00b7 |E|) in terms of space complexity. Finally we discuss the runtime. One transition in the Tree Transition Graph only takes O(R) as the transition is randomly selected. One execution of State Pattern Matching takes O(N \u00b7 L) where L is a user defined variable denoting the maximum number of patterns that can be stored in the State Pattern Buffer.",
+            "cite_spans": [
+                {
+                    "start": 1010,
+                    "end": 1014,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Theoretical Analysis"
+        },
+        {
+            "text": "We evaluate the performance of PEARL by classification performance (accuracy and kappa statistics), runtime and memory usage. The classification performance is based on prequential evaluation. In our implementation, both the State Pattern Matching and the Tree Transition Graph can be either turned on or off for evaluation. We compare these approaches with ARF, which is simply PEARL having both the State Pattern Matching and Tree Transition Graph turned off. Additionally, we compare with the State Pattern Matching only PEARL(PO).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "The experimentation is performed on the following machine and architecture: Dell PowerEdge R740 with 40 CPUs, 125.42 GiB (Swap 976.00 MiB) and Ubuntu 18.04 with AMD64 4.15.0-46-generic. Our code, synthetic dataset generators and test scripts are available here 1 for reproducible results. In our experiments, the size of foreground and candidate trees is set to 60 each, and the size of the online tree repository is set to 9600. The accuracy/kappa sample frequency is set to 1000 data instances.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "Datasets. We use both synthetic and real world datasets in our experiments. The synthetic data sets include recurrent abrupt and gradual drifts. The sequence of concepts are generated by the Poisson distribution with \u03bb = 1. The abrupt and gradual drift width are set to 1 and 3000 data instances, respectively. Each of the drift types are generated with either 3 or 6 concepts, denoted as Agrawal 3 or Agrawal 6 in the tables. The real world datasets have been thoroughly used in the literature to assess the classification performance of data stream classifiers: Covertype, Electricity, Airlines 2 , and Rain 3 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "We ran all experiments ten times with varying seeds for every synthetic dataset configuration. The set of parameters for PEARL has been well tuned although more optimal sets may exist. Agrawal generator is used, since it is the most sophisticated synthetic data generator involving classification functions with different complexities. We generate 400,000 instances for each of the Agrawal datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy and Kappa Evaluation."
+        },
+        {
+            "text": "Apart from measuring the accuracy and kappa mean, we calculate the cumulative gain for both accuracy and kappa against ARF over the entire dataset e.g., ((accuracy(PEARL) \u2212 accuracy(ARF)). A positive value indicates that the PEARL approach obtained a higher accuracy/kappa as compared to the baseline ARF. The cumulative gain does not only track the working characteristics over the course of the stream, which is important for evaluating new solutions to dynamic data streams [10] ; but also takes into account the performance decay caused by model overfitting at the drift points. We notice that with our technique, we obtained higher accuracy/kappa mean and positive cumulative gain values compared with ARF (Table 1) . Memory and Runtime Evaluation. Similar to scikit-multiflow [13] we estimate memory consumption, by adding up the key data structures used by PEARL and PEARL (PO) ( Table 2) . Lossy Counting Evaluation. Table 3 shows that with Lossy Counting, PEARL consistently obtains a higher gain in both accuracy while consuming less memory across 10 different seeds, comparing to Lossy Counting disabled. The State Matching parameters are fixed while the Tree Transition parameters have been tuned differently on each seed. We examine both 0%, 33% and 66% concept shifts for evaluating the performance under decaying concepts. 33% concept shift means 33% of expiring concepts after an interval (i.e., a number of data instances). For example, if there are 3 concepts we are transitioning between, a 33% concept shift will expire 1 concept while adding 1 new concept after an interval. Each interval is constituted of predetermined concepts appearing according to a Poisson distribution of \u03bb = 1.",
+            "cite_spans": [
+                {
+                    "start": 477,
+                    "end": 481,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 782,
+                    "end": 786,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 711,
+                    "end": 720,
+                    "text": "(Table 1)",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 887,
+                    "end": 895,
+                    "text": "Table 2)",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 925,
+                    "end": 932,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Accuracy and Kappa Evaluation."
+        },
+        {
+            "text": "For each type of concept shift, we generate a total of 300,000 data instances with 2 concept shifts happening at positions 200,000 and 250,000. Table 3 shows that with concept shifts, the graph with Lossy Counting was able to gain a higher accuracy and kappa performance within a similar amount of time, while consuming less memory. Figure 3 is an example of an execution of Lossy Counting. In this case, before Lossy Counting was triggered, both the Tree Transition Graph only and the Tree Transition Graph with Lossy Counting configurations show a dip in accuracy. This is due to undesired graph transitions, and these undesired transitions happen more frequently when there are too many similar outgoing neighbours. However after an execution of Lossy Counting, the graph with Lossy Counting recovers faster than the graph only configuration. During this recovery period, the pattern matching process was triggered for the Tree Transition Graph with Lossy Counting because some nodes were isolated after the Lossy Counting removed rarely used outgoing neighbours. After that, the graph with Lossy Counting configuration starts to utilize the Tree Transition Graph, and it continues to outperform the Tree Transition Graph only configuration. Intuitively, there are two factors which contribute to such performance: firstly, the brief pattern matching activation after the Lossy Counting helps with the graph construction, which strengthens the stability of the graph; secondly, confusing similar outgoing neighbours were removed by Lossy Counting. Figure 4 captures the accuracy gain of the three types of configurations of PEARL against ARF. All configurations show a continuous gain in accuracy, but the graph with Lossy Counting tends to gain the most accuracy over time. Table 4 shows the accuracy/kappa mean and cumulative gain values. In these experiments, we used ECPF with Hoeffding Tree (i.e. ECPF(HT)) and ECPF with Adaptive Random Forest (i.e. ECPF (ARF)). We noticed that our technique has positive gains on three out of the five datasets. The ARF columns have been removed from the gain tables, since its cumulative accuracy/kappa is subtracted by ECPF and PEARL, for calculating gains.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 144,
+                    "end": 151,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 333,
+                    "end": 341,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1551,
+                    "end": 1559,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1778,
+                    "end": 1785,
+                    "text": "Table 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Accuracy and Kappa Evaluation."
+        },
+        {
+            "text": "We presented a novel framework, PEARL, that handles recurrent concept drifts by capturing the recurrent concepts using probabilistic and exact approaches. PEARL uses an extended random forest as a base classifier. We applied Lossy Counting to the Tree Transition Graph to approximate the recurrent drifts. In the real word experiments, PEARL had a cumulative accuracy gain up to 13267% compared to the ARF baseline.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        },
+        {
+            "text": "As future work, we will adapt the window size of Lossy Counting to increase the effectiveness of the Tree Transition Graph. Beyond that we can utilize a memory constrained budget to limit the number of concepts we store from the stream. In addition, we will explore the feasibility of using other ensemble-based methods within the PEARL framework.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Modeling recurring concepts in data streams: a graphbased framework",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ahmadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kramer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Knowl. Inf. Syst",
+            "volume": "55",
+            "issn": "1",
+            "pages": "15--44",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10115-017-1070-0"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Recurring concept meta-learning for evolving data streams",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Koh",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Dobbie",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bifet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Expert Syst. Appl",
+            "volume": "138",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Predicting recurring concepts on datastreams by means of a meta-model and a fuzzy similarity function",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "\u00c1ngel",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bartolo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ernestina",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Expert Syst. Appl",
+            "volume": "46",
+            "issn": "",
+            "pages": "87--105",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Proactive drift detection: predicting concept drifts in data streams using probabilistic networks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Koh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Riddle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IJCNN",
+            "volume": "",
+            "issn": "",
+            "pages": "780--787",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Diversity-based pool of models for dealing with recurring concepts",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Minku",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IJCNN",
+            "volume": "",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Adaptive random forests for evolving data stream classification",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Gomes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Mach. Learn",
+            "volume": "106",
+            "issn": "9",
+            "pages": "1469--1495",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "RCD: a recurring concept drift framework",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Gon\u00e7alves",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "S M D"
+                    ],
+                    "last": "Barros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Pattern Recogn. Lett",
+            "volume": "34",
+            "issn": "9",
+            "pages": "1018--1025",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Lossy conservative update (LCU) sketch: succinct approximate count storage",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Daum\u00e9",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Volatility drift prediction for transactional data streams",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Koh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "T J"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Pearce",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Dobbie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "1091--1096",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Ensemble learning for data stream analysis: a survey",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Krawczyk",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Minku",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gama",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Stefanowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wo\u017aniak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Inf. Fusion",
+            "volume": "37",
+            "issn": "",
+            "pages": "132--156",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Approximate frequency counts over data streams",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Manku",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the 28th VLDB",
+            "volume": "",
+            "issn": "",
+            "pages": "346--357",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Detecting recurring and novel classes in concept-drifting data streams",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Masud",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "2011 IEEE 11th ICDM",
+            "volume": "",
+            "issn": "",
+            "pages": "1176--1181",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Scikit-multiflow: a multi-output streaming framework",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Montiel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Read",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bifet",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Abdessalem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "19",
+            "issn": "72",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Mining in anticipation for concept change: proactivereactive prediction in data streams",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Data Min. Knowl. Disc",
+            "volume": "13",
+            "issn": "3",
+            "pages": "261--289",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "PEARL overview and a probabilistic technique called the Tree Transition Process, as shown in the Candidate Tree Selection Phase in",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Lossy Counting on the Tree Transition Graph with l = 3. The bold edges denote tree transitions.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Accuracy Fig. 4. Cumulative accuracy against ARF",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Accuracy and kappa mean, cumulative accuracy and kappa gain (%)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Accuracy and kappa mean, cumulative accuracy gain and kappa gain (%) NOTE: PEARL (PO) is PEARL with pattern matching only. The ARF columns have been removed from the gain tables, since its cumulative accuracy/kappa is subtracted by both PEARL (PO) and PEARL, for calculating gains.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Memory and runtime",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Agrawal gradual concept shift Shift type w/lossy counting Acc. gain Kappa gain Memory (KB) Runtime (min) 0% False 2927.21 \u00b1 187.76 12177.98 \u00b1 885.27 376.08 \u00b1 17.28 254.19 \u00b1 3.67 True 3065.14 \u00b1 142.82 12435.13 \u00b1 885.75 279.96 \u00b1 57.25 257.27 \u00b1 2.16 Case Study. To better understand the benefits of the probabilistic graphical model and Lossy Counting, we performed a case study on a 400,000 instance dataset generated by the Agrawal data generator with abrupt drifts on 3 concepts. We evaluate the three different configurations of PEARL: State Pattern Matching only, Tree Transition Graph only, and Tree Transition Graph with LC (Lossy Counting). Both of the Tree Transition Graph configurations include State Pattern Matching as it is the basis of graph construction.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "We would like to thank Dr Hiekeun Ko, Science Director at Office of Naval Research Global, for his support of this project. This work was funded in part by the Office of Naval Research Global grant (N62909-19-1-2042).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgment."
+        }
+    ]
+}

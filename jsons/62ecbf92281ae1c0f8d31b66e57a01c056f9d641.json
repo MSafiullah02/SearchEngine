@@ -1,0 +1,1786 @@
+{
+    "paper_id": "62ecbf92281ae1c0f8d31b66e57a01c056f9d641",
+    "metadata": {
+        "title": "Accelerating Substructure Similarity Search for Formula Retrieval",
+        "authors": [
+            {
+                "first": "Wei",
+                "middle": [],
+                "last": "Zhong",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Rochester Institute of Technology",
+                    "location": {
+                        "settlement": "Rochester",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Shaurya",
+                "middle": [],
+                "last": "Rohatgi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Pennsylvania State University",
+                    "location": {
+                        "settlement": "State College",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Jian",
+                "middle": [],
+                "last": "Wu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Old Dominion University",
+                    "location": {
+                        "settlement": "Norfolk",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "C",
+                "middle": [
+                    "Lee"
+                ],
+                "last": "Giles",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Pennsylvania State University",
+                    "location": {
+                        "settlement": "State College",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Richard",
+                "middle": [],
+                "last": "Zanibbi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Rochester Institute of Technology",
+                    "location": {
+                        "settlement": "Rochester",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Formula retrieval systems using substructure matching are effective, but suffer from slow retrieval times caused by the complexity of structure matching. We present a specialized inverted index and rank-safe dynamic pruning algorithm for faster substructure retrieval. Formulas are indexed from their Operator Tree (OPT) representations. Our model is evaluated using the NTCIR-12 Wikipedia Formula Browsing Task and a new formula corpus produced from Math StackExchange posts. Our approach preserves the effectiveness of structure matching while allowing queries to be executed in real-time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In information retrieval, a great deal of research has gone into creating efficient search engines for large corpora. However, few have addressed substructure search in structural content, e.g., in Mathematical Information Retrieval (MIR) [21] where efficient substructure similarity search is needed to identify shared subexpressions effectively. For example, in math formula search, to discern that a + b and b + a are equivalent (by commutativity), but that ab + cd and a + bcd are different, applying tokenization and counting common token frequencies is insufficient. Instead, a hierarchical representation of mathematical operations is needed and we may want to identify shared substructures.",
+            "cite_spans": [
+                {
+                    "start": 239,
+                    "end": 243,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the most recent math similarity search competition, 1 effective systems all take a tree-based approach by extracting query terms from tree representations. For example, an Operator Tree (OPT) is used in Fig. 1 to represent math formulas where operands are represented by leaves and operators are located at internal nodes. This facilitates searching substructures shared by two math expressions. For example, we can extract paths from their tree representations and find their shared subtrees by matching their common paths grouped by subtree root nodes. However, in order to carry structure information, it is common to see structural queries with over tens or even hundreds of path tokens which is unusual for normal fulltext search. This makes query processing costly for realistic math search tasks.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 206,
+                    "end": 212,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "In text similarity search, query processing can be accelerated through dynamic pruning [18] , which typically estimates score upperbounds to prune documents unlikely to be in the top K results. However, effective substructure search requires additional matching or alignment among query terms, and this makes it hard to get a good score estimation and it prevents us applying traditional dynamically pruning effectively. In fact, reportedly few state-of-the-art MIR systems have achieved practical query run times even when given a large amount of computing resources [11, 20] . In this paper we try to address this problem by introducing a specialized inverted index and we propose a dynamic pruning method based on this inverted index to boost formula retrieval efficiency.",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 568,
+                    "end": 572,
+                    "text": "[11,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 573,
+                    "end": 576,
+                    "text": "20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently there has been an increasing amount of research on similarity search for math formulas, with most focusing on search effectiveness [5, 7, 11, 23] . There are many emerging issues regarding effectiveness, including handling mathematical semantics, and identifying interchangeable symbols and common subexpressions. However, the efficiency of math formula search systems is often not addressed.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "[5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 144,
+                    "end": 146,
+                    "text": "7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "11,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 151,
+                    "end": 154,
+                    "text": "23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "A number of MIR systems apply text search models to math retrieval, extracting sequential features from formulas and use variants of TF-IDF scoring [12, 14, 16] . These approaches incorporate a bag-of-words model, and use frequency to measure formula similarity. Inevitably, they need to index different combinations of sequences or substrings to handle operator commutativity and subexpression identification. This index augmentation results in a non-linearly increasing index size in the number of indexed \"words\" [12] and thus hurts efficiency for large corpora. On the other hand, recent results [10, 20, 23] reveal that effective systems for formula retrieval use tree-based approaches distinct from text-based methods. However, tree-based systems usually need to calculate costly graph matching or edit distance metrics [9, 22] , which generally have non-linear time complexity. Recently, a path-based approach [23] was developed to search substructures in formula OPTs approximately by assuming that identical formulas have the same leaf-root path set. Although at the time of writing, it obtains the best effectiveness for the NTCIR-12 dataset, the typically large number of query paths means that query run times are not ideal -maximum run times can be a couple of seconds.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "[12,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 516,
+                    "end": 520,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 600,
+                    "end": 604,
+                    "text": "[10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 605,
+                    "end": 608,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 609,
+                    "end": 612,
+                    "text": "23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 826,
+                    "end": 829,
+                    "text": "[9,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 830,
+                    "end": 833,
+                    "text": "22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 917,
+                    "end": 921,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Dynamic pruning has been recognized as an effective way to reduce query processing times [2, 8, 13, 18] . Dynamic pruning speeds up query processing by skipping scoring calculations or avoiding unnecessary reads for documents which are unlikely to be ranked in the top K results. Pruning methods can be based on different query processing schemes: Document-at-a-time (DAAT) requires all relevant posting lists be merged simultaneously. Term-at-a-time (TAAT) or score-at-a-time (SAAT) processes one posting list at a time for each term, requiring additional memory to store partial scores, and posting lists in this case are usually sorted by document importance (e.g, impact score [1] ), with promising documents placed at the front of inverted lists. Pruning strategies are rank-safe (or safe up to rank K ) [19] if they guarantee that the top K documents are ranked in the same order before and after pruning. The most well-known rank-safe pruning strategies for DAAT are MaxScore [8, 17, 19] and WAND variants [3, 6] . Shan et al. [15] show that MaxScore variants (e.g. BMM, LBMM) outperform other dynamic pruning strategies for long queries, and recently Mallia et al. [2] report a similar finding over a range of popular index encodings.",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 93,
+                    "end": 95,
+                    "text": "8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 96,
+                    "end": 99,
+                    "text": "13,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 681,
+                    "end": 684,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 809,
+                    "end": 813,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 983,
+                    "end": 986,
+                    "text": "[8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 987,
+                    "end": 990,
+                    "text": "17,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 991,
+                    "end": 994,
+                    "text": "19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1013,
+                    "end": 1016,
+                    "text": "[3,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1017,
+                    "end": 1019,
+                    "text": "6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1034,
+                    "end": 1038,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1173,
+                    "end": 1176,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Baseline Model. This work is based on our previous work [23] which extracts prefixes from OPT leaf-root paths as index or query terms. The OPT is parsed from a formula in L A T E X. For indexed paths, they are mapped to corresponding posting lists in an inverted index where the IDs of expressions containing the path are appended. For query paths, the corresponding posting lists are merged and approximate matching is performed on candidates one expression at a time. The similarity score is measured from matched common subtree(s).",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Because math symbols are interchangeable, paths are tokenized for better recall, e.g., variables such as a, b, c are tokenized into VAR. In our tokenized path representation uppercase words denote token types, which may be for operators as well as operands (e.g., TIMES for symbols representing multiplication). In Fig. 1 , when indexing \"bc + xy + a + z,\" its expression ID (or ExpID) will be appended to posting lists associated with tokenized prefix paths from its OPT representation, i.e., VAR/TIMES, VAR/ADD and VAR/TIMES/ADD. At query processing, the shared structures highlighted in black and gray are found by matching these tokenized paths (two paths match if and only if they have the same tokenized paths, for example, \"a/+\" and \"z/+\" can be matched) and common subtree roots are identified by grouping paths by their root nodes. As a result, the posting list entry also stores the root node ID for indexed paths, in order to reconstruct matches substructures at merge time.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 315,
+                    "end": 321,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "At query time, the similarity score is given by the size of matched common subtrees. Specifically, the model chooses a number of \"widest\" matched subtree(s) (e.g., a + bc is the widest matched in Fig. 1 because it has 3 common leaves and is \"wider\" than the other choices) and measure formula similarity based on the size of these common subtrees.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 196,
+                    "end": 202,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "The original Approach0 model [23] matches up to three widest common subtrees and scores similarity by a weighted sum of the number of matched leaves (operands) and operators from different common subtreesT i q ,T i d of a common forest \u03c0. Operators and operand (leaf) nodes weights are controlled by parameter \u03b1, while the weight of rooted substructures from largest to smallest are given by \u03b2 i . In the following, | \u00b7 | indicates the size of a set:",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 33,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Interestingly, while multiple subtree matching boosts effectiveness, using just the widest match still outperforms other systems in terms of highly relevant results [23] . The simplified similarity score based on widest common subtree between query and document OPTs T q , T d is the widest match w * Q,D , formally",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 169,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "where CFS(T q , T d ) are all the common formula subtrees between T q and T d . In addition to subtree isomorphism, a formula subtree requires leaves in a subtree to match leaves in the counterpart, in other words, subtrees are matched bottomup from operands in OPTs. In Fig. 1 , the value of w * Q,D is 3, produced by the widest common subtrees shown in gray.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 271,
+                    "end": 277,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "Dynamic Pruning. In dynamic pruning, the top K scored hits are kept throughout the querying process, with the lowest score in the top K at a given point defining the threshold \u03b8. Since at most K candidates will be returned, dynamic pruning strategies work by estimating score upperbounds before knowing the precise score of a hit so that candidate hits with a score upperbound less or equal to \u03b8 can be pruned safely, because they will not appear in the final top K results. Moreover, if a subset of posting lists alone cannot produce a top K result from their upperbounds, they are called a non-requirement set, the opposite being the requirement set. Posting lists in the non-requirement with IDs less than the currently evaluating IDs in the requirement set can be skipped safely, because posting lists in the non-requirement set alone will not produce a top K candidate.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminaries"
+        },
+        {
+            "text": "In this paper, we apply dynamic pruning to structural search. As structure search has more query terms in general, we focus on a MaxScore-like strategy suggested by [2, 15] , since they do not need to sort query terms at merge iterations (which is expensive for long queries). Our approach is different from the original MaxScore, as upperbound scores are also calculated from the query tree representation. We also use the simplified scoring Eq. (2) where a subset of query terms in the widest matched common subtreesT * q ,T * d contribute to the score. In contrast, typical TF-IDF scoring has all hit terms contribute to the rank score.",
+            "cite_spans": [
+                {
+                    "start": 165,
+                    "end": 168,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 169,
+                    "end": 172,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "When we merge posting lists, a set of query paths match paths from a document expression one at a time, each time a hit path set for matched query and candidate paths are examined. Define P(T ) to be all paths extracted from OPT T , i.e., P(T ) = {p : p \u2208 leafroot paths(T n ), n \u2208 T } where T n is the entire subtree of T rooted at n with all its descendants. We model the hit path set by a bipartite graph G(Q, D, E) where Q = {q : q \u2208 P(T q )}, D = {d : d \u2208 P(T d )} are query and document path sets, and edges are ordered pairs E = {(q, d) : tokenized(q) = tokenized(d), q \u2208 Q, d \u2208 D} representing a potential match between a query path to a document path. Since an edge is established only for paths with the same token sequence, we can partition the graph into disconnected smaller bipartite graphs G t = G(Q t , D t , E t ), each identified by tokenized query path t: Figure 2 shows the hit path set of the example in Fig. 1 , this example can be partitioned into independent subgraphs associated with tokenized paths VAR/TIMES/ADD, VAR/TIMES and VAR/ADD. Each partition is actually a complete bipartite graph (fully connected) because for any edge between Q t and D t , it is in edge set E t . And for each complete bipartite graph G(Q t , D t , E t ), we can obtain their maximum matching sizes from min(|Q t |, |D t |) easily.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 875,
+                    "end": 883,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 925,
+                    "end": 931,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Methodology"
+        },
+        {
+            "text": "On the other hand, to calculate score w * Q,D , we need to find a pair of query and document nodes at which the widest common subtreeT * q ,T * d are rooted (see Eq. 2), so we also define the matching candidate relations filtered by nodes. Let G (m,n) = G(Q (m) , D (n) , E (m,n) ) be the subgraph matching between query subtree rooted at m and document subtree rooted at n where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "Then, similarity score w * Q,D can be calculated from selecting the best matched node pairs and summing their partition matches. Specifically, define token paths of tree T rooted at n as set T(n) = {t : t = tokenized(p), p \u2208 leafroot paths(T n )},",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "where \u03bd(G) is the maximum matching size of bipartite graph G.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "t |) as our (precomputed) partial score upperbound. It is analogous to text search where each posting list has a partial score upperbound, the TF-IDF score upperbound is merely their sum. In our case, the sum for partial score upperbounds is only for one node or a subtree.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "In the following we propose three strategies to compute w * Q,D upperbound from partial score upperbounds and assign non-requirement set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "Max Reference (MaxRef ) Strategy. In MaxScore [17, 19] , each posting list has a partial score upperbound, however, our scoring function implies each posting list can be involved with multiple partial score upperbounds. One way to select the non-requirement set in our case is using an upperbound score MaxRef t (for each posting list t) which is the maximum partial score from the query nodes by which this posting list gets \"referenced\", and if a set of posting lists alone has a sum of MaxRef scores less or equal to \u03b8, they can be safely put into the non-requirement set.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[17,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 51,
+                    "end": 54,
+                    "text": "19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "The rank safety can be justified, since each posting list corresponds to a unique tokenized path t, and MaxRef t = max m w m,t . Then for m \u2208 T q , n \u2208 T d , Greedy Binary Programming (GBP) Strategies. Inequality (6) is relaxed twice, so it spurs the motivation to get tighter upperbound value by maximizing the number of posting lists in the non-requirement set, so that more posting lists are likely to be skipped. Define partial upperbound matrix W = {w i,j } |Tq|\u00d7|T| where T = {T(m), m \u2208 T q } are all the token paths from query OPT (T is essentially the same as tokenized P(T q )), and a binary variable x |T|\u00d71 indicating which corresponding posting lists are placed in the non-requirement set. One heuristic objective is to maximize the number of posting lists in the non-requirement set (GBP-NUM):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "However, maximizing the number of posting lists in the non-requirement set does not necessarily cause more items to be skipped, because the posting lists can be very short. Instead, we can maximize the total length of posting lists in the non-requirement set. In this case, the vector of ones in objective function (7) is replaced with posting list length vector L = L 1 , L 2 , . . . L |T| , where L i is the length of posting list i. We call this strategy GBP-LEN. The two GBP strategies are rank-safe since constraints in inequality (8) implies t\u2208Skip w m,t \u2264 \u03b8. Both strategies require solving binary programming problems, which are known to be NP-complete and thus too intensive for long queries. Instead, we greedily follow one branch of the binary programming sub-problems to obtain a feasible (but not optimal) solution in O(|T q ||T| 2 ). Figure 3 illustrates formula query processing using a modified inverted index for dynamic pruning. For each internal node m of the query OPT, we store the number of leaves of m as w m = |Q (m) |. Each query node points to tokenized path entries in a dictionary, where each reference is associated with w m,t = |Q (m) t | identified by tokenized path t (denoted as m/w m of t). In Fig. 3 , node q1 from the query has 6 leaves, which is also the upperbound number of path matches for q1, i.e, |Q (1) |. Since q1 consists of 2 tokenized leaf-root paths VAR/TIMES/ADD and VAR/ADD, q1 is linked to two posting lists, each associated with a partial score upperbound (5 and 1).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 848,
+                    "end": 856,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1228,
+                    "end": 1234,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Methodology"
+        },
+        {
+            "text": "Each posting list maps to a token path t \u2208 T with a dynamic counter for the number of query nodes referring to it (initially |Q t |). Query nodes are pruned by our algorithm when its subtree width is no longer greater than the current threshold, because the corresponding subexpression cannot be in the top-K results. In this case the reference counter decreases. A posting list is removed if its reference counter is less than one.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "Each posting list entry identified by an ExpID stores n and w n,t = |D (n)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "t | values of subtree token path t rooted at n (denoted as n/w n of t). As an example, in Fig. 3 , the hit OPT (of ExpID 12) has 5 paths tokenized as Query processing is described in Algorithm 1. RequirementSet returns selected iterators of the requirement set. Assignment according to different pruning strategies is described in Sect. 4. In the MaxRef strategy, we sort posting lists by descending MaxRef values, and take as many posting lists as possible into non-requirement set from the lowest MaxRef value. At merging, a candidate ID is assigned by the minimal ExpID of current posting list iterators in the requirement set. Requirement set iterators are advanced by one using the next() function, while iterators in the non-requirement set are advanced directly to the ID equal to or greater than the current candidate by the skipTo() function. In Fig. 3 for example, the posting list corresponding to VAR/TIMES/ADD is in the requirement set under the MaxRef strategy, while the other two are not: Document expression 13 and 15 will be skipped if the next candidate is 90. For ease of testing termination, we append a special ExpID MaxID at the end of each posting list, which is larger than any ExpID in the collection.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 90,
+                    "end": 96,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 855,
+                    "end": 861,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Implementation"
+        },
+        {
+            "text": "At each iteration, a set of hitNodes is inferred containing query nodes associated with posting lists whose current ExpIDs are candidate ID. qryNode-Match calculates matches for hit nodes according to Eq. 5, pruning nodes whose maximum matching size is smaller than previously examined nodes. Given query hit node q1 in Fig. 3 , function qryNodeMatch returns max n\u2208T d \u03bd(G (1,n) ) = max(min(5, 2) + min(1, 2), min(5, 3)) = 3",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 320,
+                    "end": 326,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Implementation"
+        },
+        {
+            "text": "Then the algorithm selects the best matched query node and its matched width (i.e., widest in Algorithm 1) is our structural similarity w * Q,D . After obtaining w * Q,D , we compute a metric for the similarity of symbols (e.g., to differentiate E = mc 2 and y = ax 2 ) and penalize larger formulas, to produce a final overall similarity score [23] for ranking. Because of this additional layer, we need to relax our upperbound further. According to the overall scoring function in [23] , our relaxing function u can be defined by assuming perfect symbol similarity score in overall scoring function, specifically",
+            "cite_spans": [
+                {
+                    "start": 344,
+                    "end": 348,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 482,
+                    "end": 486,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "where in our setting, parameters \u03b7 = 0.05, n d = 1. Whenever threshold \u03b8 is updated, we will examine all the query nodes, if a query node m has an upperbound less or equal to the threshold, i.e., u(w m ) \u2264 \u03b8, then the corresponding subtree of this node is too \"small\" to make it into top K results. As a result, some of the posting lists (or iterators) may also be dropped due to zero reference. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation"
+        },
+        {
+            "text": "for each m/wm of tokenized path t rooted at m do",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "3:"
+        },
+        {
+            "text": "Let i be the iterator index associated with t",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "4:"
+        },
+        {
+            "text": "if ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "5:"
+        },
+        {
+            "text": "heap := data structure to hold top K results",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "18:"
+        },
+        {
+            "text": "while true do 20:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "19:"
+        },
+        {
+            "text": "candidate := minimal ID in current expIDs of reqs",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "19:"
+        },
+        {
+            "text": "if candidate equals MaxID then Search terminated, return results.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "21:"
+        },
+        {
+            "text": "return top K results",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "Let G(Q, D, E) be the hit path set bipartite graph. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "23:"
+        },
+        {
+            "text": "if maxMatch > widest then widest := maxMatch Find the widest width.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "29:"
+        },
+        {
+            "text": "if widest > 0 then",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "30:"
+        },
+        {
+            "text": "score := calculate final score (including symbol similarity). See [23] .",
+            "cite_spans": [
+                {
+                    "start": 66,
+                    "end": 70,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "31:"
+        },
+        {
+            "text": "if heap is not full or score > \u03b8 then",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "32:"
+        },
+        {
+            "text": "Push candidate or replace the lowest scored hit in heap.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "33:"
+        },
+        {
+            "text": "if heap is full then Update current threshold.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "34:"
+        },
+        {
+            "text": "\u03b8 := minimal score in current top K results",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "35:"
+        },
+        {
+            "text": "Drop small query nodes and unreferenced iterators.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "36:"
+        },
+        {
+            "text": "reqs := RequirementSet(\u03b8, strategy) Update requirement set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "37:"
+        },
+        {
+            "text": "for iters[i] in reqs do Advance posting list iterators.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "38:"
+        },
+        {
+            "text": "if iters[i].expID = candidate then iters[i].next()",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "39:"
+        },
+        {
+            "text": "We first evaluate our system 2 on the NTCIR-12 Wikipedia Formula Browsing Task [20] (NTCIR-12 for short), which is the most current benchmark for formula-only retrieval. The dataset contains over 590,000 math expressions taken from English Wikipedia. Since work in formula retrieval is relatively new, there are only 40 queries in NTCIR-12 that can be compared with other published systems. However, these queries are well designed to cover a variety of math expressions in different complexity. There are 20 queries containing wildcards in this task (using wildcard specifier \\qvar to match arbitrary subexpression or symbols, e.g., query \"\\qvar{a} 2 + \\qvar{b} 3 \" can match \"x 2 + (y + 1) 3 \"). We add support for wildcards by simply treating internal nodes (representing a rooted subexpression) of formulas as additional \"leaves\" (by ignoring their descendants), and the wildcard specifiers in a query are treated as normal leaves to match those indexed wildcard paths.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Since the corpus of NTCIR-12 is not large enough to show the full impact of pruning, we also evaluate query run times on a corpus containing over 1 million math related documents/threads from Math StackExchange (MSE) Q&A website 3 and we run the same query set from NTCIR-12. Run times are shown for the posting list merging stage (e.g., time for parsing the query into OPT is excluded) and unless specified, posting lists are compressed and cached into memory. Each system had five independent runs, and we report results from overall distribution. The resulting uncompressed index size for NTCIR-12 and MSE corpora are around 2 GB and 16 GB in size, with 961,604 and 5,764,326 posting lists respectively. The (min, max, mean, standard deviation) for posting list lengths are (1, 262309, 16.95, 737.84) and (1, 7916296, 73.74, 9736.72) . Table 1 reports run time statistics. Non-pruning (exhaustive search) baselines with K = 100 are also compared here. Almost consistently, GBP-LEN strategy achieves the best efficiency with smaller variance. This is expected since GBP-LEN models the skipping possibility better than GBP-NUM. Although GBP-NUM gives a tighter theoretic upperbound than MaxRef, it only maximizes the number of posting lists in the non-requirement set and may lead to bad performance when these posting lists are short.",
+            "cite_spans": [
+                {
+                    "start": 777,
+                    "end": 803,
+                    "text": "(1, 262309, 16.95, 737.84)",
+                    "ref_id": null
+                },
+                {
+                    "start": 808,
+                    "end": 836,
+                    "text": "(1, 7916296, 73.74, 9736.72)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 839,
+                    "end": 846,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "There are a few times the best minimal run times are from other strategies, for those with meaningful gaps, i.e., in Wiki dataset of non-wildcard queries when K = 1000, MaxRef outperforms in standard deviation and maximum run time to a notable margin; however, it likely results from a small threshold due to large K, so that the efficiency on the small sized NTCIR dataset is less affected by pruning (small \u03b8 means less pruning potential) compared to the time complexity added from assigning to the requirement set. The latter is more dominant in GBP runs. In wildcard queries, however, many expressions can match the query thus the threshold value is expected to be larger than that in the non-wildcard case. LEN 144.25 126.95 105.00 6.00 622.00 195.70 122.25 176.00 9.00 Secondly, we have compared our system effectiveness (Fig. 4) and efficiency ( Fig. 5) with Tangent-S [5] , MCAT [11] and our baseline system without pruning [23] , which are all structure-based formula search engines that have obtained the best published Bpref scores on NTCIR-12 dataset. In addition, ICST system [7] also obtains effective results for math and text mixed task, but they do training on previous Wiki dataset and their system is currently not available.",
+            "cite_spans": [
+                {
+                    "start": 876,
+                    "end": 879,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 887,
+                    "end": 891,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 932,
+                    "end": 936,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1089,
+                    "end": 1092,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 712,
+                    "end": 774,
+                    "text": "LEN 144.25 126.95 105.00 6.00 622.00 195.70 122.25 176.00 9.00",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 827,
+                    "end": 835,
+                    "text": "(Fig. 4)",
+                    "ref_id": null
+                },
+                {
+                    "start": 853,
+                    "end": 860,
+                    "text": "Fig. 5)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "All systems are evaluated in a single thread for top-1000 results. We use our best performance strategy, i.e., GBP-LEN, having an on-disk version with posting lists uncompressed and always read from disk, and an in-memory version with compression. For the baseline system, only 20 non-wildcard queries are reported because it does not support wildcards. We compare the baseline best performed run (base-best) which uses costly multiple tree matching as well as its specialized version (base-opd-only) which considers only the largest matched tree width (see Eq. 2). Tangent-S has a few outliers as a result of its costly alignment algorithm to rerank structure and find the Maximum Subtree Similarity [22] , its non-linear complexity makes it expensive for some long queries (especially in wildcard case). And MCAT reportedly has a median query execution time around 25 s, using a server machine and multi-threading [11] . So we remove Tangent-S outliers and MCAT from runtime boxplot. For space, we only include the faster base-opd-only baseline in Fig. 5 .",
+            "cite_spans": [
+                {
+                    "start": 701,
+                    "end": 705,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 916,
+                    "end": 920,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1050,
+                    "end": 1056,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We outperform Tangent-S in efficiency even if we exclude their outlier queries, with higher Bpref in non-wildcard fully relevant results. Our efficiency is also better than the baseline system, even if the latter only considers less complex non-wildcard queries. However, our overall effectiveness is skewed by bad performance of wildcard queries because a much more expensive phase is introduced to boost accuracy by other systems to handle inherently difficult \"structural wildcards.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Our pruning strategies are rank-safe (pruning and exhaustive version shows the same Bpref scores) but there is a minor Bpref difference between ours and baseline (base-opd-only) due to parser changes we have applied to support wildcards (e.g., handle single left brace array as seen in a wildcard query) and they happen to slightly improve accuracy in partially relevant cases.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We have presented rank-safe dynamic pruning strategies that produce an upperbound estimation of structural similarity in order to speedup formula search using subtree matching. Our dynamic pruning strategies and specialized inverted index are different from traditional linear text search pruning methods and they further associate query structure representation with posting lists. Our results show we can obtain substantial improvement in efficiency over the baseline model, while still generating highly relevant non-wildcard search results. Our approach can process a diverse set of structural queries in real time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Pruned query evaluation using pre-computed impacts",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Anh",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Moffat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 29th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "372--379",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "An experimental study of index compression and DAAT query processing methods",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mallia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Siedlaczek",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Suel",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fuhr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ECIR 2019",
+            "volume": "11437",
+            "issn": "",
+            "pages": "353--368",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Efficient query evaluation using a two-level retrieval process",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Broder",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Carmel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Herscovici",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Soffer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zien",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the Twelfth International Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "426--434",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Retrieval evaluation with incomplete information",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Buckley",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the 27th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "25--32",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Layout and semantics: combining representations for mathematical formula search",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Davila",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "1165--1168",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Faster top-k document retrieval using block-max indexes",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Suel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the 34th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "993--1002",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "The math retrieval system of ICST for NTCIR-12 MathIR task",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Efficient compressed inverted index skipping for disjunctive text-queries",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jonassen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Bratsberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ECIR 2011",
+            "volume": "6611",
+            "issn": "",
+            "pages": "530--542",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-20161-5_53"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Structural similarity search for mathematics retrieval",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kamali",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Tompa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Carette",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Aspinall",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lange",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sojka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CICM 2013",
+            "volume": "7961",
+            "issn": "",
+            "pages": "246--262",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-39320-4_16"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Tangent-V: math formula image search using line-of-sight graphs",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Davila",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Setlur",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Govindaraju",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fuhr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ECIR 2019",
+            "volume": "11437",
+            "issn": "",
+            "pages": "681--695",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-15712-8_44"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "MCAT math retrieval system for NTCIR-12 MathIR task",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Kristianto",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Topic",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Aizawa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A mathematics retrieval system for formulae in layout presentations",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 37th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Upper-bound approximations for dynamic pruning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tonellotto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ACM Trans. Inf. Syst. (TOIS)",
+            "volume": "29",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Technical aspects of the digital library of mathematical functions",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Youssef",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Ann. Math. Artif. Intell",
+            "volume": "38",
+            "issn": "1-3",
+            "pages": "121--136",
+            "other_ids": {
+                "DOI": [
+                    "10.1023/A:1022967814992"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Optimized top-k processing with global page scores on block-max indexes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Shan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the Fifth ACM International Conference on Web Search and Data Mining, WSDM 2012",
+            "volume": "",
+            "issn": "",
+            "pages": "423--432",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Indexing and searching mathematics in digital libraries",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sojka",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "L\u00ed\u0161ka",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Davenport",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Farmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Urban",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "CICM 2011. LNCS (LNAI)",
+            "volume": "6824",
+            "issn": "",
+            "pages": "228--243",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-22673-1_16"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Optimization strategies for complex queries",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Strohman",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Turtle",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 28th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "219--225",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Efficient query processing for scalable web search",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tonellotto",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Found. Trends Inf. Retr",
+            "volume": "12",
+            "issn": "4-5",
+            "pages": "319--500",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Query evaluation: strategies and optimizations",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Turtle",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Flood",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Inf. Process. Manag",
+            "volume": "31",
+            "issn": "6",
+            "pages": "831--850",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "NTCIR-12 MathIR task overview",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Aizawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kohlhase",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Topic",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Davila",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Recognition and retrieval of mathematical expressions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Blostein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Int. J. Doc. Anal. Recogn",
+            "volume": "15",
+            "issn": "4",
+            "pages": "331--357",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Multi-stage math formula search: using appearance-based similarity metrics at scale",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Davila",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kane",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Tompa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 39th International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Structural similarity search for formulas using leaf-root paths in operator subtrees",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zanibbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fuhr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ECIR 2019",
+            "volume": "11437",
+            "issn": "",
+            "pages": "116--129",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-15712-8_8"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Operator trees (OPTs) for two similar formulas. OPTs represent the application of operations (at internal nodes in circles) to operands (at the leaves in squares). Two common substructures are highlighted in black and gray.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Bipartite graph of hit path set for formulas inFig. 1(original leaf symbol is used here to help identify paths). Edges are established if paths from the two sides are the same after tokenization. Edges with shared end points (i.e., same root-end nodes) in original OPTs have the same color (black or gray).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Indices for formula search with dynamic pruning. For MaxRef strategy, the top posting list is the only one in the requirement set. The bottom two posting lists are advanced by skipping to next candidate ExpID. t = VAR/TIMES/ADD, 2 rooted at d4 and 3 rooted at d1. The information (d1/3, d4/2) is stored with corresponding posing list t. In our implementation, each posting list is traversed by an iterator (iters[t]), and its entries are read by iters[t].read() from the current position accessed by iterator.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Formula searching algorithm with pruning 1: function qryNodeMatch(iters, m, candidate, widest, \u03b8) 2: nodeMatch[ ] := 0; := | leaves(m)| is the leftover estimated upperbound.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "hitNodes := {root end(q) : (q, d) \u2208 E} 25: for m in hitNodes do Calculate maximum match for each hit query node. 26: if | leaves(m)| \u2264 widest then 27: continue 28: maxMatch := qryNodeMatch(iters, m, candidate, widest, \u03b8)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Query merge time performance (in milliseconds) for different strategies. GBP-NUM 159.80 143.70 120.50 6.00 626.00 208.91 136.42 178.50 10.00 591.00 GBP-",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "536.00 GBP-NUM 1202.24 1240.21 815.00 37.00 4987.00 2943.79 2025.96 2987.00 84.00 8775.00 GBP-LEN 562.83 635.26 382.50 24.00 2313.00 2257.95 1491.59 2346.50 86.00 4494.00 200 MaxRef 1261.21 1368.93 1012.50 30.00 6439.00 3416.77 2753.09 3032.50 160.00 12412.00 GBP-NUM 1378.19 1398.08 998.50 39.00 5863.00 3174.93 2283.05 3125.00 159.00 10099.00 GBP-LEN 697.32 739.11 478.00 27.00 2925.00 2504.90 1683.16 2382.50 159.00 6049.00 1000 MaxRef 2030.05 1746.17 1796.50 53.00 7816.00 4123.26 3510.01 3473.00 287.00 16981.00 GBP-NUM 1952.52 1746.05 1530.50 60.00 7197.00 3786.89 2744.99 3493.50 281.00 11323.00 GBP-LEN 1217.16 1083.53 764.50 47.00 3756.00 3304.69 2403.09 2812.00 285.00 9895.00 System Non-Wildcard Wildcard All queries Full Partial Full Partial Full PartialFig. 4. Bpref [4] scores. Bpref chosen because we did not participate in NTCIR-12 and did not contribute to the pooling.Fig. 5. Average run times on the same machine (Environment: Intel Core i5 @ 3.60 GHz per core, 16 GB memory and SSD drive) for NTCIR-12 Wiki Formula Browsing Task.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

@@ -1,0 +1,2492 @@
+{
+    "paper_id": "5669014577f6b036be063d19be1f9749ae1223dc",
+    "metadata": {
+        "title": "Joint Word and Entity Embeddings for Entity Retrieval from a Knowledge Graph",
+        "authors": [
+            {
+                "first": "Fedor",
+                "middle": [],
+                "last": "Nikolaev",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Wayne State University",
+                    "location": {
+                        "postCode": "48202",
+                        "settlement": "Detroit",
+                        "region": "MI",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Alexander",
+                "middle": [],
+                "last": "Kotov",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Wayne State University",
+                    "location": {
+                        "postCode": "48202",
+                        "settlement": "Detroit",
+                        "region": "MI",
+                        "country": "USA"
+                    }
+                },
+                "email": "kotov@wayne.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Recent years have witnessed the emergence of novel models for ad-hoc entity search in knowledge graphs of varying complexity. Since these models are based on direct term matching, their accuracy can suffer from a mismatch between vocabularies used in queries and entity descriptions. Although successful applications of word embeddings and knowledge graph entity embeddings to address the issues of vocabulary mismatch in ad-hoc document retrieval and knowledge graph noisiness and incompleteness, respectively, have been reported in recent literature, the utility of joint word and entity embeddings for entity search in knowledge graphs has been relatively unexplored. In this paper, we propose Knowledge graph Entity and Word Embedding for Retrieval (KEWER), a novel method to embed entities and words into the same low-dimensional vector space, which takes into account a knowledge graph's local structure and structural components, such as entities, attributes, and categories, and is designed specifically for entity search. KEWER is based on random walks over the knowledge graph and can be considered as a hybrid of word and network embedding methods. Similar to word embedding methods, KEWER utilizes contextual co-occurrences as training data, however, it treats words and entities as different objects. Similar to network embedding methods, KEWER takes into account knowledge graph's local structure, however, it also differentiates between structural components. Experiments on publicly available entity search benchmarks and state-ofthe-art word and joint word and entity embedding methods indicate that a combination of KEWER and BM25F results in a consistent improvement in retrieval accuracy over BM25F alone.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Entity search is an information retrieval (IR) task aimed at addressing information needs focused on abstract or material objects, such as people, organizations, products and book characters. Such information needs include finding a particular entity (e.g. \"Einstein relativity theory\"), an attribute or a property of an entity (e.g. \"Who founded Intel?\"), an entity by its property (e.g. \"England football player highest paid\") or a list of entities matching a description (e.g.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\"Formula 1 drivers that won the Monaco Grand Prix\") and can be formulated as short or \"telegraphic\" keyword queries or natural language questions [2, 18] . Target entity or a list of entities for these information needs can be retrieved from a knowledge graph, such as Wikipedia, DBpedia, Freebase or Wikidata.",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In prior research, the problem of entity retrieval from a knowledge graph was cast into a special case of structured document retrieval [21, 22, 25, 45] , database search [18, 32] or a combination of the two [5, 35] . Such methods take into account only the directly adjacent structural components of a knowledge graph (entities, predicates, categories, and literals) when constructing a document for an entity from a knowledge graph. As a result, a significant amount of potentially useful information can be lost by not taking into account the local structure of knowledge graphs or structural components that are separated by more than one edge in a knowledge graph. For example, the entities Michelangelo and Sistine Chapel are separated by 3 edges in DBpedia. Another drawback of existing methods is that they only consider entities as points (i.e. entity documents) in a highdimensional space, with the number of dimensions equal to vocabulary size. This can lead to a well-known problem of vocabulary \"gap\" between queries and documents for relevant entities. For example, searchers looking for the entities that are related to the Mus\u00e9e National d'Art Moderne can pose the queries containing the terms \"Beaubourg\" or \"MNAM\", some or all of which may not be in the documents corresponding to the relevant entities. In ad-hoc document retrieval, vocabulary mismatch has been successfully addressed by employing the methods that create a low-dimensional representation of words and documents, such as Latent Semantic Indexing [8] , Latent Dirichlet Allocation [38] , word2vec [19] , and GloVe [26] . Many recently proposed approaches [10, 15, 36, 40, 41] have successfully utilized word embeddings to address vocabulary mismatch in ad-hoc document IR.",
+            "cite_spans": [
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 149,
+                    "end": 152,
+                    "text": "45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 171,
+                    "end": 175,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 176,
+                    "end": 179,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 208,
+                    "end": 211,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 212,
+                    "end": 215,
+                    "text": "35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1531,
+                    "end": 1534,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1565,
+                    "end": 1569,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 1581,
+                    "end": 1585,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1598,
+                    "end": 1602,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1639,
+                    "end": 1643,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1644,
+                    "end": 1647,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1648,
+                    "end": 1651,
+                    "text": "36,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1652,
+                    "end": 1655,
+                    "text": "40,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1656,
+                    "end": 1659,
+                    "text": "41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "At the same time, to address the issues of graph incompleteness and noisiness, a number of methods have been proposed for knowledge graph embedding, such as RESCAL [24] , TransE [3] , and NTN [33] . These methods represent knowledge graph entities and relations as vectors in the same embedding space with geometrical constraints that encode the local structure of knowledge graphs. Although these methods have been shown to be effective for the task of knowledge graph link prediction, the embedding spaces constructed by these methods as well as network embedding methods, such as DeepWalk [28] , LINE [34] , and node2vec [11] do not consider words and, therefore, cannot be utilized in the tasks that involve both words and entities, such as entity search. However, the methods to construct joint embedding spaces for both words and entities that are effective for entity search in knowledge graph have not yet been explored.",
+            "cite_spans": [
+                {
+                    "start": 164,
+                    "end": 168,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 178,
+                    "end": 181,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 192,
+                    "end": 196,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 592,
+                    "end": 596,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 604,
+                    "end": 608,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 624,
+                    "end": 628,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To address this issue, we propose Knowledge graph Entity and Word Embeddings for Retrieval (KEWER), a novel method to create a low-dimensional representation of entities and words in the same embedding space that takes into account both local structure and structural components of knowledge graphs. KEWER samples random walks over a given knowledge graph and thus can be considered as a hybrid between word and network embedding methods. Similar to word embedding methods, KEWER utilizes contextual co-occurrences as training data but differentiates between words and entities. Similar to network embedding methods, KEWER explicitly models the local structure of a knowledge graph, but unlike these methods, it takes into account various structural components of a knowledge graph, which allows us to jointly model both entities from the graph, such as DBpedia, and keyword queries.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We perform a series of experiments with KEWER to answer the following research questions: RQ1: How to learn joint word and entity embeddings that are effective for entity retrieval from a knowledge graph? RQ2: Which structural components of a knowledge graph are the most effective when learning joint entity and word embeddings for entity retrieval? RQ3: How does joint word and entity embeddings affect the retrieval accuracy of standard term matching based retrieval models for different types of entity search queries when they are utilized along with these models? RQ4: How does retrieval accuracy of the methods using joint word and entity embeddings compare with that of the methods using only word embeddings?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Entity Search. Entity search approaches can be categorized into the ones that utilize structured information from knowledge graphs and the ones that do not. While earlier studies [5, 32, 35] heavily utilized knowledge graph's structure during retrieval, more recent studies [21, 22, 25, 45] only use it to construct fielded entity representations, effectively casting entity search into an instance of structured document retrieval. Entity similarity information obtained from entity embeddings was successfully utilized for re-ranking the results of termbased retrieval models in [14, 17, 44] using a learning-to-rank approach. A publicly available benchmark for entity search based on DBpedia [16] and its more recent version [13] , which provides graded relevance judgments obtained using crowdsourcing and subsequent conflict resolution by experts, are standard test collections for evaluating entity search methods.",
+            "cite_spans": [
+                {
+                    "start": 179,
+                    "end": 182,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 183,
+                    "end": 186,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 187,
+                    "end": 190,
+                    "text": "35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 274,
+                    "end": 278,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 279,
+                    "end": 282,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 283,
+                    "end": 286,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 287,
+                    "end": 290,
+                    "text": "45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 581,
+                    "end": 585,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 586,
+                    "end": 589,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 590,
+                    "end": 593,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 695,
+                    "end": 699,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 728,
+                    "end": 732,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Word Embeddings in IR. Significant research efforts in the IR community were devoted to assessing the utility of word embeddings for different IR tasks. While the initial and some of the recent works in this area directly utilize word embeddings obtained using the methods such as word2vec, several word embedding models specifically targeting IR [9, 30, 42] have been recently proposed. The Dual Embedding Space Model [20] utilizes embedding matrices, which correspond to the two layers of the CBOW or Skip-gram architectures, to re-rank retrieval results. Experiments with this model indicate that utilizing IN-OUT instead of IN-IN similarity between embeddings of a query and document words allows for better modeling of aboutness of a document with respect to a query.",
+            "cite_spans": [
+                {
+                    "start": 347,
+                    "end": 350,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 351,
+                    "end": 354,
+                    "text": "30,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 355,
+                    "end": 358,
+                    "text": "42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 419,
+                    "end": 423,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Network Embeddings. Network embedding models aim to embed network nodes into a low-dimensional vector space. A common idea underlying these methods is the adoption of the embedding methods from language modeling to sequences obtained using random walks on a given network. DeepWalk [28] is the first method that is based on this idea. DeepWalk trains the Skip-Gram architecture on sequences of vertices generated by random walks of specified length starting from each node in the network. The resulting embeddings can be used for various classification tasks, such as group labeling in social networks. Other notable network embedding methods are LINE [34] , node2vec [11] , and struc2vec [31] .",
+            "cite_spans": [
+                {
+                    "start": 282,
+                    "end": 286,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 652,
+                    "end": 656,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 668,
+                    "end": 672,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 689,
+                    "end": 693,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Knowledge Graph Embeddings. Knowledge graph embeddings are a popular way to obtain low-dimensional dense representations for entities and predicates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "A widely known TransE model [3] was proposed as a way to greatly reduce the number of parameters required to train the Structured Embeddings model [4] by using vector algebra. MEmbER [14] is an extension of GloVe [26] to learn conceptual spaces consisting of word and entity embeddings, in which the salient words in a given domain are associated with separating hyperplanes. Several studies [37, 39, 46] proposed a hybrid between entity and word embeddings by employing a loss function, which includes both a TransE-based component to model relations between entities and a word2vec-based component to model semantic relations between the words along with the third component, whose purpose is to align entity and word embeddings obtained by the first two components. In [23] authors take a different approach by learning word and entity embeddings without utilizing relations between entities from a knowledge graph and instead relying only on an unannotated corpus of text. None of the previously proposed approaches for learning joint word and entity embedding spaces were proposed specifically for entity search in a knowledge graph, and thus ignore important information, such as knowledge graph structural components.",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 31,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 213,
+                    "end": 217,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 392,
+                    "end": 396,
+                    "text": "[37,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 401,
+                    "end": 404,
+                    "text": "46]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 772,
+                    "end": 776,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The primary goal of the proposed method is to learn joint word and entity embeddings that are effective for entity retrieval from a knowledge graph. The proposed method is based on the idea that a knowledge graph consists of key structural components. Structural components are loosely related to the fields of entity documents used extensively in knowledge graph entity search [21, 27, 45] , but are defined in a more general way as a set of components of a knowledge graph that are directly or indirectly related to entities.",
+            "cite_spans": [
+                {
+                    "start": 378,
+                    "end": 382,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 383,
+                    "end": 386,
+                    "text": "27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 387,
+                    "end": 390,
+                    "text": "45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "A given knowledge graph is formally defined as G = {E, R, A, C, S}, where E = {e 1 , . . . , e |E| } is a set of entities; R is a set of subject-predicate-object triples (s, p, o) where s, o \u2208 E are entities and p is a predicate; A is a set of triples (e, p, a) where e \u2208 E is an entity, p is a predicate, and a is a textual attribute that contains words {w 1 , . . . , w k } from vocabulary V ; C is a set of entity-category pairs (e, c), c \u2208 K; S is a combined set of entity-surface form (e, s), category-surface form (c, s), and predicate-surface form (p, s) pairs, where s = {n 1 , . . . , n k } is a set of word tokens in a surface form. The most commonly available surface form for an entity or category is its name or label (with k \u2248 3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "Another example of a surface form for an entity is its anchor text. We do not use long surface forms, such as entity descriptions, in this study. The vocabulary of all distinct surface form tokens is denoted as N . We also define the following three structural components of a knowledge graph: categories (C), literals (A), and predicates (P = {p : (s, p, o) \u2208 R or (e, p, a) \u2208 A}).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "To address RQ1, we propose KEWER, a method to jointly embed knowledge graph entities and words for entity search that takes into account the local structure of a knowledge graph, as well as its structural components. KEWER is based on a neural architecture that utilizes as input a set of sequences of word tokens and entity URIs produced by the following two-step procedure: (1) perform random walks over a knowledge graph to generate sequences consisting of structural components of a given knowledge graph (entities, predicates, attributes, and categories) of specified length t (2) randomly with probability r replace URIs in sequences resulting from random walks with their respective surface forms obtained from the same knowledge graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Knowledge Graph Entity and Word Embedding for Retrieval"
+        },
+        {
+            "text": "In our approach, sequences generated from random walks can be viewed as short descriptions of entities that are accessed by them. For example, a random walk over DBpedia Pierre Curie",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "Radioactivity can be seen as a short description of Marie Curie, who was the wife of Pierre Curie and is known for discovering radioactivity. The objective that is used during training when given a current element from a sequence is to predict its surrounding context. In our example sequence, if Marie Curie is the current element, the model will try to minimize the distance between embeddings of the context elements Pierre Curie, spouse, knownFor, Radioactivity and an embedding of the current entity, Marie Curie. The resemblance of this objective to the entity search task, when we need to predict target entity Marie Curie from the user query such as \"Who is known for her research on radioactivity and was the wife of Pierre Curie?\" is a primary motivation for using random walks over a knowledge graph in the proposed method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "Random Walks Generation. Formally, the random walks are generated in the following way: starting from each entity e we generate \u03b3 random walks of length \u2264 t. Each random walk is independently generated by repeatedly following directed edges (s, p, o) \u2208 R, such that the same node is not visited more than once during each random walk. If the predicates component is used, we add predicate-object pair (p, o) to the walk sequence, otherwise, we only add an object o. The walk procedure terminates when it either already contains t nodes or all the nodes adjacent to the current entity have already been visited. In the end, the randomly chosen attribute a of the last visited entity e, such that (e, p, a) \u2208 A from the literals structural component is added to the sequence. If categories are considered, then the pairs (e, c) \u2208 C are treated as undirected edges during the walking procedure so that it does not need to be terminated when category nodes, which typically do not have outgoing edges, are reached.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "Mixing with Surface Forms. To fulfill the need to work with user queries constructed in natural language in the typical ad-hoc entity retrieval scenario, the model should have the ability to properly embed the words that can be found in entity and category names. For that, after walks are generated, entity and category URIs are randomly replaced with probability r by their respective surface forms consisting of word tokens. If an entity or category has more than one surface form, the surface form for URI replacement is chosen uniformly at random from the set of available surface forms. In theory, this might create an issue with not utilizing all available surface forms for an entity, but in practice, this doesn't happen, since the number of generated random walks \u03b3 is typically much larger than the number of available surface forms for any given entity. If the predicates component is used, then the same procedure is also performed for the predicate URIs in the sequences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "Training Objective. Finally, to obtain the embeddings for words, entities, and, optionally, categories and predicates (if the corresponding knowledge graph structural components were used for sequence generation), the Skip-Gram-based model with Negative sampling [19] is trained on the resulting set of |E| * \u03b3 random walks consisting of elements \u03be 1 , . . . , \u03be T , where \u03be 1...T are either URIs or words, and T \u2265 t is the length of a random walk after replacement of the URIs with their surface forms. The model maximizes the probability of observing elements \u03be O from the context of the current element \u03be I by using the following objective:",
+            "cite_spans": [
+                {
+                    "start": 263,
+                    "end": 267,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "where c is the size of the training context and the probability of observing context element p(\u03be i+j |\u03be i ) is defined using softmax as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": ". ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "The obtained embeddings can be used to score entities with respect to a given user query in the following way. For a query Q consisting of the query terms q 1 , . . . , q k , we compute embedding of the entire query q by calculating the weighted sum of embeddings of individual query words:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Embedding-Based Entity Search"
+        },
+        {
+            "text": "where p(q i ) is a unigram probability of the query term q i in the corpus of knowledge graph literals, and a is a free parameter [1] . The ranking score KEWER(Q, e) of an entity e is then calculated as cosine similarity between entity embedding v e and query embedding q:",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Embedding-Based Entity Search"
+        },
+        {
+            "text": "This score can be used directly to score all entities in a given knowledge graph, or used in a re-ranking scenario by combining it with traditional retrieval models such as BM25F-CA with the score BM25F (Q, e) that uses term counts in the fields of a textual description of entity e. To parameterize the degree of influence of KEWER on the final ranking, its score can be multiplied by the importance weight \u03b2:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Embedding-Based Entity Search"
+        },
+        {
+            "text": "Utilizing Entity Linking in Queries. Besides considering only words from queries, we can perform entity linking in queries to find the URIs of entities mentioned in them. For DBpedia, this can be done by using DBpedia Spotlight [7] , SMAPH [6] , or Nordlys toolkits [12] . After that, the embeddings of linked entities e 1 , . . . , e m are used in conjunction with the embeddings of query words to calculate the embedding of the entire query as follows:",
+            "cite_spans": [
+                {
+                    "start": 228,
+                    "end": 231,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 240,
+                    "end": 243,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 266,
+                    "end": 270,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Embedding-Based Entity Search"
+        },
+        {
+            "text": "where s(e i ) is the entity linker's annotation score for the entity e i . For linked entities' embeddings, we use a concatenation of IN and OUT embedding vectors. We refer to the method that uses Eq. (5) to obtain query embedding as KEWER el\u2212tool , where tool is either Sp for Spotlight, SM for SMAPH, or N for Nordlys LTR method, depending on which toolkit was used for entity linking.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Embedding-Based Entity Search"
+        },
+        {
+            "text": "We performed a series of experiments to answer the research questions stated in the introduction and to find the best configuration of our model by implementing KEWER and evaluating it on the DBpedia-Entity v2 dataset [13] . We implemented random walk generation ourselves and used gensim [29] for the Skip-Gram-based optimization step. The source code of the proposed method and all the baselines used in the experiments, detailed dataset construction instructions, as well as the resulting embeddings and runs are available at https:// github.com/teanalab/kewer.",
+            "cite_spans": [
+                {
+                    "start": 218,
+                    "end": 222,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 289,
+                    "end": 293,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "DBpedia-Entity v2 collection [13] was used in all the experiments reported in this paper. Following the creators of that dataset, we used the English subset of DBpedia 2015-10 and only considered entities that have both rdfs:label and rdfs:comment predicates as our entity set E. Detailed statistics of this collection are provided in Table 1 . Entity search experiments were conducted using four query sets from [13] : SemSearch ES contains 113 named entity queries; INEX-LD contains 99 keyword-style IR queries; ListSearch contains 115 list search queries; QALD2 contains 140 more complex question answering queries. Following DBpedia-Entity v2 creators, we mainly focus on nDCG 100 , nDCG 10 , and MAP evaluation metrics. The cutoff of 1000 is used for calculating MAP.",
+            "cite_spans": [
+                {
+                    "start": 29,
+                    "end": 33,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 413,
+                    "end": 417,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 335,
+                    "end": 342,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Dataset"
+        },
+        {
+            "text": "To find the optimal values for the length of the random walk t and the replacement probability r, we performed a parameter sweep over the values of t \u2208 {2, 3, . . . , 10} and r \u2208 {0.1, 0.2, . . . , 0.9} to find out a setting that results in the highest nDCG on the query set. We found that the model always performs better with higher values of t, and the performance saturates around t = 10, which we use as the parameter value in the experiments. For replacement probability, the model also performs better with higher values of r reaching top nDCG 10 with r = 0.9, the value we use in the experiments. Note that we can't use r = 1 since there won't be any URIs for training entity embeddings (v e in Eq. (3)) in this case, since they all will be replaced with surface forms. Similarly, we perform a sweep for the context size c \u2208 {1, 3, . . . , 15} to find out the optimal value (c = 5) and term weighting parameter a \u2208 {10 \u2212i , 3 \u00d7 10 \u2212i : 1 \u2264 i \u2264 5} to find the optimal value (a = 3\u00d710 \u22124 ). In all subsequent experiments, we generate 100 random walks for each entity and use 5 negative samples during training.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 150,
+                    "end": 191,
+                    "text": "\u2208 {2, 3, . . . , 10} and r \u2208 {0.1, 0.2, .",
+                    "ref_id": null
+                }
+            ],
+            "section": "Parameter Sensitivity"
+        },
+        {
+            "text": "Since it is unclear which structural components will result in embeddings that are the most useful for entity search, in the first experiment, we attempt to answer RQ2 by trying all possible combinations of using categories, literals, and predicates structural components for training word and entity embeddings by KEWER. Figure 1 illustrates nDCG 100 of KEWER averaged over all queries from four query sets when different combinations of structural components are used. In this figure, \u00d8 corresponds to the configuration when only R is used to generate random walks.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 322,
+                    "end": 330,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Usefulness of Structural Components"
+        },
+        {
+            "text": "From Fig. 1 it can be concluded that using all three structural components is helpful for entity search, with categories providing the most benefit and predicates providing only a slight increase in retrieval accuracy. Regarding the specific query sets, we observed that using predicates on SemSearch ES decreased performance, which can be explained by their ineffectiveness for named entity queries that only contain entities' surface forms. On INEX-LD, we observed that not using literals resulted in better performance, which can be explained by the lack of attribute mentions in this query set's keyword queries. In the following experiments we use the word and entity embeddings that are trained using all three knowledge graph's structural components (categories, literals and predicates) and are made publicly available.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 5,
+                    "end": 11,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Usefulness of Structural Components"
+        },
+        {
+            "text": "As a baseline for learning embeddings, we used our implementation of the Jointly (desp) [46] . L J , the loss function for Jointly consists of the knowledge and the text component losses (L K and L T , respectively) and the alignment loss L A :",
+            "cite_spans": [
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "[46]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Jointly Embedding Model"
+        },
+        {
+            "text": "The knowledge component is formulated similar to TransE [3] with a single embedding space for entities and relations R. Both text and alignment components use textual descriptions of entities obtained from the short abstracts of entities using the rdfs:comment property. The text component in our implementation is formulated as a CBOW model with a single embedding space for words. The alignment component predicts the entity embedding given the sum of embeddings of words in entity description. As an alternative to using entity descriptions, we also implemented Jointly (sf) model, where alignment and text models are trained using all available surface forms for entities from S. As in the Sect. 3.3, we define three entity linking extensions of Jointly (Jointly el\u2212Sp , Jointly el\u2212SM , and Jointly el\u2212N ) using three different entity linking tools. We annotated all 467 queries using public DBpedia Spotlight API with confidence = 0.5, SMAPH, and Nordlys LTR and report the results for all entity linking models in Table 2 . We don't weight linked entities by their scores in Jointly, since we have found that entity weighting is not beneficial to this model. Results indicate that using the SMAPH entity linker results in the best performance for both KEWER and Jointly. For Jointly, using entity descriptions results in better performance than using surface forms. Table 2 shows that, even without entity linking, KEWER outperforms both Jointly and Jointly with entity linking based on all metrics. A significant increase in performance of Jointly after performing entity linking suggests that word embeddings learned by Jointly are not useful for entity search, and most of its performance comes from the TransE-based component. This situation is particularly dangerous for queries that do not have entity mentions, such as \"Who produced the most films?\" or \"What is the highest mountain?\".",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 59,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1020,
+                    "end": 1027,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1372,
+                    "end": 1379,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Jointly Embedding Model"
+        },
+        {
+            "text": "It is clear from the above results that KEWER can be a weak ranker by itself. To achieve state-of-the-art results for ad-hoc entity search and to answer RQ3, KEWER can be combined with the BM25F-CA model [43] , which showed good results in [13] . We implemented BM25F by indexing entities with Galago using 5 fields (names, categories, similar entity names, attributes, and related entity names) for entity descriptions, as was proposed in [45] . Parameters of the model were separately optimized with a coordinate ascent on each query set using nDCG 10 as the target metric and 5 cross-validation folds from DBpedia-Entity v2. For each query, we scored the top 1000 results obtained with BM25F using MM (Q, e) score from Eq. (4). The parameter \u03b2 was optimized using crossfold validation by sweeping between zero and one with 0.025 increments and choosing the setting that results in the highest nDCG 100 on each fold's training set. BM25F results were not significantly improved by re-ranking them using Jointly, and we don't report these results. However, in our attempt to answer RQ4, we were able to obtain good results by applying word embeddings trained with word2vec's Skip-Gram with the hyperparameter values from Sect. 4.2, trained on the corpus of entity descriptions, where 5 aforementioned fields were combined into one textual description of an entity. The best results with word2vec for entity ranking were obtained when entity embeddings were obtained by summing up without weighting the OUT embeddings of words from their name (rdfs:label property), and IN embeddings were used for query terms with weighting. Results on each query set for BM25F, BM25F+word2vec, BM25F+KEWER, BM25F+KEWER el\u2212SM are presented in Table 3 . Table 3 . Re-ranking results per query set for KEWER with and without entity linking, and word2vec. Statistically significant improvements (determined by a randomized test with \u03b1 = 0.05) over BM25F and BM25F+word2vec are indicated by \" \" and \" \u2020\", respectively. The best result in each column is boldfaced.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 240,
+                    "end": 244,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 440,
+                    "end": 444,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1727,
+                    "end": 1734,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1737,
+                    "end": 1744,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Mixture Model"
+        },
+        {
+            "text": "The results demonstrate that re-ranking by KEWER is particularly useful for complex question answering queries from QALD-2, list queries from List-Search, and keyword queries from INEX-LD, while being less useful for simple named entity queries from SemSearch ES, where word2vec thrives. For queries from ListSearch, KEWER is particularly useful when used in combination with entity linker, while for QALD-2 and INEX-LD using entity linking provides lower performance gain. This can be explained by the lack of useful entity mentions in QALD-2 and INEX-LD queries. In QALD-2 queries, mentioned entities are often of a different category than the entity of user's interest and have a complex relationship with it. Using the embeddings of linked entities, in this case, would skew results in the wrong direction. Instead, using plain KEWER helps to clarify the query's intent directly from its keywords.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mixture Model"
+        },
+        {
+            "text": "To illustrate the positive effect of using KEWER on retrieval accuracy, we analyze a sample query SemSearch LS-50 \"wonders of the ancient world\" where employing KEWER embeddings resulted in a performance boost. The top results for BM25F and KEWER (without interpolation with BM25F) are presented in Table 4 . From these results, it is evident that BM25F failed to capture the conceptual focus of the query by using term matching and most of its top results are only marginally relevant to the query's main focus. On the other hand, KEWER correctly identified the query's main focus on the ancient world, providing five highly relevant results in the ranking. Table 4 . Top 10 ranked entities for the query \"wonders of the ancient world\" for different models. Relevant results are italicized and highly relevant results are boldfaced. BM25F KEWER An example of a query where KEWER was unable to identify query focus is \"goodwill of michigan\", where it returns entities that are related to Goodwill Games instead of Goodwill Industries. This is caused by the fact that there exist a lot of entities with words \"Goodwill Games\" in their surface forms, which makes the model believe that token \"goodwill\" has a strong association with games.",
+            "cite_spans": [
+                {
+                    "start": 834,
+                    "end": 839,
+                    "text": "BM25F",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 299,
+                    "end": 306,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 659,
+                    "end": 666,
+                    "text": "Table 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Success/Failure Analysis"
+        },
+        {
+            "text": "This paper proposed KEWER, a method to learn joint word and entity embeddings that was experimentally shown to be effective for entity search, which addresses RQ1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "To answer RQ2, we compared the effectiveness of embeddings trained on various combinations of knowledge graph structural components and found out that using a combination of categories, literals, and predicates results in the highest retrieval accuracy on DBpedia-Entity v2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "To answer RQ3 and RQ4, we performed an evaluation of KEWER in the re-ranking scenario where it was used in combination with the BM25F retrieval model. Experimental results indicate that KEWER is particularly suitable for improving the ranking of results for complex entity search queries, such as question answering, list search, and keyword queries.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A simple but tough-to-beat baseline for sentence embeddings",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Arora",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Entity search evaluation over structured web data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Blanco",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "SIGIR 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Translating embeddings for modeling multi-relational data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garc\u00eda-Dur\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Yakhnenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "NIPS 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "2787--2795",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Learning structured embeddings of knowledge bases",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Collobert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "AAAI 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "301--306",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "The semsets model for ad-hoc semantic list search",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ciglan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "N\u00f8rv\u00e5g",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Hluch\u00fd",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "131--140",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A piggyback system for joint entity mention detection and linking in web queries",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cornolti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ferragina",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ciaramita",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "R\u00fcd",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Sch\u00fctze",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "567--578",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2872427.2883061"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Improving efficiency and accuracy in multilingual entity extraction",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Daiber",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jakob",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hokamp",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Mendes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 9th International Conference on Semantic Systems, I-SEMANTICS 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "121--124",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2506182.2506198"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Indexing by latent semantic analysis",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Deerwester",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dumais",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Landauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Furnas",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Harshman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "JASIS",
+            "volume": "41",
+            "issn": "6",
+            "pages": "391--407",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Query expansion with locally-trained word embeddings",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ACL 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Embedding-based Query Expansion for Weighted Sequential Dependence Retrieval Model",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3080764"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Node2vec: Scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "KDD 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "855--864",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2939672.2939754"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Nordlys: a toolkit for entityoriented and semantic search",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hasibi",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Balog",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Garigliotti",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIGIR 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "1289--1292",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3084149"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "DBpedia-entity v2: a test collection for entity search",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hasibi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIGIR 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "1265--1268",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3080751"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "MEmbER: max-margin based embeddings for entity retrieval",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jameel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Bouraoui",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schockaert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIGIR 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "783--792",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3080803"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Query expansion using word embeddings",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kuzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shtok",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CIKM 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "1929--1932",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2983323.2983876"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "DBpedia -a large-scale, multilingual knowledge base extracted from wikipedia",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lehmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Semant. Web",
+            "volume": "6",
+            "issn": "2",
+            "pages": "167--195",
+            "other_ids": {
+                "DOI": [
+                    "10.3233/SW-140134"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Explore entity embedding effectiveness in entity retrieval",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "CCL 2019",
+            "volume": "11856",
+            "issn": "",
+            "pages": "105--116",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-32381-3_9"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Evaluating question answering over linked data",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Lopez",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Unger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Cimiano",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Motta",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Web Semant",
+            "volume": "21",
+            "issn": "",
+            "pages": "3--13",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.websem.2013.05.006"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "NIPS 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A dual embedding space model for document ranking",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Nalisnick",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "On the modeling of entities for ad-hoc entity search in the web of data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Neumayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Balog",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "N\u00f8rv\u00e5g",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ECIR 2012",
+            "volume": "7224",
+            "issn": "",
+            "pages": "133--145",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-28997-2_12"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "When Simple is (more than) good enough: effective semantic search with (almost) no semantics",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Neumayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Balog",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "N\u00f8rv\u00e5g",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Baeza-Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "De Vries",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Cambazoglu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Murdock",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Lempel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ECIR 2012",
+            "volume": "7224",
+            "issn": "",
+            "pages": "540--543",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-28997-2_59"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Jointly embedding entities and text with distant supervision",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Newman-Griffis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Fosler-Lussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "195--206",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Factorizing YAGO: scalable machine learning for linked data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Tresp",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kriegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "WWW 2012",
+            "volume": "",
+            "issn": "",
+            "pages": "271--280",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2187836.2187874"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Parameterized fielded term dependence models for ad-hoc entity retrieval from knowledge graph",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nikolaev",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kotov",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zhiltsov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "SIGIR 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "435--444",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2911451.2911545"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "GloVe: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "EMNLP 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Using BM25F for semantic search",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "P\u00e9rez-Ag\u00fcera",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Arroyo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Greenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Iglesias",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Fresno",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "SEMSEARCH 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1863879.1863881"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "DeepWalk: online learning of social representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Al-Rfou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "KDD 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "701--710",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2623330.2623732"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Software framework for topic modelling with large corpora",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "\u0158eh\u016f\u0159ek",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sojka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "NLP Frameworks at LREC 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "45--50",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Toward incorporation of relevant documents in word2vec",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rekabsaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lupu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hanbury",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Struc2vec: learning node representations from structural identity",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Saverese",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Figueiredo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "385--394",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3097983.3098061"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Question answering on interlinked data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shekarpour",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Ngonga Ngomo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Auer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "WWW 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "1145--1156",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2488388.2488488"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Reasoning with neural tensor networks for knowledge base completion",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "NIPS 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "926--934",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Line: large-scale information network embedding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Mei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1067--1077",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2736277.2741093"
+                ]
+            }
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Combining inverted indices and structured search for ad-hoc object retrieval",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tonon",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Demartini",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Cudr\u00e9-Mauroux",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "SIGIR 2012",
+            "volume": "",
+            "issn": "",
+            "pages": "125--134",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2348283.2348304"
+                ]
+            }
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Monolingual and cross-lingual information retrieval models based on (bilingual) word embeddings",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Vuli\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Moens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "SIGIR 2015",
+            "volume": "",
+            "issn": "",
+            "pages": "363--372",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Knowledge graph and text jointly embedding",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1591--1601",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "LDA-based document models for ad-hoc retrieval",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "SIGIR 2006",
+            "volume": "",
+            "issn": "",
+            "pages": "178--185",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1148170.1148204"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Representation learning of knowledge graphs with entity descriptions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Luan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "AAAI 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "2659--2665",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Embedding-based query language models",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICTIR 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "147--156",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2970398.2970405"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Estimating embedding vectors for queries",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICTIR 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "123--132",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2970398.2970403"
+                ]
+            }
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Relevance-based word embedding",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "505--514",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3077136.3080831"
+                ]
+            }
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Microsoft Cambridge at TREC 13: Web and hard tracks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Taylor",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Saria",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Robertson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Improving entity search over linked data by modeling latent semantics",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zhiltsov",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Agichtein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CIKM 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "1253--1256",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2505515.2507868"
+                ]
+            }
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Fielded sequential dependence model for ad-hoc entity retrieval in the web of data",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zhiltsov",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kotov",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nikolaev",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "SIGIR 2015",
+            "volume": "",
+            "issn": "",
+            "pages": "253--262",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2766462.2767756"
+                ]
+            }
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Aligning knowledge and text embeddings by entity descriptions",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "EMNLP 2015",
+            "volume": "",
+            "issn": "",
+            "pages": "267--272",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Note that each element \u03be has two different IN and OUT [20] embeddings: v \u03be and v \u03be . In practice, calculating the softmax denominator of p(\u03be O |\u03be I ) is infeasible, and it is approximated using negative sampling. The objective from Eq. (1) is maximized using stochastic gradient descent to learn IN and OUT embeddings of size d with derivatives estimated using back-propagation. To better utilize cross-dependencies between IN and OUT spaces [20], we use a concatenation of IN and OUT embeddings for words and OUT and IN embeddings for entities. Thus, our final embeddings are vectors of size d * 2. Note that the proposed method can scale to large knowledge graphs, since all three steps of it are easily parallelizable.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Collection statistics.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Retrieval performance with entity linking. The best result is in bold.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Wonders of the Ancient World (video game) Statue of Zeus at Olympia Wonders of the World Temple of Artemis Seven Ancient Wonders List of archaeoastronomical sites by country The Seven Fabulous Wonders Hanging Gardens of Babylon The Seven Wonders of the World (album) Antikythera mechanism Times of India's list of seven wonders of India Timeline of ancient history Colossus of Rhodes Great Pyramid of Giza",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

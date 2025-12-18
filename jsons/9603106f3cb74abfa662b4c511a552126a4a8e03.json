@@ -1,0 +1,1507 @@
+{
+    "paper_id": "9603106f3cb74abfa662b4c511a552126a4a8e03",
+    "metadata": {
+        "title": "Bottom-Up and Top-Down Graph Pooling",
+        "authors": [
+            {
+                "first": "Jia-Qi",
+                "middle": [],
+                "last": "Yang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "National Key Laboratory for Novel Software Technology",
+                    "institution": "Nanjing University",
+                    "location": {
+                        "postCode": "210023",
+                        "settlement": "Nanjing",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "De-Chuan",
+                "middle": [],
+                "last": "Zhan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "National Key Laboratory for Novel Software Technology",
+                    "institution": "Nanjing University",
+                    "location": {
+                        "postCode": "210023",
+                        "settlement": "Nanjing",
+                        "country": "China"
+                    }
+                },
+                "email": "zhandc@nju.edu.cn"
+            },
+            {
+                "first": "Xin-Chun",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "National Key Laboratory for Novel Software Technology",
+                    "institution": "Nanjing University",
+                    "location": {
+                        "postCode": "210023",
+                        "settlement": "Nanjing",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Pooling layers are crucial components for efficient deep representation learning. As to graph data, however, it's not trivial to decide which nodes to retain in order to represent the high-level structure of a graph. Recently many different graph pooling methods have been proposed. However, they all rely on local features to conduct global pooling over all nodes, which contradicts poolings in CNNs that only use local features to conduct local pooling. We analyze why this may hinder the performance of graph pooling, then propose a novel graph pooling method called Bottom-Up and Top-Down graph POOLing (BUTDPool). BUTDPool aims to learn a more fine-grained pooling criterion based on coarse global structure information produced by a bottom-up pooling layer, and can enhance local features with global features. Specifically, we propose to use one or multiple pooling layers with a relatively high retain ratio to produce a coarse high-level graph. Injecting the high-level information back into low-level representation, BUTDPool enhances learning a better pooling criterion. Experiments demonstrate the superior performance of the proposed method over compared methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The revolution of deep learning [8] has profoundly affected the development of many application fields, such as computer vision [10] , natural language processing [12] , and audio signal processing [11] . The architecture of neural networks has evolved a lot in recent years, convolutional neural network (CNN) [10] remains the most successful model in applications that can exploit grid-like data structure. Some structured data, e.g., images, can be represented as grid-like graph structure, yet CNNs are not directly applicable to general graph data. The traditional approach for dealing with graph data is utilizing graph kernel [5] . These methods suffered from drawbacks of kernel methods such as high computational complexity and very shallow model, thus didn't perform well on relatively large datasets. Graph neural networks (GNN) [21] aims at building deep learning methods for graph data such as social networks, citation networks, and the world wide web, and its effectiveness has been shown in many real-world applications. The basic idea of most GNN models is to migrate successful deep learning building-blocks to graph models. Graph convolutional neural networks (GCN) [13] is a prominent GNN variant, which is an analogy of CNN.",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 35,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 163,
+                    "end": 167,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 198,
+                    "end": 202,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 633,
+                    "end": 636,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 840,
+                    "end": 844,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1185,
+                    "end": 1189,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Pooling layer is a critical component of most deep neural networks [8] . Stateof-the-art CNNs usually use successive convolutional layers with small kernel sizes followed by one or more pooling layers, which can increase the effective receptive field while keeping the efficiency and representation learning power of convolutional layers. Graph poolings play a similar role in GCNs, and pooling layers are also necessary for tasks such as graph classification, graph encoding, or sub-graph sampling. However, the most popular pooling methods such as spacial max pooling and average pooling can't be incorporated into GCNs easily. Some recent researches focus on providing pooling methods that applicable in GCNs, such as DiffPool [23] and SAGPool [14] , and they have shown significant improvement on many graph classification tasks.",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 730,
+                    "end": 734,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 747,
+                    "end": 751,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Existing graph pooling methods [7, 24] rely on features extracted by graph convolution layers to calculate a score for each node. Graph convolution works by aggregating information from neighbor nodes defined by the adjacency matrix, so the feature produced by graph convolution is local feature like in common CNNs, where a convolution kernel considers only a small area. The local feature can only reflect local structure around a node itself, but can hardly reflect the importance of a node within a larger area since macroscopic information is never available in local features.",
+            "cite_spans": [
+                {
+                    "start": 31,
+                    "end": 34,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 35,
+                    "end": 38,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In CNNs the local features are exploited in an intuitive way: 1) Only spacial nearby areas are compared during pooling, which is well-defined when considering local features 2) Pooling layers guarantee a fixed fraction of local features are retained (e.g. 1 4 ). So even if the most important part is dropped, any one of its neighbor features will hopefully be fine enough because of the local similarity. On the other hand, existing graph pooling methods work in a very different way: 1) All nodes are compared based on their local features, including those nodes that are far apart from each other. 2) A fixed fraction of all nodes are retrained, so the global structure of the graph may change a lot if some critical parts are dropped completely.",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 259,
+                    "text": "1 4",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To solve this problem, we propose a new graph pooling method called Bottom-Up and Top-Down Graph Pooling (BUTDPool). The core idea is to gather highlevel information with one or more coarse pooling layers, then feed this information back to the low-level representation to help to learn a more fine-grained pooling function. Specifically, we propose to apply a bottom-up pooling layer to enlarge the receptive field of each node, then use a top-down unpooling layer to map the pooled graph back and add to the original graph. Finally, a finegrained pooling layer is applied to the graph with global information. Experiments showed the advantage of our method compared to state-of-the-art graph pooling methods, especially on large graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Generally, we make several noteworthy contributions as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We analyzed a drawback of existing graph pooling methods that have not been noticed before: they are all pooling over graph globally but only based on local features. -We proposed a new graph pooling structure called Bottom-Up and Top-Down Graph Pooling to tackle that drawback, which is generally applicable and can be complementary with existing methods. -Experiments on real-world network datasets are conducted. The experimental results demonstrate that the Bottom-Up and Top-Down Graph Pooling achieves better results than many existing methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We give a brief overview of some related works in this section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "(GC) is a graph representation learning method with a sound theoretical foundation and has been the backbone of many successful graph learning methods, which is also the workhorse of most graph pooling methods. The most widely used graph convolution [13] is an approximation of localized spectral convolution. There are variants of graph convolution, e.g. Graph-SAGE [9] use LSTM instead of mean as aggregation function in graph convolution, however, they preserves the localized property so the drawback discussed in Sect. 3.2 remains.",
+            "cite_spans": [
+                {
+                    "start": 250,
+                    "end": 254,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 367,
+                    "end": 370,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Convolution."
+        },
+        {
+            "text": "Hierarchical and Global Graph Pooling. Global pooling aims at obtaining a global summary of a whole graph, which gives GCNs the ability to process graphs with different node numbers and graph structure. Typical global pooling methods including SortPool [24] and Set2Set [18] . However, global pooling methods lack the ability to learn hierarchical or high-level representations. Hierarchical pooling methods aim to provide a texture-level to object-level representations at different layers and wipe off useless information progressively by multiple pooling layers, which is very important in deep models. SAGPool [14] is a recently proposed hierarchical pooling method that has state-of-the-art performance on many benchmark datasets. Since it's unlikely to learn the global structure of a large graph using a single global pooling layer, hierarchical pooling is more important in deep learning. So we only consider hierarchical pooling methods in the rest of our paper.",
+            "cite_spans": [
+                {
+                    "start": 253,
+                    "end": 257,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 270,
+                    "end": 274,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 614,
+                    "end": 618,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Convolution."
+        },
+        {
+            "text": "A nature idea considering graph pooling is to learn the importance of each node, then only keep the most important nodes and simply drop other unimportant nodes. This is the basic idea of a bunch of graph pooling methods we call as score-based methods, since they calculate a score as a metric of relative importance of each node. SAGPool [14] and gPool [7] are typical score-based pooling methods.",
+            "cite_spans": [
+                {
+                    "start": 339,
+                    "end": 343,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 354,
+                    "end": 357,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Score-Based Graph Max-Pooling."
+        },
+        {
+            "text": "Differentiable Graph Pooling. Score-based methods have a drawback that the top-k operation used in score-based methods is not differentiable. Fully differentiable models are usually easier to optimize than models with nondifferentiable components, differentiable graph pooling methods are proposed to tackle this issue. DiffPool [23] is a representative differentiable pooling method where a large graph is downsampled to a small graph with pre-fixed size in a fully differentiable approach. Since the time and space complexity of DiffPool is O(|V| 2 ) rather than O(|E|) of sparse methods such as SAGPool, DiffPool can be very slow or even not applicable on large graphs.",
+            "cite_spans": [
+                {
+                    "start": 329,
+                    "end": 333,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Score-Based Graph Max-Pooling."
+        },
+        {
+            "text": "Visual attention mechanisms have been widely used in image captioning and visual question answering (VQA) [1, 16] , and similar attention mechanism has been proved to exist in human visual system [3] . The combination of bottom-up and top-down attention was suggested by [1] in VQA task, where the bottom-up attention uses an object detection model to focus on concerned regions, then the top-down attention utilizes language feature to take attention on the image regions most related to the question. Although our method shares a similar name with the bottom-up and top-down attention in VQA, they are completely different in motivation, application, and implementation. In order to learn a more fine-grained graph pooling criterion with larger effective receptive field, we adopt a bottom-up and top-down fashion architecture, which will be defined in detail in the following sections (Fig. 1 ).",
+            "cite_spans": [
+                {
+                    "start": 106,
+                    "end": 109,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 110,
+                    "end": 113,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 271,
+                    "end": 274,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 888,
+                    "end": 895,
+                    "text": "(Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Bottom-Up and Top-Down Visual Attention."
+        },
+        {
+            "text": "We define a graph as G = (V, A), where V is the vertex set that consisting of nodes {v 1 , . . . , v n }, and A \u2208 R n\u00d7n is the adjacency matrix (typically symmetric and sparse) where a ij denotes the edge weight between nodes v i and v j . a ij = 0 denotes the edge does not exist. The degree matrix is defined as a diagonal",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notations"
+        },
+        {
+            "text": "In graph convolution, the adjacency matrix with self-connections\u00c3 \u2208 R n\u00d7n is usually used instead of A, where\u00c3 = A + I n , andD \u2208 R n\u00d7n is the degree matrix of\u00c3. In a deep neural network, X denotes the input of the th layer, X 0 denote the original feature matrix of the input graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notations"
+        },
+        {
+            "text": "Each node v i in a graph has a feature vector denoted by x i \u2208 R d . For a graph with n nodes, the feature matrix is denoted by X \u2208 R n\u00d7d , where row i correspond to x i . In graph classification task, each graph belongs to one out of C classes, given a graph we want to predict it's class.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notations"
+        },
+        {
+            "text": "We analyze a drawback of existing pooling methods in this section, which we attribute to the contradiction of local features and global pooling criterion.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "We define local features as the features that only contain information gathered from the very nearby area. For example, in CNNs, the features are typically calculated by a small kernel (e.g., 3\u00d73). The kernel size determines the receptive field of a convolutional layer, which is the largest area a feature can see, and that feature is innocent to the outside of this receptive field.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "The features produced by graph convolutions are also local: typical graph convolutions only consider neighbor nodes, i.e., one-hop connection [13] . This is the expected behavior of GCNs by design to inherit merits of CNNs: parameter sharing at different local area, which can be regarded as a strong prior that local patterns are applicable everywhere [8] .",
+            "cite_spans": [
+                {
+                    "start": 142,
+                    "end": 146,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "Typical pooling layers in CNNs, say max-pooling without loss of generality, select one feature out of a small feature set (e.g., 1 out of 4 in a max-pooling with size 2\u00d72), then all selected features form a smaller feature map. These local features are comparable since they have information about each other, and even if the feature of most importance is dropped, the selected feature may still be representative of this small area because of local similarity in most nature data like image. The overall structure won't get disturbed after pooling even if the pooling is totally random, which makes poolings in CNNs robust and relatively easier to train.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "However, existing graph poolings utilize these local features in a very different and counterintuitive way compared to common poolings in CNNs. They use local features to calculate a score [7, 14] to define the importance of each node, then they simply select the nodes with the largest scores. The scores are also local features as we defined before, since they only rely on local features produced by GCNs. The scores of two far apart nodes can't reflect any information of their relationship or their relative importance in the whole graph, which harms the ability of poolings to retain global structure thus will harm performance in downstream tasks.",
+            "cite_spans": [
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 193,
+                    "end": 196,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "The analysis of the drawback of existing methods also sheds light on the idea to resolve it: we need to make local features non-local, i.e., have a larger receptive field, in order to apply score-based pooling in a more fine-grained way.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Local Features and Pooling Criterion"
+        },
+        {
+            "text": "Stacking GC layers can increase receptive field, however not efficient since a GC layer can only increase receptive field by 2 hops. And it's indeed hard to train a deep GCN [15, 20] .",
+            "cite_spans": [
+                {
+                    "start": 174,
+                    "end": 178,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 179,
+                    "end": 182,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "To gather a macroscopic view of the whole graph, we use a stack of base pooling layers to do a coarse pooling. A base pooling layer can be any pooling layer that can reduce node number by a fixed ratio r such as most score-based pooling methods. We define a base pooling layer (BPL) as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "whereX and\u00c3 is the feature matrix and adjacency matrix of the graph after pooling, \u0398 is the parameter of this base pooling layer.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "Without loss of generality, we use SAGPool [14] as our base pooling layer. Given input X, A and r, the SAGPool calculates a score vector y = GC(X). Based on this score, the k nodes with largest scores are selected and their indexes are denoted as idx. The output features is calculated byX = tanh(y[idx]) X[idx], the output adjacent matrix\u00c3 = A [idx, idx] , where the [] operator selects elements based on row and column indexes. The GC is a graph convolution layer with output feature size 1 so that the output of this layer can be used as the score. When a retain-ratio r is given instead of k, we define k = |V| * r.",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 47,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 345,
+                    "end": 355,
+                    "text": "[idx, idx]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "A bottom-up pooling layer (BUPL) can be defined as a stack of base pooling layers, for example, a bottom-up pooling layer with 2 base pooling layers can be defined byX",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "The corresponding bottom-up pooling layer is denoted b\u1ef9",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "WhereX ,\u00c3 is the output of a bottom-up pooling layer. Different from SAGPool layer, we return an index idx bu in BUPL to memorize the map between input nodes and output nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "The bottom-up pooling layer can produce a much smaller graph, since the retain ratio is relatively small. This graph can be viewed as a rough summary of the original graph and the receptive field of each node is larger. Roughly, the receptive field of remaining nodes can still cover most nodes, thus this is a high-level graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "Notice that DiffPool is not applicable as a bottom-up pooling layer since we prefer a sparse pooling method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Bottom-Up Pooling"
+        },
+        {
+            "text": "Now we have a high-level pooling result produced by the bottom-up pooling layer denoted byX ,\u00c3 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "In order to feed high-level information back to the low-level graph, we should define a mapping from the downsampled small graph to the original large graph with more nodes, which is unpooling. A nature idea is to apply attention to the small graph and large graph. However, this attention operation will take O(|V small | \u00d7 |V large |) time complexity, which loses the merit of the sparse property of GCN.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "To keep efficiency and simplicity, we save the index of selected nodes at every bottom-up pooling step so that we can recover the mapping of nodes easily. This is similar to the gUnpool layer proposed by [7] . However, they use zero value in the dropped nodes, which does not feed any information back to those nodes. To fix this, we take the mean of all retained nodes as their corresponding high-level features.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "The top-down unpooling can be denoted as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "Where TDUPL is the top-down unpooling layer. The retained nodes in unpooling result have information of their own receptive field, and other averaged nodes have information of the whole graph. When this graph is injected to low-level graph, each nodes will have both local and global information (an averaged node will have a retained neighbour with large probability, viceversa. Then one hop relation is considered in following graph convolution).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "Then the high-level features are summed with low-level features as input of the fine-grained pooling layer. Which can be defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "Where FGPL \u0398 fg is the fine-grained pooling layer, which can be any scorebased pooling layer. The r is the retain ratio, which is larger than the retain ratio r bu used in bottom-up pooling layers. Z is the feature combined with local information X and higher level informationX , which gives FGPL the power to learn a more fine-grained pooling.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "The proposed bottom-up and top-down pooling layer combines bottom-up layer and top-down layer defined before and can be denoted by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "The procedure of a bottom-up and top-down pooling layer is summarized in Algorithm 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Top-Down Unpooling and Fine-Grained Pooling Layer"
+        },
+        {
+            "text": "Input : Adjacent matrix A ; Input feature matrix X ; Bottom-up pooling layer parameters \u0398 bu and fine-grained pooling layer parameters \u0398 fg ; Bottom-up pooling ratio r bu and pooling ratio r Output: A smaller graph with adjacent matrix A +1 ; Output feature matrix",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1: A Bottom-Up and Top-Down Pooling Layer"
+        },
+        {
+            "text": "We give a brief introduction of compared methods and experiment protocol in the following sections.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We give a brief introduction of compared methods in the following sections.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "gPool is a score-based method used in the Graph U-Nets [7] . gPool suppose that there is a direction defined by vector p at the th layer that the nodes v i with feature x i align with p best is the most relative nodes. So the score of node v i is defined as x T i p / p . The score (after a sigmoid function) is multiplied to the input of next layer to make p optimizable.",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 58,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "SAGPool is a score-based method proposed by [14] . The authors of SAGPool argue that gPool does not consider topology relationship in graphs since all nodes are projected to the same p . SAGPool uses graph convolution blocks to calculate score instead.",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 48,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "DiffPool is a fully differentiable graph pooling method introduced in [23] . Diff-Pool uses GNN layers to learn a soft assignment of each node to a cluster, then pool a cluster into a node.",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 74,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "As mentioned in [17] , the data split is a crucial factor that affects evaluation a lot. So we generate 20 different random splits (80%train, 10%validate, 10%test) of every dataset at first, then evaluate each model on these 20 splits and take the average accuracy as our measurement. All methods are implemented using pytorch-geometric [6] .",
+            "cite_spans": [
+                {
+                    "start": 16,
+                    "end": 20,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 337,
+                    "end": 340,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiment Protocol"
+        },
+        {
+            "text": "Model Architecture. We follow the model architecture proposed in [14] to make a fair comparison, with the graph pooling layers replaced by compared methods, Figure 2 depicts the model architecture. Datasets. We selected several graph classification benchmark datasets from real biological and chemical applications. The D&D dataset [4] and PROTEINS dataset [2, 4] are protein classification datasets. The NCI1 dataset and NCI109 dataset [19] represent two balanced subsets of datasets of chemical compounds classification. REDDIT-MULTI-5K [22] is a social network dataset with large graphs.",
+            "cite_spans": [
+                {
+                    "start": 65,
+                    "end": 69,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 332,
+                    "end": 335,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 357,
+                    "end": 360,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 361,
+                    "end": 363,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 437,
+                    "end": 441,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 539,
+                    "end": 543,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 157,
+                    "end": 165,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Experiment Protocol"
+        },
+        {
+            "text": "The datasets are summarized in Table 1 . ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 31,
+                    "end": 38,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiment Protocol"
+        },
+        {
+            "text": "BUTDPool is a stack of existing graph pooling methods, the overhead of time complexity is determined by the number of base pooling layers. For a BUTDPool layer with 2 bottom-up layers, the running time will be roughly 3 times of a single base pooling layer (2 bottom up layer, 1 fine-grained layer). The space complexity is similar. In a typical deep neural network, the number of pooling layers is small compare to other convolutional layers, so this overhead is affordable. On the other hand, the overhead of DiffPool is |V| times complexity of time and space compared to sparse methods, which limits its usability on even medium size graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "We analyzed the contradiction of local feature and global pooling in existing graph pooling methods, then introduced a novel and easy-to-implement improvement BUTDPool over existing graph pooling methods to mitigate this problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The large graph is pooled by a bottom-up pooling layer to produce a highlevel overview, and then the high-level information is feedback to the low-level graph by a top-down unpooling layer. Finally, a fine-grained pooling criterion is learned. The proposed bottom-up and top-down architecture is generally applicable when we need to select a sub-graph from a large graph and the quality of the sub-graph matters. Experiments demonstrated the effectiveness of our approach on several graph classification tasks. The proposed BUTDPool can be an alternative building block in GNNs with the potential to make improvements in many existing models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Bottom-up and top-down attention for image captioning and visual question answering",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of 2018 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "6077--6086",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Protein function prediction via graph kernels",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Ong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schoenauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "V N"
+                    ],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kriegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Bioinformatics",
+            "volume": "21",
+            "issn": "1",
+            "pages": "47--56",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Control of goal-directed and stimulus-driven attention in the brain",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Corbetta",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Shulman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Nat. Rev. Neurosci",
+            "volume": "3",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Distinguishing enzyme structures from non-enzymes without alignments",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Dobson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Doig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Mol. Biol",
+            "volume": "330",
+            "issn": "4",
+            "pages": "771--783",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Scalable kernels for graphs with continuous attributes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Feragen",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Kasenburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Petersen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Bruijne",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Borgwardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "26",
+            "issn": "",
+            "pages": "216--224",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Fast graph representation learning with PyTorch Geometric",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lenssen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ICLR Workshop on Representation Learning on Graphs and Manifolds",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Graph U-Nets",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 36th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "2083--2092",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep Learning. Adaptive Computation and Machine Learning",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Courville",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Inductive representation learning on large graphs",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "1024--1034",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of 2016 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "770--778",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "CNN architectures for large-scale audio classification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hershey",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of 2017 IEEE International Conference on Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "131--135",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Convolutional neural networks for sentence classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "1746--1751",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 5th International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Self-attention graph pooling",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 36th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "3734--3743",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Deeper insights into graph convolutional networks for semisupervised learning",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 32nd AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "3538--3545",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Knowing when to look: adaptive attention via a visual sentinel for image captioning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of 2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3242--3250",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Pitfalls of graph neural network evaluation",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Shchur",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mumme",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bojchevski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "G\u00fcnnemann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Order matters: sequence to sequence for sets",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kudlur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 4th International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Comparison of descriptor spaces for chemical compound retrieval and classification",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Wale",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Karypis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 6th IEEE International Conference on Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "678--689",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Simplifying graph convolutional networks",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "H S"
+                    ],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Fifty",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Weinberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 36th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "6861--6871",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A comprehensive survey on graph neural networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Long",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Deep graph kernels",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Yanardag",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "V N"
+                    ],
+                    "last": "Vishwanathan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 21th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1365--1374",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Hierarchical graph representation learning with differentiable pooling",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "You",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Morris",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "31",
+            "issn": "",
+            "pages": "4805--4815",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "An end-to-end deep learning architecture for graph classification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Neumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 32nd AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "4438--4445",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "A bottom-up and top-down graph pooling layer. We use different background color to denote effective receptive field, the darker the background the larger the effective receptive field. Nodes with same color denote the same nodes at different level. This figure depicted a possible pooling procedure on a simple graph.(Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Model architecture",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Summary of datasets Dataset Num. Graphs Num. Classes Avg. Num. of Nodes Avg. Num. of Edges",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Average accuracy and standard deviation of 20 random runs. *: About 2% largest of graphs in D&D dataset are dropped because of being too large for efficiency when training and evaluating DiffPool. NA: We found DiffPool on REDDIT dataset is very slow or cause out-of-memory, since we focus on efficient pooling method we excluded this experiment. BUTDPool(ours) 77.43 75.44 73.00 72.28 52.14 From Table 2, we can see that, BUTDPool achieves clear performance gain over the compared methods, especially on D&D and REDDIT dataset with large graphs.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

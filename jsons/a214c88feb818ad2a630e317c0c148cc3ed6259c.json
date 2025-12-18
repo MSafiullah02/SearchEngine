@@ -1,0 +1,1308 @@
+{
+    "paper_id": "a214c88feb818ad2a630e317c0c148cc3ed6259c",
+    "metadata": {
+        "title": "Keyphrase Extraction as Sequence Labeling Using Contextualized Embeddings",
+        "authors": [
+            {
+                "first": "Dhruva",
+                "middle": [],
+                "last": "Sahrawat",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "National University of Singapore",
+                    "location": {
+                        "settlement": "Singapore",
+                        "country": "Singapore"
+                    }
+                },
+                "email": "dhruva@comp.nus.edu.sg"
+            },
+            {
+                "first": "Debanjan",
+                "middle": [],
+                "last": "Mahata",
+                "suffix": "",
+                "affiliation": {},
+                "email": "dmahata@bloomberg.net"
+            },
+            {
+                "first": "Haimin",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Mayank",
+                "middle": [],
+                "last": "Kulkarni",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Agniv",
+                "middle": [],
+                "last": "Sharma",
+                "suffix": "",
+                "affiliation": {},
+                "email": "agnivsharma96@gmail.com"
+            },
+            {
+                "first": "Rakesh",
+                "middle": [],
+                "last": "Gosangi",
+                "suffix": "",
+                "affiliation": {},
+                "email": "rgosangi@bloomberg.net"
+            },
+            {
+                "first": "Amanda",
+                "middle": [],
+                "last": "Stent",
+                "suffix": "",
+                "affiliation": {},
+                "email": "astent@bloomberg.net"
+            },
+            {
+                "first": "Yaman",
+                "middle": [],
+                "last": "Kumar",
+                "suffix": "",
+                "affiliation": {},
+                "email": "ykumar@adobe.com"
+            },
+            {
+                "first": "Rajiv",
+                "middle": [],
+                "last": "Ratn Shah",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Roger",
+                "middle": [],
+                "last": "Zimmermann",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "National University of Singapore",
+                    "location": {
+                        "settlement": "Singapore",
+                        "country": "Singapore"
+                    }
+                },
+                "email": "rogerz@comp.nus.edu.sg"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this paper, we formulate keyphrase extraction from scholarly articles as a sequence labeling task solved using a BiLSTM-CRF, where the words in the input text are represented using deep contextualized embeddings. We evaluate the proposed architecture using both contextualized and fixed word embedding models on three different benchmark datasets, and compare with existing popular unsupervised and supervised techniques. Our results quantify the benefits of: (a) using contextualized embeddings over fixed word embeddings; (b) using a BiLSTM-CRF architecture with contextualized word embeddings over fine-tuning the contextualized embedding model directly; and (c) using domain-specific contextualized embeddings (SciBERT). Through error analysis, we also provide some insights into why particular models work better than the others. Lastly, we present a case study where we analyze different self-attention layers of the two best models (BERT and SciBERT) to better understand their predictions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Keyphrase extraction is the process of selecting phrases that capture the most salient topics in a document [24] . They serve as an important piece of document metadata, often used in downstream tasks including information retrieval, document categorization, clustering and summarization. Classic techniques for keyphrase extraction involve a two stage approach [10] : (1) candidate generation, and (2) pruning. During the first stage, the document is processed to extract a set of candidate keyphrases. In the second stage, this candidate set is pruned to select the most salient candidate keyphrases, using either supervised or unsupervised techniques. In the supervised setting, pruning is formulated as a binary classification problem: determine if a given candidate is a keyphrase. In the unsupervised setting, pruning is treated as a ranking problem, where the candidates are ranked based on some measure of importance.",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 112,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 362,
+                    "end": 366,
+                    "text": "[10]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Challenges. Researchers typically employ a combination of different techniques for candidate generation such as extracting named entities, finding noun phrases that adhere to pre-defined lexical patterns [3] , or extracting n-grams that appear in an external knowledge base like Wikipedia [9] . The candidates are further cleaned up using stop word lists or gazetteers. Errors in any of these techniques reduces the quality of candidate keyphrases. For example, if a named entity is not identified, it misses out on being considered as a keyphrase; if there are errors in part of speech tagging, extracted noun phrases might be incomplete. Also, since candidate generation involves a combination of heuristics with specific parameters, thresholds, and external resources, it is hard to be reproduced or migrated to new domains.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently, researchers have started to approach keyphrase extraction as a sequence labeling task [1, 8] . This formulation completely bypasses the candidate generation stage and provides a unified approach to keyphrase extraction. Unlike binary classification where each keyphrase is classified independently, sequence labeling finds an optimal assignment of keyphrase labels for the entire document. Sequence labeling allows to capture long-term semantic dependencies in the document.",
+            "cite_spans": [
+                {
+                    "start": 96,
+                    "end": 99,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 100,
+                    "end": 102,
+                    "text": "8]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Motivation."
+        },
+        {
+            "text": "There have been significant advances in deep contextual language models [7, 21] . These models can take an input text and provide contextual embeddings for each token for use in downstream architectures. They have been shown to achieve state-of-the-art results for many different NLP tasks. More recent works [4, 16] have shown that contextual embedding models trained on domain-specific corpora can outperform general purpose models.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "[7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 76,
+                    "end": 79,
+                    "text": "21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 309,
+                    "end": 312,
+                    "text": "[4,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 313,
+                    "end": 316,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Motivation."
+        },
+        {
+            "text": "Despite all the developments, to the best of our knowledge, there hasn't been any work on the use of contextual embeddings for keyphrase extraction. We expect that, as with other NLP tasks, keyphrase extraction can benefit from contextual embeddings. We also posit that domain-specific language models may further help improve performance. To explore these hypotheses, in this paper, we approach keyphrase extraction as a sequence labeling task solved using a BiLSTM-CRF [11] , where the underlying words are represented using various contextual embedding architectures. Following are the main contributions of this paper:",
+            "cite_spans": [
+                {
+                    "start": 471,
+                    "end": 475,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contributions."
+        },
+        {
+            "text": "\u2022 We quantify the benefits of using deep contextual embedding models for sequence-labeling-based keyphrase extraction over using fixed word embeddings. \u2022 We demonstrate the benefits of using a BiLSTM-CRF architecture with contextualized word embeddings over fine-tuning the contextualized word embedding model for keyphrase extraction. \u2022 We demonstrate improvements using contextualized embeddings trained on a large corpus of in-genre text (SciBERT) over ones trained on generic text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions."
+        },
+        {
+            "text": "\u2022 We perform a robust set of experiments on three benchmark datasets, achieving state-of-the-art results and provide insights into the working of the different self-attention layers of our top-performing models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions."
+        },
+        {
+            "text": "We approach the problem of automated keyphrase extraction from scholarly articles as a sequence labeling task, which can be formally stated as: Let d = {w 1 , w 2 , ..., w n } be an input text, where w t represents the t th token. Assign each w t in the document one of three class labels",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "denotes that w t marks the beginning of a keyphrase, k I means that w t is inside a keyphrase, and k O indicates that w t is not part of a keyphrase. In this paper, we employ a BiLSTM-CRF architecture ( Fig. 1 ) to solve this sequence labeling problem. We map each token w t in the input text to a fixed-size dense vector x t . We then use a BiLSTM to encode sequential relations between the word representations. We then apply an affine transformation to map the output from the BiLSTM to the class space. The score outputs from the BiLSTM serve as input to a CRF [15] layer. In a CRF, the likelihood for a labeling sequence is generated by exponentiating the scores and normalizing over all possible output label sequences.",
+            "cite_spans": [
+                {
+                    "start": 565,
+                    "end": 569,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 203,
+                    "end": 209,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Methodology"
+        },
+        {
+            "text": "Datasets. We ran our experiments on three different publicly available keyphrase datasets: Inspec [12] , SemEval-2010 [14] (SE-2010), and SemEval-2017 Because we are modeling keyphrase extraction as a sequence labeling task, we only consider extractive keyphrases for our experiments. For Inspec and SE-2010, we identified the location spans for each extractive keyphrase. For SE-2010 and SE-2017, we only considered the abstract and discarded the remaining text due to memory constraints during inference with the contextual embedding models.",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 102,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 118,
+                    "end": 122,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "All the tokens in the datasets 1 were tagged using the B-I-O tagging scheme described in the previous section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Experimental Settings. One of the main aims of this work is to study the effectiveness of contextual embeddings in keyphrase extraction. To this end, we use the BiLSTM-CRF with seven different pre-trained contextual embeddings: BERT [7] (small-cased, small-uncased, large-cased, large-uncased), SciBERT [4] (basevocab-cased, basevocab-uncased, scivocab-cased, scivocab-uncased), Ope-nAI GPT [22] , ELMo [21] , RoBERTa [17] (base, large), Transformer XL [5] , and OpenAI GPT-2 [23] (small, medium). We also use 300 dimensional fixed embeddings from Glove [20] , Word2Vec [19] , and FastText [13] (common-crawl, wiki-news). We also compare the proposed architecture against four popular baselines: SGRank [6] , SingleRank [26] , Textrank [18] , and KEA [27] .",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 303,
+                    "end": 306,
+                    "text": "[4]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 391,
+                    "end": 395,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 403,
+                    "end": 407,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 418,
+                    "end": 422,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 453,
+                    "end": 456,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 476,
+                    "end": 480,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 554,
+                    "end": 558,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 570,
+                    "end": 574,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 590,
+                    "end": 594,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 703,
+                    "end": 706,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 720,
+                    "end": 724,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 736,
+                    "end": 740,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 751,
+                    "end": 755,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "To train the BiLSTM-CRF models, we use stochastic gradient descent with Nesterov momentum in batched mode. The learning rate was set to 0.05 and the models were trained for a total of 100 epochs with patience value of 4 and annealing factor of 0.5. The hidden layers in the BiLSTM models were set to 128 units and word dropout set to 0.05. During inference, we run the model on a given abstract and identify keyphrases as all sequences of class labels that begin with the tag k B followed by zero or more tokens tagged k I . As in previous studies [14] , we use F1-measure to compare different models. For each embedding model we report results for the best performing variant of that model (e.g. cased vs uncased) on each dataset. Of the ten embedding architectures, BERT or BERT-based models consistently obtained the best performance across all datasets (see Table 1 ). This was expected considering that BERT uses bidirectional pre-training which is more powerful. SciBERT was consistently one of the top performing models and was significantly better than any of the other models on SemEval-2010. Further analysis of the results shows that SciBERT was more accurate than other models in capturing keyphrases that contained scientific terms such as chemical names (e.g. Magnesium, Hydrozincite), software projects (e.g. HemeLB), and abbreviations (e.g. DSP, SIMLIB). SciBERT was also more accurate with keyphrases containing more than three tokens.",
+            "cite_spans": [
+                {
+                    "start": 548,
+                    "end": 552,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 862,
+                    "end": 869,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Contextual embeddings outperformed their fixed counterparts for most of the experimental scenarios. The only exception was on SemEval-2010 where FastText outperformed Transformer-XL. Of the three fixed embedding models studied in this paper, FastText obtained the best performance across all datasets. Our model significantly outperforms all the four baseline methods for all three datasets irrespective of the embeddings used.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Contextualized embedding models can either serve as numerical representations of words for downstream architectures or they can be fine-tuned to be optimized for a specific task. Fine-tuning typically involves adding an untrained layer at the end and then optimizing the layer weights for the task-specific objective. We fine-tuned our best-performing contextualized embedding models (BERT and SciBERT) for each dataset and compared with the performance of the corresponding BiLSTM-CRF and BiLSTM models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Both BiLSTM and BiLSTM-CRF models outperform fine-tuning across all datasets (see Table 2 ). We expect this might be due to the small sizes of the datasets on which the models were fine-tuned. The addition of the CRF layer improved the performance for all datasets. Analysis of results on the SemEval-2017 data shows that the CRF layer is more effective in capturing keyphrases that include prepositions (e.g. 'of'), conjunctions (e.g. 'and'), and articles (e.g. 'the'). We also observed that the CRF layer is more accurate with longer keyphrases (more than two tokens). Case Study: Attention analysis is used to understand if self-attention patterns in the layers of BERT and SciBERT provide any insight into the linguistic properties learned by the models. We present a case study of attention analysis for keyphrase extraction on a randomly chosen abstract from SemEval2017. An object-oriented version of SIMLIB -LRBa simple simulation package -RRB-This paper introduces an object-oriented version of SIMLIB -LRB-an easy-to-understand discrete-event simulation package -RRB-. The object-oriented version is preferable to the original procedural language versions of SIMLIB in that it is easier to understand and teach simulation from an object point of view. A single-server queue simulation is demonstrated using the object-oriented SIMLIB An object-oriented version of SIMLIB -LRBa simple simulation package -RRB-This paper introduces an object-oriented version of SIMLIB -LRB-an easy-to-understand discrete-event simulation package -RRB-. The object-oriented version is preferable to the original procedural language versions of SIMLIB in that it is easier to understand and teach simulation from an object point of view. A single-server queue simulation is demonstrated using the object-oriented SIMLIB Table 3 presents the classification results on this abstract from the BERT and SciBERT models; true positives in blue and false negatives in red. Using BertViz [25] we analyzed the aggregated attention of all 12 layers of both the models. We observed that keyphrase tokens (k B and k I ) typically tend to pay most attention towards other keyphrase tokens. Contrarily, non-keyphrase tokens (k O ) usually pay uniform attention to their surrounding tokens. We found that both BERT and SciBERT exhibit similar attention patterns in the initial and final layers but they vary significantly in the middle layers. For example, the left figure in Table 4 compares the attention patterns in the fifth layer of both models. In SciBERT, the token 'object' is very strongly linked to other tokens from its keyphrase but the attentions are comparably weaker for BERT. We also observed that keyphrase tokens paid strong attention to similar tokens from other keyphrases. As shown in the right figure in Table 4 , the token 'version' from 'object-oriented version' pays strong attention to 'versions' from 'procedural language versions'. This is a possible reason for both models failing to identify the third mention of 'object-oriented version' in the abstract as a keyphrase. We observed similar patterns in many other documents and we plan to quantify this analysis in future.",
+            "cite_spans": [
+                {
+                    "start": 1970,
+                    "end": 1974,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 82,
+                    "end": 89,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1810,
+                    "end": 1817,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 2451,
+                    "end": 2458,
+                    "text": "Table 4",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 2801,
+                    "end": 2808,
+                    "text": "Table 4",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In this paper, we formulate keyphrase extraction as a sequence labeling task solved using BiLSTM-CRFs, where the underlying words are represented using various contextualized embeddings. We quantify the benefits of this architecture over direct fine tuning of the embedding models. We demonstrate how contextual embeddings significantly outperform their fixed counterparts in keyphrase extraction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Bi-LSTM-CRF sequence labeling for keyphrase extraction from scholarly documents",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Alzaidy",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Caragea",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Giles",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "SemEval 2017 task 10: ScienceIE-extracting keyphrases and relations from scientific publications",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Augenstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Riedel",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Vikraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mccallum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Using noun phrase heads to extract document keyphrases",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Barker",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Cornacchia",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "AI 2000",
+            "volume": "1822",
+            "issn": "",
+            "pages": "40--52",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Scibert: pretrained contextualized embeddings for scientific text",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1903.10676"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Transformer-XL: attentive language models beyond a fixed-length context",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.02860"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "SGRank: combining statistical and graphical methods to improve the state of the art in unsupervised keyphrase extraction",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Danesh",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Sumner",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Martin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of Joint Conference on Lexical and Computational Semantics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of NAACL-HLT",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Keyphrase extraction using sequential labeling",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Gollapalli",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1608.00329"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Extracting key terms from noisy and multitheme documents",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Grineva",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Grinev",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lizorkin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Automatic keyphrase extraction: a survey of the state of the art",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Hasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Ng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Bidirectional LSTM-CRF models for sequence tagging",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Improved automatic keyword extraction given more linguistic knowledge",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hulth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Bag of tricks for efficient text classification",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Joulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Grave",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bojanowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of EACL",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "SemEval-2010 task 5: automatic keyphrase extraction from scientific articles",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Medelyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Kan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Baldwin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of SemEval",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Conditional random fields: probabilistic models for segmenting and labeling sequence data",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mccallum",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Pereira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "BioBERT: pre-trained biomedical language representation model for biomedical text mining",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.08746"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "RoBERTa: a robustly optimized BERT pretraining approach",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1907.11692"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "TextRank: bringing order into text",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mihalcea",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Tarau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Glove: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Deep contextualized word representations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Peters",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1802.05365"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Improving language understanding by generative pre-training",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radford",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Narasimhan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Salimans",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Language models are unsupervised multitask learners",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radford",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Child",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Luan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Amodei",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "OpenAI Blog",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Learning to extract keyphrases from text",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Turney",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A multiscale visualization of attention in the transformer model",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Vig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1906.05714"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Single document keyphrase extraction using neighborhood knowledge",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of AAAI",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Kea: practical automated keyphrase extraction",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Witten",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Paynter",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Gutwin",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Nevill-Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Design and Usability of Digital Libraries: Case Studies in the Asia Pacific",
+            "volume": "",
+            "issn": "",
+            "pages": "129--152",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "BiLSTM-CRF architecture",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "[2] (SE-2017). Inspec consists of abstracts from 2000 scientific articles (train: 1000, validation: 500, and test: 500) where abstract is accompanied by both abstractive, i.e., not present in the documents, and extractive keyphrases. SE-2010 consists of 284 full length ACM articles (train: 144, validation: 40, and test: 100) containing both abstractive and extractive keyphrases. SE-2017 consists of 500 open access articles (train: 350, validation: 50, and test: 100) with location spans for keyphrases, i.e. all keyphrases are extractive.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Embedding models comparison (F1-score)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Fine-tuning vs Pretrained (F1-score)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "SciBERT vs BERT: keyphrase identification",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Self-attention maps of layers in BERT and SciBERT",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

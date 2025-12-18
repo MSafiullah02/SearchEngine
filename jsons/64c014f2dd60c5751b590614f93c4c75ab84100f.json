@@ -1,0 +1,354 @@
+{
+    "paper_id": "64c014f2dd60c5751b590614f93c4c75ab84100f",
+    "metadata": {
+        "title": "Leveraging Data Preparation, HBase NoSQL Storage, and HiveQL Querying for COVID-19 Big Data Analytics Projects Version 1.0 -Marsh 31, 2020",
+        "authors": [
+            {
+                "first": "Karim",
+                "middle": [],
+                "last": "Ba\u00efna",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Alqualsadi research team (Innovation on Digital and Enterprise Architectures) ADMIR Laboratory",
+                    "institution": "University Mohammed V in Rabat",
+                    "location": {
+                        "addrLine": "BP 713 Agdal",
+                        "settlement": "Rabat",
+                        "country": "Morocco"
+                    }
+                },
+                "email": "karim.baina@um5.ac.ma"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Epidemiologist, Scientists, Statisticians, Historians, Data engineers and Data scientists are working on finding descriptive models and theories to explain COVID-19 expansion phenomena or on building analytics predictive models for learning the apex of COVID-19 confimed cases, recovered cases, and deaths evolution curves. In CRISP-DM life cycle, 75% of time is consumed only by data preparation phase causing lot of pressions and stress on scientists and data scientists building machine learning models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "ingest_and_clean.sh data fomatting Shell script removes \\\", ' * ' characters, and replaces non separator ',' by '-' character (e.g. in \"Korea, South\"), formats column dates into \"%m/%d/%Y\" format (eg. 3/2/20 becomes 03/02/2020) enabling dates operations, keeps only not null values from the sparse matrix, and merges the two first columns to form a composite key separated by a '~' character. Listing 1.3: Data Fomatting Shell Script (ingest_and_clean.sh) 1 #!/bin/sh 2 specific=$1 3 4 #$1 script parameter may be 'confimed' or 'deaths' or ' recovered' 5 6 sed \"s/, /-/\" ./COVID-19/csse_covid_19_data/ csse_covid_19_time_series/ 7 time_series_covid19_${specific}_global.csv | sed \"s/\\\"//g\" | 8 sed \"s/\\ * //\" | sed -E \"s/\\,(.)\\//,0\\1\\//g\" | 9 sed -E \"s/\\/(.)\\//\\/0\\1\\//g\" | 10 sed -E \"s/\\/20([^/])/\\/2020\\1/g\" | 11 sed -E \"s/\\/20$/\\/2020/g\"| sed -E \"s/,($)/,0\\1/g\" | 12 sed \"s/,0,/,,/g\"| sed -E \"s/([,]+)0,/\\1,/g\" | 13 sed \"s/,0$/,$/\" | sed \"s/^,/~/\" | 14 sed -E \"s/([a-z A-Z]+),([a-z A-Z]+)/\\1~\\2/\" > 15 time_series_covid19_${specific}_global-sparse-with-formattedcolumn-names.csv In this section present NoSQL and relational schema design and detailed technical scripts for storing JHU COVID-19 daily confimed cases and deaths data 2 . For a more conceptual background on NoSQL databases, and NoSQL design methodologies, here are are related author papers [7, 8] ",
+            "cite_spans": [
+                {
+                    "start": 482,
+                    "end": 485,
+                    "text": "3 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 553,
+                    "end": 556,
+                    "text": "5 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 1358,
+                    "end": 1361,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1362,
+                    "end": 1364,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data Formatting"
+        },
+        {
+            "text": "Confirmed cases and deaths data will be stored respectively in HBase 'con-firmed_covid19_cases' table, and 'deaths_covid19_cases' table. Mainly those tables are compliant to JHU CCSE files struture with the first two columns agregation for database unique key property 3 . Each covid-19 row, either for confirmed cases or for deaths, in HBase will store a country data structured as a composite string primary key (rowid) constituted from its eventual province/state concatenated with its country name/region and separated with '~' character. The row then will store all columns values under the same column family 'a' (e.g. 'a:lt' represents latitude, 'a:lg' represents longitude, while remaining dynamic daily dated columns values will be named by convention as 'a:d122' meaning value at January 22nd, 'a:d327' meaning confirmed cases value of confirmed_covid19_cases table (respectively number of deaths of deaths_covid19_cases table) at March 27nd, etc.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "NoSQL HBase schema Design"
+        },
+        {
+            "text": "The following HBase commands retrieve number of confirmed COVID-19 cases, and deaths at March 31st for Morocco (suffix before ' ' is empty for all countries) and for British Columbia Canada (suffix before ' ' is not empty for all states) from'confirmed_covid19_cases' and 'deaths_covid19_cases' Hbase tables. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "NoSQL HBase schema Design"
+        },
+        {
+            "text": "Confirmed cases and deaths data will be respectively represented by two external tables in Hive 'confirmed_covid19_cases' table, and 'deaths_covid19_cases'. Those tables will be relational abstractions mapped (kind of shortcuts pointing) to their equivalent NoSQL tables in HBase (i.e. non managed Tables -stored physically only in Hbase). 4 ",
+            "cite_spans": [
+                {
+                    "start": 340,
+                    "end": 341,
+                    "text": "4",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relational Hive schema Design"
+        },
+        {
+            "text": "Loading prepared COVID-19 data to HBase data store is achieved by (i) copying time_series_covid19_confirmed_global-sparse.csv and time_series_covid19_deaths_global-sparse.csv files generated by ingest_and_clean.sh script invokations into HDFS file system, and (ii) then performing bulk looding into HBase previously created schema. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "NoSQL HBase Data Loading"
+        },
+        {
+            "text": "Instead of suffering from spreesheats limitations to exploit JHU COVID-19 data with regards to columns number for sorting, or integration of more tables, or versioning different hard coded sheets and workbooks for business users, and instead of coding complex reporting scripts for simple queries for data engineers and data scientists, one may express simple queries both using HBase and Hive command line interfaces or through APIs. Listing 1.12: Visualise all confirmed cases and deaths directely from HBase 1 scan 'confirmed_covid19_cases' This paper presents detailed schemas design and data preparation technical HBase, Hive, shell and HDFS scripts for formatting and storing Johns Hopkins University COVID-19 daily data in HBase NoSQL data store, and enabling HiveQL COVID-19 data querying in a relational Hive SQL-like style. It aims to help scientists and data scientists shortening data preparation phase which is time consuming acording to CRISP-DM life cycle specialists. This work is to be taken as a leveraging bootstrap for specific data preparation phase in COVID-19 analytics Big Data projects aiming for instance to integrate COVID-19 evolution time series with medical/biology best practices, COVID-19 mutations, scientific papers results, or to study correlations between COVID-19 curves with humidity data, people telco mobilty during countries lockdown phases, or to analyse recurrent COVID-19 contamination causality, or to study similarities with other historical pandemics evolution data like SARS-CoV, MERS-COV, or to compare evolution with spreading information from social networks, etc. The more integration you do on the schema with other data sets (e.g. continents, median age, population, testing numbers, virus contamination rates, etc.), the more features you will have and the more this work will leverage your COVID-19 data experience. Hurry Up, and share you experience for the world scientists.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Hive SQL/pure NoSQL interoperability and Querying"
+        },
+        {
+            "text": "7 Appendix : How to download scripts of this paper ?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Hive SQL/pure NoSQL interoperability and Querying"
+        },
+        {
+            "text": "To download continuously data engineering models and scripts discussed in this paper, you can access, and clone the author gitlab repository at [11] .",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 148,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Hive SQL/pure NoSQL interoperability and Querying"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Novel coronavirus (covid-19) cases, provided by jhu csse",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Johns-Hopkins",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Apache HBase",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Apache-Software",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Apache Hive",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Apache-Software",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "What is minimum viable (data) product ?",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Apache Ambari",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Apache-Software",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "NoSQL Databases-Seek for a Design Methodology",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Asaad",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ba\u00efna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Model and Data Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "25--40",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "NoSQL Databases: Yearning for Disambiguation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Asaad",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ba\u00efna",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ghogho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Apache Impala",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Apache-Software",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "IBM DB2 Big SQL",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Apache-Software",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Novel coronavirus (covid-19) data engineering",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ba\u00efna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "TABREF1": {
+            "text": ",5,6 . Listing 1.6: Under HBase remove Confirmed cases Table Listing 1.7: Under HBase remove Deaths Table In the NoSQL/SQL interoperability between HBase and Hive, the Hive'CREATE TABLE command will create two tables one in HBase and another table in Hive (the latest is implicitely external) 5 You should add a new column to Hive/HBase confimed cases, deaths and recovered schemas each day after March 31st, 2020 manually or generate the new schema automatically !!. 6 SQL Hive CREATE TABLE commands are may easily be adapted to other relational Big Data store compatible with HBase as Cloudera HDP Impala [9], IBM Db 2 Big SQL [10], etc.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Listing 1.10: HBase Feeding with Confirmed Cases data 1 #here biadmin is my HDFS user name change it to yours",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgement must go to Johns Hopkins University Center for Systems Science and Engineering (JHU CCSE) for keeping up to date world wide COVID-19 data available in a daily frequency.Acknowledgement must go to The Ministry of National Education, Higher Education, Staff Training, and Scientific Research, Morocco for accepting and supporting my sabbatical leave to do research, and return to ENSIAS refreshed. I also acknowledge my colleagues at ENSIAS maintaining the superb teaching and learning and e-learning culture in the school in my absence especially during COVID-19 crisis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgment"
+        },
+        {
+            "text": "1 get 'confirmed_covid19_cases', '~Morocco', 'a:d331' 2 get 'deaths_covid19_cases', '~Morocco', 'a:d331' 3 4 get 'confirmed_covid19_cases', '~Spain', 'a:d331' 5 get 'deaths_covid19_cases', '~Spain', 'a:d331' 6 7 get 'confirmed_covid19_cases', '~France', 'a:d331' 8 get 'deaths_covid19_cases', '~France', 'a:d331' 9 10 get 'confirmed_covid19_cases', '~Germany', 'a:d331' 11 get 'deaths_covid19_cases', '~Germany', 'a:d331' Listing 1.14: Hive query retrieving all confirmed cases data concerning Morocco ",
+            "cite_spans": [
+                {
+                    "start": 105,
+                    "end": 108,
+                    "text": "3 4",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "annex"
+        }
+    ]
+}

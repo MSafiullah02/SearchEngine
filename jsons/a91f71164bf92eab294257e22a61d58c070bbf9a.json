@@ -1,0 +1,1057 @@
+{
+    "paper_id": "a91f71164bf92eab294257e22a61d58c070bbf9a",
+    "metadata": {
+        "title": "Calling Attention to Passages for Biomedical Question Answering",
+        "authors": [
+            {
+                "first": "Tiago",
+                "middle": [],
+                "last": "Almeida",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Aveiro",
+                    "location": {
+                        "postCode": "3810-193",
+                        "settlement": "Aveiro",
+                        "country": "Portugal"
+                    }
+                },
+                "email": "tiagomeloalmeida@ua.pt"
+            },
+            {
+                "first": "S\u00e9rgio",
+                "middle": [],
+                "last": "Matos",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Aveiro",
+                    "location": {
+                        "postCode": "3810-193",
+                        "settlement": "Aveiro",
+                        "country": "Portugal"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Question answering can be described as retrieving relevant information for questions expressed in natural language, possibly also generating a natural language answer. This paper presents a pipeline for document and passage retrieval for biomedical question answering built around a new variant of the DeepRank network model in which the recursive layer is replaced by a self-attention layer combined with a weighting mechanism. This adaptation halves the total number of parameters and makes the network more suited for identifying the relevant passages in each document. The overall retrieval system was evaluated on the BioASQ tasks 6 and 7, achieving similar retrieval performance when compared to more complex network architectures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Question Answering (QA) is a subfield of Information Retrieval (IR) that specializes in producing or retrieving a single answer for a natural language question. QA has received growing interest since users often look for a precise answer to a question instead of having to inspect full documents [4] . Similarly, biomedical question answering has also gained importance given the amount of information scattered over large specialized repositories such as MEDLINE. Research on biomedical QA has been pushed forward by community efforts such as the BioASQ challenge [13] , originating a range of different approaches and systems.",
+            "cite_spans": [
+                {
+                    "start": 296,
+                    "end": 299,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 565,
+                    "end": 569,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recent studies on the application of deep learning methods to IR have shown very good results. These neural models are commonly subdivided into two categories based on their architecture. Representation-based models, such as the Deep Structured Semantic Model (DSSM) [5] or the Convolutional Latent Semantic Model (CLSM) [12] , learn semantic representations of texts and score each query-document pair based on the similarity of their representations. On the other hand, models such as the Deep Relevance Matching Model (DRMM) [3] or DeepRank [10] follow a interaction-based approach, in which matching signals between query and document are captured and used by the neural network to produces a ranking score.",
+            "cite_spans": [
+                {
+                    "start": 267,
+                    "end": 270,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 321,
+                    "end": 325,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 528,
+                    "end": 531,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 544,
+                    "end": 548,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The impact of neural IR approaches is also noticeable in biomedical question answering, as shown by the results on the most recent BioASQ challenges [9] . The top performing team in the document and snippet retrieval sub-tasks in 2017 [1] , for example, used a variation of the DRMM [8] to rank the documents recovered by the traditional BM25 [11] . For the 2018 task, the same team extended their system with the inclusion of models based on BERT [2] and with joint training for document and snippet retrieval.",
+            "cite_spans": [
+                {
+                    "start": 149,
+                    "end": 152,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 235,
+                    "end": 238,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 283,
+                    "end": 286,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 343,
+                    "end": 347,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The main contribution of this work is a new variant of the DeepRank neural network architecture in which the recursive layer originally included in the final aggregation step is replaced by a self-attention layer followed by a weighting mechanism similar to the term gating layer of the DRMM. This adaptation not only halves the total number of network parameters, therefore speeding up training, but it is also more suited for identifying the relevant snippets in each document. The proposed model was evaluated on the BioASQ dataset, as part of a document and passage (snippet) retrieval pipeline for biomedical question answering, achieving similar retrieval performance when compared to more complex network architectures. The full network configuration is publicly available at https://github.com/bioinformatics-ua/BioASQ, together with code for replicating the results presented in this paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This section presents the overall retrieval pipeline and describes the neural network architecture proposed in this work for the document ranking step.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "System Description"
+        },
+        {
+            "text": "The retrieval system follows the pipeline presented in Fig. 1 , encompassing three major modules, Fast Retrieval, Neural Ranking and Snippet extraction. The fast retrieval step is focused on minimizing the number of documents passed on to the computationally more demanding neural ranking module, while maintaining the highest possible recall. As in previous studies [1, 7] , we adopted Elasticsearch (ES) with the BM25 ranking function as the retrieval mechanism.",
+            "cite_spans": [
+                {
+                    "start": 367,
+                    "end": 370,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 371,
+                    "end": 373,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 55,
+                    "end": 61,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "System Description"
+        },
+        {
+            "text": "The documents returned by the first module are ranked by the neural network which also directly provides to the following module the information for extracting relevant snippets. These modules are detailed in Sects. 2.1 and 2.2. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "System Description"
+        },
+        {
+            "text": "The network follows a similar architecture to the original version of DeepRank [10] , as illustrated in Fig. 2 . Particularly, we build upon the best reported configuration, which uses a CNN in the measurement network and the reciprocal function as the position indicator. The inputs to the network are the query, a set of document passages aggregated by each query term, and the absolute position of each passage. For the remaining explanation, let us first define a query as a sequence of terms q = {u 0 , u 1 , ..., u Q }, where u i is the i-th term of the query; a set of document passages aggregated by each query term as D(u i ) = {p 0 , p 1 , ..., p P }, where p j corresponds to the j-th passage with respect to the query term u i ; and a document passage as",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 104,
+                    "end": 110,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "where v k is the k-th term of the passage. We chose to aggregate the passages by their respective query term at the input level, since it simplifies the neural network flow and implementation. The detection network receives as input the query and the set of document passages and creates a similarity tensor (interaction matrix) S \u2208 [\u22121, 1] Q\u00d7S for each passage, where each entry S ij corresponds to the cosine similarity between the embeddings of the i-th query term and j-th passage term,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "The measurement network step is the same used in the original DeepRank model. It takes as inputs the previously computed tensors S and the absolute position of each passage and applies a 2D convolution followed by a global max polling operation, to capture the local relevance present in each tensor S, as defined in Eq. 1:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "At this point, the set of document passages for each query term is represented by their respective vectors h, i.e, D(",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "encodes the local relevance captured by the M convolution kernels of size x \u00d7 y, plus an additional feature corresponding to the position of the passage. . The next step uses a self-attention layer [6] to obtain an aggregation c ui M \u00d71 over the passages h pj for each query term u i , as defined in Eq. 2. The weights a pj , which are computed by a feed forward network and converted to a probabilistic distribution using the softmax operation, represent the importance of each passage vector from the set D(u i ). The addition of this self-attention layer, instead of the recurrent layer present in the original architecture, allows using the attention weights, that are directly correlated with the local relevance of each passage, to identify important passages within documents. Moreover, this layer has around A \u00d7 M parameters, compared to up to three times more in the GRU layer (approximately 3 \u00d7 A \u00d7 (A + M )), which in practice means reducing the overall number of network parameters to half.",
+            "cite_spans": [
+                {
+                    "start": 198,
+                    "end": 201,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "Finally, the aggregation network combines the vectors c ui M \u00d71",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "according to weights that reflect the importance of each individual query term u i . We chose to employ a similar weighting mechanism to the term gating layer in DRMM [3] , which uses the query term embedding to compute its importance, as defined in Eq. 3. This option replaces the use of a trainable parameter for each vocabulary term, as in the original work, which is less suited for modelling a rich vocabulary as in the case of biomedical documents. The final aggregated vector c is then fed to a dense layer for computing the final ranking score.",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 170,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "Optimization. We used the pairwise hinge loss as the objective function to be minimized by the AdaDelta optimizer. In this perspective, the training data is viewed as a set of triples, (q, d + , d \u2212 ), composed of a query q, a positive document d + and a negative document d \u2212 . Additionally, inspired by [14] and as successfully demonstrated by [16] , we adopted a similar negative sampling strategy, where a negative document can be drawn from the following sets:",
+            "cite_spans": [
+                {
+                    "start": 305,
+                    "end": 309,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 346,
+                    "end": 350,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "-Partially irrelevant set: Irrelevant documents that share some matching signals with the query. More precisely, this corresponds to documents retrieved by the fast retrieval module but which do not appear in the training data as positive examples; -Completely irrelevant set: Documents not in the positive training instances and not sharing any matching signal with the query.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Neural Ranking Model"
+        },
+        {
+            "text": "Passage extraction is accomplished by looking at the attention weights of the neural ranking model. As described, the proposed neural ranking model includes two attention mechanisms. The first one computes a local passage attention with respect to each query term, a pi . The second is used to compute the importance of each query term, a u k . Therefore, a global attention weight for each passage can be obtained from the product of these two terms, a g (k,i) = a u k \u00d7 a pi , as shown in Eq. 4:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Passage Extraction Details"
+        },
+        {
+            "text": "This section presents the system evaluation results. We used the training data from the BioASQ 6b and 7b phase A challenges [13] , containing 2251 and 2747 biomedical questions with the corresponding relevant documents, taken from the MEDLINE repository. The objective for a system is to retrieve the ten most relevant documents for each query, with the performance evaluated in terms of Map@10 on five test sets containing 100 queries each.",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results and Discussion"
+        },
+        {
+            "text": "At first, a study was conducted to investigate the performance of the proposed neural ranking model. After that, the full system was compared against the results of systems submitted to the BioASQ 6 and 7 editions for the document retrieval task. Finally, we investigate if the attention given to each passage is indeed relevant.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "In the results, we compare two variants of DeepRank: BioDeepRank refers to the model with the modified aggregation network and weighting mechanism, and using word embeddings for the biomedical domain [15] ; Attn-BioDeepRank refers to the final model that additionally replaces the recurrent layer by a self-attention layer. 2 Neural Ranking Models. We compared both neural ranking versions against BM25 in terms of MAP@10 and Recall@10, on a 5-fold cross validation over the BioASQ training data. Table 1 summarizes the results.",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 204,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 497,
+                    "end": 504,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Both models successfully improved the BM25 ranking order, achieving an increase of around 0.14 in MAP and 0.31 in recall. Results of Attn-BioDeepRank, although lower, suggest that this version is at least nearly as effective at ranking the documents as the model that uses the recursive layer. Biomedical Document Retrieval. We report results on the BioASQ 6b and BioASQ 7b document ranking tasks (Table 2) . Regarding BioASQ 6b, it should be noted that the retrieved documents were evaluated against the final goldstandard of the task, revised after reevaluating the documents submitted by the participating systems. Since we expect that some of the retrieved documents would have been revised as true positives, the results presented can be considered a lower bound of the system's performance. For BioASQ 7b, the results shown are against the gold-standard before the reevaluation, since the final annotations were not available at the time of writing. In this dataset both systems achieved performance nearer to the best result, including a top result on Batch 1. Passage Evaluation. Finally, we analysed whether the information used by the model for ranking the documents, as given by the attention weights, corresponded to relevant passages in the gold-standard. For this, we calculated the precision of the passages, considering overlap with the gold-standard, and evaluated how it related to the confidence assigned by the model. Interestingly, although the model is not trained with this information, the attention weights seem to focus on these relevant passages, as indicated by the results in Fig. 3.   Fig. 3 . Quality of retrieved passages as a function of the confidence attributed by the model.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 397,
+                    "end": 406,
+                    "text": "(Table 2)",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1605,
+                    "end": 1621,
+                    "text": "Fig. 3.   Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "This paper describes a new neural ranking model based on the DeepRank architecture. Evaluated on a biomedical question answering task, the proposed model achieved similar performance to a range of others strong systems. We intend to further explore the proposed approach by considering semantic matching signals in the fast retrieval module, and by introducing joint learning for document and passage retrieval.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The network implementation and code for reproducing these results are available at https://github.com/bioinformatics-ua/BioASQ.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "AUEB at BioASQ 6: Document and Snippet Retrieval",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Brokos",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Liosis",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Pappas",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Androutsopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "A deep relevance matching model for ad-hoc retrieval",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 25th ACM International on Conference on Information and Knowledge Management -CIKM 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "55--64",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2983323.2983769"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Natural language question answering: the view from here",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Hirschman",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gaizauskas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Nat. Lang. Eng",
+            "volume": "7",
+            "issn": "04",
+            "pages": "275--300",
+            "other_ids": {
+                "DOI": [
+                    "10.1017/S1351324901002807"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Learning deep structured semantic models for web search using clickthrough data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Acero",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Heck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 22nd ACM International Conference on Information & Knowledge Management -CIKM 2013",
+            "volume": "",
+            "issn": "",
+            "pages": "2333--2338",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2505515.2505665"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A structured self-attentive sentence embedding",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Mindlab neural network approach at bioasq 6b",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mateus",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Gonz\u00e1lez",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Montes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/W18-5305"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deep Relevance Ranking Using Enhanced Document-Query Interactions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Brokos",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Androutsopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Results of the sixth edition of the BioASQ challenge",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Nentidis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krithara",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bougiatiotis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Paliouras",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kakadiaris",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 6th BioASQ Workshop A Challenge on Large-scale Biomedical Semantic Indexing and Question Answering",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/W18-5301"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "DeepRank",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 ACM on Conference on Information and Knowledge Management -CIKM 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "257--266",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3132847.3132914"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "The probabilistic relevance framework: Bm25 and beyond",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Found. Trends Inf. Retr",
+            "volume": "3",
+            "issn": "4",
+            "pages": "333--389",
+            "other_ids": {
+                "DOI": [
+                    "10.1561/1500000019"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A latent semantic model with convolutional-pooling structure for information retrieval",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Mesnil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 23rd ACM International Conference on Conference on Information and Knowledge Management -CIKM 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "101--110",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2661829.2661935"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "An overview of the BioASQ large-scale biomedical semantic indexing and question answering competition",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tsatsaronis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "BMC Bioinform",
+            "volume": "16",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/s12859-015-0564-6"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Learning fine-grained image similarity with deep ranking",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rosenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Philbin",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "BioWordVec, improving biomedical word embeddings with subword information and MeSH",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Sci. Data",
+            "volume": "6",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/s41597-019-0055-0"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A hierarchical attention retrieval model for healthcare question answering",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ahuja",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Reddy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "2472--2482",
+            "other_ids": {
+                "DOI": [
+                    "http:/doi.acm.org/10.1145/3308558.3313699"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Overview of the main modules of the proposed system. The number N of documents returned by the first module is considered an hyper-parameter.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "High-level structure and data flow of the proposed version of DeepRank.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "For simplicity, we consider that the dimension M already accounts for the concatenated feature, i.e, h M \u00d71 \u2190 h (M +1)\u00d71",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Evaluation of the retrieval models on 5-fold cross validation on the BioASQ 7b dataset. Results are presented as the average \u00b1 standard deviation over the 5 validation folds.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Evaluation of the retrieval models on BioASQ 6b and 7b test sets MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK MAP RANK",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments. This work was partially supported by the European Regional Development Fund (ERDF) through the COMPETE 2020 operational programme, and by National Funds through FCT -Foundation for Science and Technology, projects PTDC/EEI-ESS/6815/2014 and UID/CEC/00127/2019.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

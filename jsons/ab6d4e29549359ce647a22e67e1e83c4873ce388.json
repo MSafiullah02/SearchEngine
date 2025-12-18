@@ -1,0 +1,3436 @@
+{
+    "paper_id": "ab6d4e29549359ce647a22e67e1e83c4873ce388",
+    "metadata": {
+        "title": "Bayesian analysis of count-valued, binary-valued, and continuous-valued responses using unknown transformations",
+        "authors": [
+            {
+                "first": "Jonathan",
+                "middle": [
+                    "R"
+                ],
+                "last": "Bradley",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Florida State University",
+                    "location": {
+                        "addrLine": "117 N. Wood-ward Ave",
+                        "postCode": "32306",
+                        "settlement": "Tallahassee",
+                        "region": "FL"
+                    }
+                },
+                "email": "jrbradley@fsu.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Consider the situation where an analyst has a Bayesian statistical model that performs well for continuous data. However, suppose the observed data set consists of multiple response types (e.g., continuous, count-valued, Bernoulli trials, etc.), which are distributed from more than one class of distributions. We refer to these types of data as \"multi-response\" data sets. The goal of this article is to introduce a reasonable easy-to-implement all-purpose method that \"converts\" a Bayesian statistical model for continuous responses (call this the preferred model) into a Bayesian model for multi-response data sets. To do this, we consider a transformation of the data, such that the transformed data can be be reasonably modeled using the preferred model. What is unique with our strategy is that we treat the transformations as unknown and use a Bayesian approach to model this uncertainty. The implementation of our Bayesian approach to unknown transformations is straightforward, and involves two steps. The first step produces posterior replicates of the transformed data from a latent conjugate multivariate (LCM) model. The second step involves generating values from the posterior distribution implied by the preferred model. We demonstrate the flexibility of our model through an application to Bayesian additive regression trees (BART), spatial mixed effects (SME) models, and the multivariate spatio-temporal mixed effects model (MSTM). To further illustrate the potential wide use of this approach, we provide an analysis of zero-inflated records of public costs due to natural disasters obtained from the National Oceanic Atmospheric Association's (NOAA) National Centers for Environmental Information (NCEI).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Suppose you have a Bayesian statistical model for continuous responses that you believe works extremely well in several settings. Refer to this statistical model as the \"preferred model.\" Also suppose you have observed a data set consisting of multiple response types (e.g., continuous, countvalued, Bernoulli trials etc.). These response types may be \"mismatched\" with the response types of the preferred model. For example, the data set may consist of count-valued observations, but this preferred model may be derived only for Gaussian data. The primary goal of this article is to introduce a reasonable easy-to-implement all-purpose method that \"converts\" a Bayesian statistical model for continuous responses into a Bayesian model appropriate for the analysis of multi-response data sets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There are several methods for jointly modeling data consisting of multiple response types, however these approaches require one to either abandon the preferred model, or it requires you modify it in a manner that creates computational difficulties. For example, multi-task learning models (Argyriou et al., 2007; Kim and Xing, 2009; Yang et al., 2009) , regression trees, and random forests (Hastie et al., 2009; Fellinghauer et al., 2013) can jointly model multiple response types, but does not allow an analyst to incorporate their preferred model for continuous data. Yang et al. (2014) use a specific model (that may differ from the preferred model) and use a non-Bayesian approach for implementation. Copulas (Liu et al., 2009; Xue and Zou, 2012; Dobra and Lenkoski, 2011; Liu et al., 2012) are also available for analyzing such data, but again, they do not immediately incorporate an analyst's preferred model.",
+            "cite_spans": [
+                {
+                    "start": 289,
+                    "end": 312,
+                    "text": "(Argyriou et al., 2007;",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 313,
+                    "end": 332,
+                    "text": "Kim and Xing, 2009;",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 333,
+                    "end": 351,
+                    "text": "Yang et al., 2009)",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 391,
+                    "end": 412,
+                    "text": "(Hastie et al., 2009;",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 413,
+                    "end": 439,
+                    "text": "Fellinghauer et al., 2013)",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 571,
+                    "end": 589,
+                    "text": "Yang et al. (2014)",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 714,
+                    "end": 732,
+                    "text": "(Liu et al., 2009;",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 733,
+                    "end": 751,
+                    "text": "Xue and Zou, 2012;",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 752,
+                    "end": 777,
+                    "text": "Dobra and Lenkoski, 2011;",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 778,
+                    "end": 795,
+                    "text": "Liu et al., 2012)",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A standard approach to model non-Gaussian data (often of a single type) with a preferred model is to define a generalized linear mixed effects model (GLMM) (e.g., see McCulloch et al., 2008 , for a standard reference). For example, Bernoulli data is modeled hierarchically, where the logit of the probability of success can be analyzed using an analysts preferred model. GLMMs lack conjugacy, which creates noticeable difficulty when implementing a GLMM on a modern high-dimensional data set. A more recent alternative is the LCM. Basic theoretical results and empirical analyses in Bradley et al. (2018) , Hu and Bradley (2018) , H.-C. Yang et al. (2019) , Bradley et al. (2019c) , and Bradley et al. (2019a) suggest that one can outperform a standard GLMM (specifically Latent Gaussian Process (LGP) models) in terms of prediction error. However, the LCM requires the preferred model to be a mixed effects model and to modify the distribution of random effects to follow the appropriate distribution based on conjugacy.",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 189,
+                    "text": "McCulloch et al., 2008",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 583,
+                    "end": 604,
+                    "text": "Bradley et al. (2018)",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 607,
+                    "end": 628,
+                    "text": "Hu and Bradley (2018)",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 637,
+                    "end": 655,
+                    "text": "Yang et al. (2019)",
+                    "ref_id": null
+                },
+                {
+                    "start": 658,
+                    "end": 680,
+                    "text": "Bradley et al. (2019c)",
+                    "ref_id": null
+                },
+                {
+                    "start": 683,
+                    "end": 709,
+                    "text": "and Bradley et al. (2019a)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A classical approach that is less commonly used (in a formal context) for Bayesian models is to transform the data, so that the transformed data can be reasonably modeled using the distribution assumed by the preferred model. In the non-Bayesian setting this literature is extremely well-developed and includes the Box-Cox transformations (Box and Cox, 1964) , the alternating conditional expectations (ACE; Breiman and Friedman, 1985) algorithm, graphical techniques (McCulloch, 1993) , and the Yeo-Johnson power transformation (Yeo and Johnson, 2000) , among other techniques. More recently developments in rank based algorithms (Servin and Stephens, 2007; McCaw et al., 2019; Beasley et al., 2009 ) and quantile-matching (McCullagh and Tresoldi, 2020) have also been proposed in the non-Bayesian setting. It is important to note that Bayesian models for transformations have been proposed as well, but focus on the case where continuous non-normal data are observed and the preferred model assumes normality. In particular, these Bayesian models put a prior on the free parameter within the Box-Cox transformation or the Yeo-Johnson power transformation (Kim et al., 2013; Charitidou et al., 2015 Charitidou et al., , 2018 . No such Bayesian model has been developed to analyze multi-response response data using any preferred model for a continuous response.",
+            "cite_spans": [
+                {
+                    "start": 339,
+                    "end": 358,
+                    "text": "(Box and Cox, 1964)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 408,
+                    "end": 435,
+                    "text": "Breiman and Friedman, 1985)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 468,
+                    "end": 485,
+                    "text": "(McCulloch, 1993)",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 529,
+                    "end": 552,
+                    "text": "(Yeo and Johnson, 2000)",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 631,
+                    "end": 658,
+                    "text": "(Servin and Stephens, 2007;",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 659,
+                    "end": 678,
+                    "text": "McCaw et al., 2019;",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 679,
+                    "end": 699,
+                    "text": "Beasley et al., 2009",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 724,
+                    "end": 754,
+                    "text": "(McCullagh and Tresoldi, 2020)",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1157,
+                    "end": 1175,
+                    "text": "(Kim et al., 2013;",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 1176,
+                    "end": 1199,
+                    "text": "Charitidou et al., 2015",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1200,
+                    "end": 1225,
+                    "text": "Charitidou et al., , 2018",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There are three distributions that define our proposed model: (a) the distribution of the data given a transformation, (b) the prior distribution of the transformation, and (c) the distribution of the process of interest given the transformation (i.e., the aforementioned preferred model). In this article, we model the data given a transformation (a) using members from the exponential family.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Specifically, given a transformation, continuous data follows the normal distribution, categorical data follows the multinomial distribution, binary data follow the Bernoulli distribution, and countdata follow the Poisson distribution. These distributions are conjugate with the logit-beta (Gao and Bradley, 2019; Bradley et al., 2019d) and the log-gamma distributions (Bradley et al., 2018; Hu and Bradley, 2018; Bradley et al., 2019a; H.-C.Yang et al., 2019) , which are special cases of the Diaconis-Ylvishaker (DY) distribution (e.g., see Diaconis and Ylvisaker, 1979; Chen and Ibrahim, 2003 , for key references). Consequently, the prior distribution of the transformation (b) is modeled with a DY distribution. This is a new way in Bayesian statistics to model non-Gaussian processes using models for continuous data. The implementation of our approach is straightforward, and can be done using composite sampling. In particular, the first step is to sample from the posterior distribution of the transformation. Then the second step is to sample from the conditional distribution of the latent process of interest given the transformation. This conditional distribution is derived from the preferred model. The first step of the composite sampler is computationally straightforward because the DY distribution is conjugate (and easy to sample from) with the exponential family. Additionally, the first step of this algorithm is important for the purpose of analyzing multiple response types.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 313,
+                    "text": "(Gao and Bradley, 2019;",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 314,
+                    "end": 336,
+                    "text": "Bradley et al., 2019d)",
+                    "ref_id": null
+                },
+                {
+                    "start": 369,
+                    "end": 391,
+                    "text": "(Bradley et al., 2018;",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 392,
+                    "end": 413,
+                    "text": "Hu and Bradley, 2018;",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 414,
+                    "end": 436,
+                    "text": "Bradley et al., 2019a;",
+                    "ref_id": null
+                },
+                {
+                    "start": 437,
+                    "end": 460,
+                    "text": "H.-C.Yang et al., 2019)",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 543,
+                    "end": 572,
+                    "text": "Diaconis and Ylvisaker, 1979;",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 573,
+                    "end": 595,
+                    "text": "Chen and Ibrahim, 2003",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Specifically, at the end of the first step we obtain a replicate from the posterior distribution of the transformation (which is continuous valued). Thus, the first step of the composite sampling algorithm \"transforms\" the multi-response data into a continuous-valued quantity appropriate for the preferred model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Implementation of the preferred model is unchanged in the second step of our composite sampling algorithm. This is particularly noteworthy, as many of the Bayesian statistical models derived for Gaussian data are not immediately computationally efficient in the non-Gaussian data setting (e.g., see Bradley et al., 2019b; Kang and Cressie, 2011; Katzfuss and Cressie, 2012, for examples in the spatial setting). This is because GLMMs in the non-Gaussian setting have full-conditional distributions that are not Gaussian, and can not be sampled from immediately. Bayesian meth-ods that do not have easy to sample from full-conditional distributions require difficult to tune Metropolis-Hastings algorithms (e.g., see Bradley et al., 2019a , for an example), inefficient rejection samplers (e.g., see Damien et al., 1999) , or significant reparameterization to make approximate Bayesian methods (that are only appropriate for small parameter spaces) practical (Rue et al., 2009; Neal, 2011) . The second step of our composite sampling algorithm allows one to circumvent this issue entirely, and simply use the computational strategies that were developed for the preferred model.",
+            "cite_spans": [
+                {
+                    "start": 299,
+                    "end": 321,
+                    "text": "Bradley et al., 2019b;",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 322,
+                    "end": 345,
+                    "text": "Kang and Cressie, 2011;",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 346,
+                    "end": 386,
+                    "text": "Katzfuss and Cressie, 2012, for examples",
+                    "ref_id": null
+                },
+                {
+                    "start": 716,
+                    "end": 737,
+                    "text": "Bradley et al., 2019a",
+                    "ref_id": null
+                },
+                {
+                    "start": 799,
+                    "end": 819,
+                    "text": "Damien et al., 1999)",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 958,
+                    "end": 976,
+                    "text": "(Rue et al., 2009;",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 977,
+                    "end": 988,
+                    "text": "Neal, 2011)",
+                    "ref_id": "BIBREF53"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The two steps of our composite sampler can be seen as sequential smoothing. By \"smoothing\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "we mean a function of the data that attempts to discover important features in the data (e.g., see Simonoff, 2012 , for a standard reference). Multiple layers of smoothing may lead to estimates that are \"oversmooth,\" in the sense that many features of the data are not captured. To avoid oversmoothing we specify the model so that the posterior distribution of the transformation is \"saturated.\" Recall a saturated model is one in which there exists at least as many parameters as there are data points, and fitting this model allows you to exactly recover the original data set.",
+            "cite_spans": [
+                {
+                    "start": 99,
+                    "end": 113,
+                    "text": "Simonoff, 2012",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Hence, saturated models are often an extreme example of overfitting. Thus, in the first step of our composite sampler we choose to overfit the data, and in the second step we smooth overfitted values (again this is done to avoid oversmoothing).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the classical log-linear model literature, saturated models are useful for selecting more parsimonious models (e.g., see Agresti, 2007 , for a standard reference). Specifically, the most parsimonious reduced model that is not significantly different (in terms of the deviance or chi-square statistic) from the saturated model is used for statistical inference. Consequently, specifying the transformation model to be saturated allows us to assess the goodness-of-fit of the preferred model in a fully Bayesian manner that is similar to what is done in classical residual analysis.",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 137,
+                    "text": "Agresti, 2007",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The remainder of this article is organized as follows. In Section 2, we review transformations of data. Then, we introduce general Bayesian methodology to analyze multi-response data with unknown transformations. Additionally, we provide a specific class of transformation models and describe goodness of fit. In Section 3, we give simulation studies to show that our approach can be used in several methodological settings. In particular, we apply our approach to BART models and SME models. Additionally, in Section 4 we provide a joint spatial analysis of a spatiotemporal zero-inflated data set (i.e., continuous and binary responses) consisting of public costs of natural disasters (in billions of USD) records obtained from the National Oceanic Atmospheric Association's (NOAA) National Centers for Environmental Information (NCEI). To analyze this data we apply our approach to the multivariate spatio-temporal mixed effects model (MSTM) from Bradley et al. (2015) , which is a model that allows for non-stationary temporal dynamics and flexible multivariate spatial dependence for Gaussian data.",
+            "cite_spans": [
+                {
+                    "start": 950,
+                    "end": 971,
+                    "text": "Bradley et al. (2015)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Let Z i j denote the observed data for i = 1, . . . , I j and j = 1, 2, 3. We consider the setting where for each i, Z i1 is continuous-valued, Z i2 is integer-valued ranging from 0, . . . , b i , and Z i3 is binary. It is assumed that Z i1 , Z i2 , and Z i3 are distributed according to different classes of probability density functions/probability mass functions (hence referred to as multiple-type responses). One classical strategy to model data of this type is to impose a transformation,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "where h(\u00b7) is a transformation of the datum Z i j , \"Dist\" is a short-hand used for a probability density",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "is known as a link function (e.g., see",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "McCullagh and Nelder, 1989, for a standard reference). Additionally, Y i j is defined for i = 1, . . ., I and j = 1, 2, 3, where I \u2265 max(I 1 , I 2 , I 3 ). Here, \"Dist Y i j , \u03b8 \u03b8 \u03b8 \" represents the aforementioned preferred model. In what remains, inference on {Y i j } and \u03b8 \u03b8 \u03b8 is the primary goal.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "To aid in our exposition we drop the functional notation for h(\u00b7) and write h i j = h j (Z i j ). Transformations convert a multiple response type data set (e.g., {Z i j }) to a single response type data set (e.g., {h i j }), since h i j follows a single distribution with a continuous support. Consequently, transformations have become a standard tool in analyzing multiple response types. Recall, transformations such as these have a long history including the box-cox transformations (Box and Cox, 1964) , graphical techniques (McCulloch, 1993) , the alternating conditional expectations (ACE; Breiman and Friedman, 1985) algorithm, and the Yeo-Johnson power transformation (Yeo and Johnson, 2000, among others).",
+            "cite_spans": [
+                {
+                    "start": 487,
+                    "end": 506,
+                    "text": "(Box and Cox, 1964)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 530,
+                    "end": 547,
+                    "text": "(McCulloch, 1993)",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 597,
+                    "end": 624,
+                    "text": "Breiman and Friedman, 1985)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 677,
+                    "end": 685,
+                    "text": "(Yeo and",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "In this paper, we introduce a Bayesian solution to the problem of an unknown transformation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "In particular, we define pdf and probability mass functions (pmf), f (Z i j |h i j ). We refer to these distributions as \"transformation models.\" In Section 2.2, we describe Bayesian implementation (Section 2.2) using a general transformation model and any well defined preferred model. Then, in Section 2.3 an example specification of the transformation model is given. Finally we discuss goodness-of-fit in this Bayesian paradigm in Section 2.4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Unknown Transformations of Multiple Response Types"
+        },
+        {
+            "text": "In this section, we describe Bayesian implementation of the model introduced in Section 2.1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Here, let n = \u2211 3 j=1 I j , the n-dimensional data vector z = (Z 11 , . . . , Z I 3 3 ) \u2032 , the n-dimensional trans-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "From (1), the preferred model \"Dist\" is represented in terms of a hierarchical model:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Following the terminology used in Cressie and Wikle (2011), we call f (h i j |Y i j , \u03b8 \u03b8 \u03b8 ) the \"transformed data model,\" f (Y i j |\u03b8 \u03b8 \u03b8 ) the \"process model,\" and f (\u03b8 \u03b8 \u03b8 ) the \"parameter model\" (or prior). Bayes rule can be used to produce the following conditional distribution (e.g., see Gelman et al., 2013 , for a standard reference),",
+            "cite_spans": [
+                {
+                    "start": 296,
+                    "end": 315,
+                    "text": "Gelman et al., 2013",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "where we have assumed h i j is conditionally independent of h km given Y i j and \u03b8 \u03b8 \u03b8 for k = i and m = j",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Similarly, one can use Bayes rule to produce the posterior distribution of the transformed data. That is,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "where the distribution f (h|\u03b3 \u03b3 \u03b3) is referred to as a \"transformation prior,\" the q-dimensional realvalued vector \u03b3 \u03b3 \u03b3 is referred to as a transformation hyperparameter, and the distribution f (\u03b3 \u03b3 \u03b3) is referred to as a \"transformation hyperprior.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Equations (2) and (3) can be used to produce a posterior distribution for y and \u03b8 \u03b8 \u03b8 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "is conditionally independent of \u03b3 \u03b3 \u03b3 given h, and z and (y \u2032 , \u03b8 \u03b8 \u03b8 \u2032 ) \u2032 are conditionally independent given h. Then:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Proof: See Appendix A.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "The model in (4) can easily be simulated from using a composite sampling scheme, provided that it is easy to simulate from f (y, \u03b8 \u03b8 \u03b8 |h). Algorithm 1 gives the step-by-step implementation of how to Algorithm 1: Steps Needed for Simulating from (4).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "1: Set b = 1 and initialize h, \u03b3 \u03b3 \u03b3, y, and \u03b8 \u03b8 \u03b8 with h [0] , \u03b3 \u03b3 \u03b3 [0] , y [0] , and \u03b8 \u03b8 \u03b8 [0] .",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 73,
+                    "text": "[0]",
+                    "ref_id": null
+                },
+                {
+                    "start": 78,
+                    "end": 81,
+                    "text": "[0]",
+                    "ref_id": null
+                },
+                {
+                    "start": 94,
+                    "end": 97,
+                    "text": "[0]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "from their full-conditional distributions. We use the slice sampler (Neal et al., 2003) if the full-conditional does not have a closed form. 4: Sample y [b] and \u03b8 \u03b8 \u03b8 [b] from f (y, \u03b8 \u03b8 \u03b8 |h [b] ), which is the posterior distribution associated with the preferred model described in (2).",
+            "cite_spans": [
+                {
+                    "start": 68,
+                    "end": 87,
+                    "text": "(Neal et al., 2003)",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "[b]",
+                    "ref_id": null
+                },
+                {
+                    "start": 167,
+                    "end": 170,
+                    "text": "[b]",
+                    "ref_id": null
+                },
+                {
+                    "start": 191,
+                    "end": 194,
+                    "text": "[b]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "simulate from the posterior distribution in (4). Here, we see that the implementation of our model is similar to the bootstrap implementation, where we have replaced a resampling step with sampling from f (h|z) and the full-conditional distributions associated with \u03b3 \u03b3 \u03b3. This similarity emphasizes the flexibility of allowing for unknown transformations in a Bayesian context, since the bootstrap algorithm is an established flexible approach in the literature (e.g., see Efron, 1992 , for an early reference). Of course, the bootstrap algorithm produces replicates from a different distribution than that of Algorithm 1. Specifically, the bootstrap method results in an approximate sample from the sampling distribution of a statistic. Whereas, the composite sampling approach in Algorithm 1 can be seen as a means to sample from (4). This is also different from the Bayesian bootstrap (Rubin, 1981) , which does not restrict the samples to be from a posterior distribution of the form in (4).",
+            "cite_spans": [
+                {
+                    "start": 474,
+                    "end": 485,
+                    "text": "Efron, 1992",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 889,
+                    "end": 902,
+                    "text": "(Rubin, 1981)",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "General Bayesian Implementation"
+        },
+        {
+            "text": "Consider the following specifications of the transformation model:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "where Normal(h i1 , v) is a shorthand for the normal distribution with mean h i j \u2208 R and variance v > 0, Binomial(b i , p) is a shorthand for the binomial distribution with b i > 1 number of trials and probability of success p \u2208 (0, 1), and Poisson(\u00b5 i j ) is a shorthand for the Poisson distribution with",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "With the transformation model f (z|h) defined, we are left to specify a transformation prior and transformation hyperprior. We define the transformation prior to be the conjugate distributions associated with (5). It follows from Diaconis and Ylvisaker (1979) that the conjugate distribution for h i j is given by,",
+            "cite_spans": [
+                {
+                    "start": 230,
+                    "end": 259,
+                    "text": "Diaconis and Ylvisaker (1979)",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "log(x). Also, we use the shorthand DY(\u03b1 j , \u03ba j ; \u03c8 j ) to represent the pdf in (6). Finally, let \u03b3 \u03b3 \u03b3 = (\u03b1 1 , \u03b1 2 , \u03b1 3 , \u03ba 1 , \u03ba 2 , \u03ba 3 , v) \u2032 be the transformation hyperparameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Equations (5) and (6) can be used to produce a full-conditional distribution for h.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Proposition 2: Suppose (5) and (6) holds. Then,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Proof: See Appendix A.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "It is straightforward to simulate directly from the posterior distribution in (7). Replicates of h i j from (7) can be computed using the following transformation (Bradley et al., 2019a) :",
+            "cite_spans": [
+                {
+                    "start": 163,
+                    "end": 186,
+                    "text": "(Bradley et al., 2019a)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "where \" d =\" stands for equal in distribution, w 1 |Z i1 , \u03b1 1 , \u03ba 1 , v is distributed normally with mean zero and variance 2\u03ba 1 + 1 v \u22121 , w 2 |Z i2 , \u03b1 2 , \u03ba 2 is distributed according to a beta distribution with shape parameters (\u03b1 2 + Z i2 ) and (\u03ba 2 \u2212 \u03b1 2 + b i \u2212 Z i2 ), and w 3 |Z i3 , \u03b1 3 , \u03ba 3 is distributed according to a gamma distribution with shape parameter (\u03b1 3 + Z i3 ) and rate parameter (\u03ba 3 + 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Step 2 of Algorithm 1 involves simulating according to (8).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "The specification of a transformation hyperprior for \u03b3 \u03b3 \u03b3 is crucial to guarantee that f (h i j |Z i j , \u03b3 \u03b3 \u03b3) is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "proper in the event that Z i3 = 0, Z i2 = 0, or Z i3 = b i . Thus, we assume \u03b1 1 = \u03ba 1 = 0, \u03b1 2 and \u03b1 3 are distributed according to a gamma distribution, \u03ba 2 |\u03b1 2 is distributed according to a shifted (by \u03b1 i ) gamma distribution, \u03ba 3 follows a gamma distribution, and v is distributed according to an inverse gamma distribution (e.g., see Gelman, 2006, among others). These transformation hyperpriors and the full-conditional distributions for \u03b3 \u03b3 \u03b3 are given in Appendix B.1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Section 2.2 is flexible enough to allow for a transformation prior that implies cross-dependence among the elements of h, but we do not consider this case in this article. The main reason for this choice is that transformations are used in place of the original data set when implementing the preferred model (Step 4 of Algorithm 1). That is, the transformed values are used as a proxy for (or in place of) the data in the preferred model. Consequently, we would like to specify h to \"overfit\" the data so that h can be thought of as a proxy for the data. This leads to the following result, which shows that the prior in (6) leads to posterior replicates that overfit the data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Proposition 3: Suppose (5) and (6) holds. Then, lim",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": ". ., I 1 , j = 1, . . ., I 2 , and k = 1, . . ., I 3 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Proof: See Appendix A.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Thus, the posterior mean of h (on the original scale of the data) are exactly the observed data {Z i j } as the hyperparameters go to zero. This suggests that estimates from the posterior distribution stated in Proposition 2 overfit the data. We emphasize that while f (h|z) overfits the data, it is not necessarily true that f (y, \u03b8 \u03b8 \u03b8 |z) overfits the data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Specific Class of Transformation Models"
+        },
+        {
+            "text": "Assessment of the goodness of fit can be done similar to residual analyses of transformed data in traditional regression analyses. We compute the residuals \u03b4 \u03b4 \u03b4 = \u03b4 i j : i = 1, . . ., I j , j = 1, 2, 3 \u2032 , ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assessing Goodness-of-Fit"
+        },
+        {
+            "text": "and where \u03b1 is prespecified. A default choice is \u03b1 = 0.05. In practice, it is rather straightforward to approximate q L,i j and q U,i j . Let h [b] i j and Y [b] i j be the b-th posterior replicate of h i j and Y i j so that \u03b4",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[b]",
+                    "ref_id": null
+                },
+                {
+                    "start": 158,
+                    "end": 161,
+                    "text": "[b]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Assessing Goodness-of-Fit"
+        },
+        {
+            "text": "i j is the b-th posterior replicate of \u03b4 i j . Then q L,i j and q U,i j can be approximated with the \u03b1/2 and 1 \u2212 \u03b1/2 percentiles of the set {\u03b4 [b] i j : b = 1, . . ., B}, respectively. If the value of zero lies within this interval (e.g., q L,i j < 0 < q U,i j ) for many values of i and j, then this suggests that the model for y provides a reasonable fit to this data set.",
+            "cite_spans": [
+                {
+                    "start": 143,
+                    "end": 146,
+                    "text": "[b]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Assessing Goodness-of-Fit"
+        },
+        {
+            "text": "Proposition 3, shows that the posterior mean of the transformation models overfits the data, which we motivated as a way to avoid oversmoothing estimates of y and \u03b8 \u03b8 \u03b8 in Algorithm 1. However, the fact that the transformation model overfits is also important from the point-of-view of diagnostics. In particular, in the goodness-of-fit literature, overfitted values are often used as a proxy for the data. For example, in log-linear models the most parsimonious reduced model that is not significantly different (in terms of the deviance or chi-square statistic) from the saturated model (an overfitted model) is used for statistical inference (e.g., see Agresti, 2007 , for a standard reference). This is exciting because it provides a new way to conduct classical residual analysis in a Bayesian multi-response context. In particular, in Section 3 we give an example of plotting the (posterior median) residuals versus a useful covariate not included in the analysis to assess whether or not it should be included in a model.",
+            "cite_spans": [
+                {
+                    "start": 656,
+                    "end": 669,
+                    "text": "Agresti, 2007",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Assessing Goodness-of-Fit"
+        },
+        {
+            "text": "Friedman (1991) introduced a simulation design, which has become a useful benchmark study (e.g., see Chipman et al., 2010, among others) . Let h(x 1,i j , . . ., x 10,i j ) = 10sin(\u03c0x 1,i j x 2,i j ) + 20(x 3,i \u2212 0.5) 2 + 10x 4,i j + 5x 5,i ; i = 1, . . ., I, j = 1, 2, 3,",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 136,
+                    "text": "Chipman et al., 2010, among others)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation Setup"
+        },
+        {
+            "text": "which includes two non-linear terms, two linear terms, and a non-linear interaction. We consider the following specifications of the distributional assumptions associated with the data: 1,i3 , . . . , x 10,i3 ) ) , for i = 1, . . . , I j . Methods are compared using the root mean squared error (RMSE),",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 186,
+                    "end": 210,
+                    "text": "1,i3 , . . . , x 10,i3 )",
+                    "ref_id": null
+                }
+            ],
+            "section": "Simulation Setup"
+        },
+        {
+            "text": "is estimated using Monte-Carlo integration using 2,000 iterations with a burn-in of 1,000. For each Bayesian method, we let g \u22121 j (h) be the pointwise posterior mean of g \u22121 j (h). We fit the preferred model using covariates x 1,i j , x 3,i j , x 4,i j , . . ., x 10,i j , and hence, we consider the case were an important covariate is not observed (i.e., {x 2,i j }) and several unneeded covariates are included (i.e., {x 6,i j , . . ., x 10,i j } are not present in (10)). The omissions of {x 2,i j } when implementing our method is a slight departure from the original setup in Friedman (1991) . However, we feel that it is more realistic to assume that not all covariates are observed in practice, and will be a helpful choice for illustration. We specify x k,i j \u223c Uniform(0, 1), where Uniform(0, 1) is a shorthand for the uniform distribution over the interval [0, 1] and k = 1, . . . , 10. The preferred models are SME and BART (and an extension), whose implementation are described in Appendix B.2 and B.3, respectively. In the implementation of each preferred method, we allow each response type to have different regression coefficients. Figure 1 : A violin plot of the RMSE (y-axis) by method (x-axis) over 20 independent replicates of the data. The data are simulated as described in Section 3.1. Each method is implemented using Algorithm 1, except the method \"Saturated.\"",
+            "cite_spans": [
+                {
+                    "start": 582,
+                    "end": 597,
+                    "text": "Friedman (1991)",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1149,
+                    "end": 1157,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Simulation Setup"
+        },
+        {
+            "text": "In this section, we evaluate the predictive performance of our Bayesian model with unknown transformations in the multi-response setting. In particular, we set the preferred model equal to BART (Chipman et al., 2010) and a Bayesian version of the SME model (Cressie and Johannesson, 2008) using basis functions introduced by (Hughes and Haran, 2013) . The posterior mean of h i j (referred to as the saturated model) are included as a default poor estimator, since it is known to overfit the data (see Proposition 3).",
+            "cite_spans": [
+                {
+                    "start": 194,
+                    "end": 216,
+                    "text": "(Chipman et al., 2010)",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 257,
+                    "end": 288,
+                    "text": "(Cressie and Johannesson, 2008)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 325,
+                    "end": 349,
+                    "text": "(Hughes and Haran, 2013)",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Joint Analysis of Multiple Response Types"
+        },
+        {
+            "text": "The data are simulated according to (11), with I = 1000, I 1 = 350, I 2 = 350, and I 3 = 200.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Joint Analysis of Multiple Response Types"
+        },
+        {
+            "text": "We repeat this simulation study 20 times, and we provide violin plots of the RMSE over the 20 replicates by method in Figure 1 . In Figure 2 we also plot the true function versus the estimated function for a single replicate data set. Figures 1 and 2 suggest that the transformation-based SME (BART) performs well in terms of predictive performance. For the replicate in Figure 2 the transformation-based SME (and BART) model had 97% (94%) of the point-wise credible intervals of the elements of \u03b4 \u03b4 \u03b4 containing zero. The patterns observed in Figure 1 mimic the goodness-of-fit diagnostics, which is notable because the goodness-of-fit diagnostics are data driven (and hence can be used in practice) while Figure 1 is based on the unknown truth. These results suggests that the Bayesian transformations can be used to obtain predictions in the non-Gaussian setting using two standard models, and also has a useful built-in goodness-of-fit diagnostic.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 118,
+                    "end": 126,
+                    "text": "Figure 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 132,
+                    "end": 140,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 235,
+                    "end": 250,
+                    "text": "Figures 1 and 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 371,
+                    "end": 379,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 544,
+                    "end": 552,
+                    "text": "Figure 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 707,
+                    "end": 715,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Joint Analysis of Multiple Response Types"
+        },
+        {
+            "text": "Now, suppose we have observed the values of {x 2,i j }, and recall these covariates are not included in the analysis. In Figure 3 , we plot the posterior median of the residuals versus the covariate {x 2,i j } across the indexes i and j for a single replicate of the data set. The plot clearly indicates a sinusoidal or possibly quadratic pattern, which suggests that this behavior is not captured in our model for y. We know this to be true because {x 2,i j } is not included in our implementation, but the data was generated using {x 2,i j }. This is an illustration of how our approach provides a Bayesian Figure 3 : We simulate a single replicate of {Y i j } according to Section 3.1. Then a SME model is implemented using the specifications in Appendix B.2. This plot displays the posterior median of {\u03b4 i j } (see Section 2.4) versus x 2,i j , which is not included in our implementation of the SME model. A systematic pattern in this plot suggests that including x 2,i j would improve our analysis of y.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 121,
+                    "end": 129,
+                    "text": "Figure 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 609,
+                    "end": 617,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Joint Analysis of Multiple Response Types"
+        },
+        {
+            "text": "analog to a graphical technique from classical regression analysis (i.e., systematic patterns in residuals from a multiple regression versus a covariate suggest that the covariate should be included in the analysis).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Joint Analysis of Multiple Response Types"
+        },
+        {
+            "text": "In this simulation study we compare the predictive performance our Bayesian transformation approach to predictions from the preferred model itself. A straightforward way to do this is to restrict ourselves to the continuous data-only setting, in which both modeling paradigms can be implemented. The data are simulated according to (11), with I 1 = 800, I = 1000, and I 2 = I 3 = 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "We repeat this simulation study 20 times, and we provide violin plots of the RMSE over the 20 replicates by method in Figure 4 . In this section, we include an additional predictor: soft BART (SBART; Linero and Yang, 2018 , see Appendix B.3 for more details). We again see that the Bayesian transformation versions of BART and SME outperform the saturated model, with the SME model clearly outperforming BART. Additionally, the Bayesian transformation version of BART and SME perform only slightly better than or the same as their non-transformed counterparts. Here we see that SBART performs worse than the saturated model in terms of RMSE. The",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 221,
+                    "text": "Linero and Yang, 2018",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 118,
+                    "end": 126,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "Bayesian transformation version of SBART does not perform noticeably different than SBART in terms of RMSE. Thus, in the continuous only setting, if the preferred model performs well (or poorly) one should expect the Bayesian transformation approach to perform well (or poorly). Recall that we can use the goodness-of-fit approach in Section 2.4 to assess when a method performs poorly in practice. For example, for a single replicate data set, we found that the percent of credible intervals of the elements of \u03b4 \u03b4 \u03b4 that contain zero (by method) are as follows: 99.8% (SME), 77.4%",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "(BART), and 58.1% (SBART). This produces the same rankings of the method in terms of RMSE. where the cumulative costs have exceeded $1 billion. In total, these 246 weather events have lead to public costs that exceed $1.6 trillion. As such, it is extremely important that we have the foresight to determine which locations are the most sensitive to high costs due to natural disasters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "Thus, in this article, we consider jointly analyzing costs due to natural disasters using Bayesian transformations, where the preferred model is the MSTM (Bradley et al., 2015) .",
+            "cite_spans": [
+                {
+                    "start": 154,
+                    "end": 176,
+                    "text": "(Bradley et al., 2015)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "To accurately forecast this spatio-temporal statistical process one needs to address several challenges. In particular, dynamics (i.e., how spatial fields change over time), non-stationarity (i.e., how costs at nearby time-points may not be similar), and non-separability (i.e., the possibility of complex interactions between locations and times). The MSTM is a model that allows for such patterns, however this model is not immediately useful for public health costs, since the data clearly shows zero inflation (e.g., see Sellers and Raim, 2016, among others) . See Figure 5 , for a histogram of public costs due to natural disasters in Florida counties from 2000 to 2018, where a large mode is present at zero costs.",
+            "cite_spans": [
+                {
+                    "start": 525,
+                    "end": 562,
+                    "text": "Sellers and Raim, 2016, among others)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 569,
+                    "end": 577,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "Let Z i1 denote non-zero public costs due to natural disasters, Z i2 = 1 when the public costs are non-zero, and Z i2 = 0 when the public health costs are zero. There is dependence between these two response types, since Z i1 observed only when Z i2 = 1. Model Z i2 |h i2 independently as a",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "Bernoulli random variable with probability of success",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "Consider the following model for Z i j :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "where f (Z i1 |h i1 , h i2 , Z i2 = 1) is a normal distribution with mean Y i1 and variance v > 0. The current non-Gaussian alternatives to the MSTM can not be used to model in (12), since they are defined only for a single response type; namely, Poisson (Bradley et al., 2018) and multinomial (Bradley et al., 2019c) data, respectively. The Bayesian transformation version of the MSTM, where the MSTM is defined by r = 74 basis functions, is intercept-only, and the first order nearest neighbor adjacency matrix is used. These 75 basis functions are chosen to be covariates made available by NCEI. Implementation of the MSTM is discussed in Appendix B.4. We provide a list of these covariates in Appendix C.",
+            "cite_spans": [
+                {
+                    "start": 255,
+                    "end": 277,
+                    "text": "(Bradley et al., 2018)",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 294,
+                    "end": 317,
+                    "text": "(Bradley et al., 2019c)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "We analyze public costs due to natural disasters in Florida using data from 2000 to 2018.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "The year 2018 is held out for cross-validation purposes. In Figure 6 we plot the predicted values from 2000 to 2017, and the corresponding data (both on the log-scale), and we see that the model produces small in sample error. This is supported by the number of credible intervals (as defined in Section 3.4) that contain zero, which is 100%. A naive baseline predictor to compare to is the previous years (i.e., 2017) public costs due to natural disasters. The RMSE (between predicted 2018 costs and observed costs) of this baseline predictor is 625.49, while the RMSE of the values of the proposed model is much smaller at 11.8996. Compare both values to the variance of the 2018 Florida natural disaster costs given by 1.5925 \u00d7 10 5 . Thus, we see that the proposed method provides reasonable out-of-sample error, and may be useful for estimating future costs due to natural disasters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 60,
+                    "end": 68,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Robustness to Departures from Model Assumptions"
+        },
+        {
+            "text": "In this paper, we have provided several methodological contributions to Bayesian statistics. First, we have developed a general all-purpose Bayesian model to analyze multiple responses (e.g., continuous, Binomial counts, and Poisson counts). Our approach allows one to directly incorporate their preferred Bayesian model without adjusting the implementation of the preferred model. Second, a composite sampling method to implement a Bayesian model with unknown transformations has been introduced. Third, we developed a general Bayesian analog to the classical comparison between a saturated model and a reduced model. This results in the use of classical residual analysis for assessing goodness-of-fit in Bayesian models for multi-response data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "In our simulations, an illustration was given of non-linear functional analysis of multiple response types using BART as the preferred model. Additionally, an illustration was given of a joint spatial analysis of multiple response types using the SME model as the preferred model. These results suggest that the prediction error of our approach is small (in terms of RMSE), and we can develop multi-response versions of several different preferred models seamlessly. Additionally, data driven goodness-of-fit diagnostics were able to lead to the same conclusion as the RMSE criterion that is unobserved in practice. Finally, an illustration was given of a joint multivariate spatio-temporal analysis of zero-inflated continuous responses using the MSTM as the preferred model. Specifically, we analyze records of natural disaster costs in the state of Florida. The ability to accurately forecast the cost of natural disasters may help public policy professionals prepare.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "There are several considerations for future methodological development. In particular, our choice of the transformation models in Section 2.3 implies that the data are independent. This is true even when the preferred model implies dependence among the transformed data values. Consequently, we are interested in extensions to our model that simultaneously allow for dependence among the data values and dependence among the transformed data values.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "where f (z, h) = f (z|h) f (h|\u03b3 \u03b3 \u03b3) f (\u03b3 \u03b3 \u03b3) d\u03b3 \u03b3 \u03b3 and we have used the assumption of conditional independence between z and (y, \u03b8 \u03b8 \u03b8 ) given h. Then dividing by f (z) = f (z|h) f (h|\u03b3 \u03b3 \u03b3) f (\u03b3 \u03b3 \u03b3) dh d\u03b3 \u03b3 \u03b3 yields,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "which is the desired result.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Proof of Proposition 2: Versions of this proof can be found in Diaconis and Ylvisaker (1979) and Bradley et al. (2019a) . The two distributions in (5) associated with j = 2 and j = 3 are members of the natural exponential family (Lehmann and Casella, 1998) , which are of the form,",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 92,
+                    "text": "Diaconis and Ylvisaker (1979)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 97,
+                    "end": 119,
+                    "text": "Bradley et al. (2019a)",
+                    "ref_id": null
+                },
+                {
+                    "start": 229,
+                    "end": 256,
+                    "text": "(Lehmann and Casella, 1998)",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "where c i2 = b i and c i3 = 1. Upon multiplying by (6) we have:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "which proves the result for j = 2 and j = 3. For j = 1,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "which completes the results.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Proposition 3: In Equation (8) we see that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "which converges to Z i1 as \u03b1 1 and \u03ba 1 approach zero. The expectation of a beta distribution is well known (Casella and Berger, 2002) , which from (8) gives us",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 133,
+                    "text": "(Casella and Berger, 2002)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "which converges to Z i2 /b i as \u03b1 2 and \u03ba 2 approach zero. Similarly, the expectation of a gamma distribution is well known (Casella and Berger, 2002) , which from (8) gives us E {g(h i3 )|Z i3 , \u03b3 \u03b3 \u03b3} = E(w 3 |Z i1 , \u03b3 \u03b3 \u03b3) = \u03b1 3 + Z i3 \u03ba 3 + 1 , which converges to Z i3 as \u03b1 3 and \u03ba 3 approach zero.",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 150,
+                    "text": "(Casella and Berger, 2002)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "in (B.1.1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Consider the following mixed effects model for the transformed data (e.g., see Cressie and Johannesson, 2008, among others):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Data Model : h i j |\u03b2 \u03b2 \u03b2 , \u03b7 \u03b7 \u03b7, \u03be i j (\u00b7) ind \u223c Normal x \u2032 i j \u03b2 \u03b2 \u03b2 + S \u2032 i j \u03b7 \u03b7 \u03b7 + \u03be i j , \u03c3 2 ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Process Model 1 : \u03b7 \u03b7 \u03b7|\u03c3 2 \u03b7 \u223c Normal 0 0 0 r , \u03c3 2 \u03b7 I r ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Process Model 2 : \u03be i j |\u03c3 2 \u03be ind \u223c Normal 0, \u03c3 2 \u03be ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Parameter Model 1 : \u03c3 2 \u223c IG (\u03b1 v , \u03b2 v ) ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Parameter Model 2 : \u03b2 \u03b2 \u03b2 \u223c Normal 0 0 0 p , \u03c3 2 \u03b2 I p ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Parameter Model 3 : \u03c3 2 \u03be \u223c IG \u03b1 \u03be , \u03b2 \u03be ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Parameter Model 4 : \u03c3 2 \u03b7 \u223c IG (\u03b1 \u03b7 , \u03b2 \u03b7 ) ; i = 1, . . . I j , j = 1, 2, 3, (B.2.1) where x i j is a p-dimensional vector of known covariates, I r is a r \u00d7 r identity matrix, 0 0 0 r is an r-dimensional vector of zeros, \u03b1 v = \u03b1 \u03b7 = \u03b1 \u03be = 1, \u03b2 v = \u03b2 \u03b7 = \u03b2 \u03be = 1, \u03c3 2 \u03b2 = 100, and \u03be \u03be \u03be = (\u03be 11 , . . ., \u03be I 3 3 ) \u2032 . The hyperparameters are chosen so that the prior is relatively \"flat\" and we find that our results are robust to these specifications. In Algorithm 1, we set Y i j = x \u2032 i j \u03b2 \u03b2 \u03b2 +S \u2032 i j \u03b7 \u03b7 \u03b7 +\u03be i j and \u03b3 \u03b3 \u03b3 = (\u03b2 \u03b2 \u03b2 \u2032 , \u03c3 2 , \u03c3 2 \u03be , \u03c3 2 \u03b7 ) \u2032 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "The r-dimensional real-valued vector S i j is defined to be the Moran's I basis function (Hughes and Haran, 2013) . The Moran's I basis functions (Griffith, 2000 (Griffith, , 2002 (Griffith, , 2004 are motivated as a way to remove confounding between \u03b2 \u03b2 \u03b2 and \u03b7 \u03b7 \u03b7, and allow for dimension reduction. The basis functions are derived from the Moran's I operator used in spatial statistics (Moran, 1950) . Specifically, basis functions are specified to be in the orthogonal column space associated with the hat matrix X(X \u2032 X) \u22121 X \u2032 , where the N \u00d7 p matrix X = x i j : i = 1, . . . , I, j = 1, 2, 3 . Define the Moran's I distributions for variance parameters are well-known and are as follows:",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 113,
+                    "text": "(Hughes and Haran, 2013)",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 146,
+                    "end": 161,
+                    "text": "(Griffith, 2000",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 162,
+                    "end": 179,
+                    "text": "(Griffith, , 2002",
+                    "ref_id": null
+                },
+                {
+                    "start": 180,
+                    "end": 197,
+                    "text": "(Griffith, , 2004",
+                    "ref_id": null
+                },
+                {
+                    "start": 390,
+                    "end": 403,
+                    "text": "(Moran, 1950)",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Step 4 ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix B.2: The Spatial Mixed Effects Model"
+        },
+        {
+            "text": "Section 4 presents a bivariate example with a continuous response, and a binary response. The covariates used in Section 4 are listed below. All quoted terms are defined by NCEI.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Intercept",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 (i.e., variable) and ACS 2017 five year estimates of county-level population.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 and ACS 2017 five year estimates of county-level median income.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of an \"astronomical low tide.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"coastal flood.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"cold/wind chill.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        },
+        {
+            "text": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"debris flow.\"",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Appendix C: Covariates used in the Application"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Categorical data analysis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Agresti",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Multi-task feature learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Argyriou",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Evgeniou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pontil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Rank-based inverse normal transformations are increasingly used, but are they merited",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Beasley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Erickson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Allison",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Behavior genetics",
+            "volume": "39",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "An analysis of transformations",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "E P"
+                    ],
+                    "last": "Box",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Cox",
+                    "suffix": ""
+                }
+            ],
+            "year": 1964,
+            "venue": "Journal of the Royal Statistical Society: Series B (Methodological)",
+            "volume": "26",
+            "issn": "2",
+            "pages": "211--243",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Multivariate spatio-temporal models for highdimensional areal data with application to Longitudinal Employer-Household Dynamics",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bradley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Holan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wikle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "The Annals of Applied Statistics",
+            "volume": "9",
+            "issn": "",
+            "pages": "1761--1791",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Computationally Efficient Distribution Theory for Bayesian Inference of High-Dimensional Dependent Count-Valued Data",
+            "authors": [],
+            "year": 2018,
+            "venue": "Bayesian Analysis",
+            "volume": "13",
+            "issn": "",
+            "pages": "253--302",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Multivariate Spatio-Temporal Survey Fusion with Application to the American Community Survey and Local Area Unemployment Statistics",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bradley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Holan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Wikle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Stat",
+            "volume": "5",
+            "issn": "",
+            "pages": "224--233",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Bayesian Hierarchical Models with Conjugate Full-Conditional Distributions for Dependent Data from the Natural Exponential Family",
+            "authors": [],
+            "year": 2019,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Hierarchical Models for Spatial Data with Errors that are Correlated with the Latent Process",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bradley",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Wikle",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Holan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Statistica Sinica",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Spatio-temporal models for big multinomial data using the conditional multivariate logit-beta distribution",
+            "authors": [],
+            "year": 2019,
+            "venue": "Journal of Time Series Analysis",
+            "volume": "40",
+            "issn": "",
+            "pages": "363--382",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Spatio-Temporal Models for Big Multinomial Data using the Conditional Multivariate Logit-Beta Distribution",
+            "authors": [],
+            "year": 2019,
+            "venue": "Journal of Time Series Analysis",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Estimating optimal transformations for multiple regression and correlation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Friedman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1985,
+            "venue": "Journal of the American statistical Association",
+            "volume": "80",
+            "issn": "",
+            "pages": "580--598",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Statistical Inference",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Casella",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Objective Bayesian transformation and variable selection using default Bayes factors",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Charitidou",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fouskakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ntzoufras",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Statistics and Computing",
+            "volume": "28",
+            "issn": "",
+            "pages": "579--594",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Bayesian transformation family selection: Moving toward a transformed Gaussian universe",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Charitidou",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Fouskakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ntzoufras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Canadian Journal of Statistics",
+            "volume": "43",
+            "issn": "",
+            "pages": "600--623",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Conjugate priors for generalized linear models",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ibrahim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Statistica Sinica",
+            "volume": "13",
+            "issn": "",
+            "pages": "461--476",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "BayesTree: Bayesian additive regression trees",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chipman",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "BART: Bayesian additive regression trees",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Chipman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "George",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "The Annals of Applied Statistics",
+            "volume": "4",
+            "issn": "",
+            "pages": "266--298",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Fixed rank kriging for very large spatial data sets",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Cressie",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Johannesson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Journal of the Royal Statistical Society, Series B",
+            "volume": "70",
+            "issn": "",
+            "pages": "209--226",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Statistics for Spatio-Temporal Data",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Cressie",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Wikle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Gibbs Sampling for Bayesian Non-Conjugate and Hierarchical Models by Using Auxiliary Variables",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Damien",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wakefield",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Walker",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Journal of the Royal Statistical Society. Series B (Statistical Methodology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Conjugate priors for exponential families",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Diaconis",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ylvisaker",
+                    "suffix": ""
+                }
+            ],
+            "year": 1979,
+            "venue": "The Annals of Statistics",
+            "volume": "17",
+            "issn": "",
+            "pages": "269--281",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Copula Gaussian graphical models and their application to modeling functional disability data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dobra",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lenkoski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "The Annals of Statistics",
+            "volume": "5",
+            "issn": "",
+            "pages": "969--993",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Bootstrap methods: another look at the jackknife",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Efron",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "Breakthroughs in statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "569--593",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Stable graphical model estimation with random forests for discrete, continuous, and mixed variables",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Fellinghauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Buhlmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ryffel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Rhein",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Reinhardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Computational Statistics amd Data Analysis",
+            "volume": "64",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Multivariate adaptive regression splines",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Friedman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "The Annals of Statistics",
+            "volume": "19",
+            "issn": "",
+            "pages": "1--67",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Bayesian analysis of areal data with unknown adjacencies using the stochastic edge mixed effects model",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bradley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Spatial Statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Prior distributions for variance parameters in hierarchical models",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gelman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Bayesian Analysis",
+            "volume": "1",
+            "issn": "",
+            "pages": "515--533",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Bayesian Data Analysis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gelman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Carlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Stern",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Dunson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vehtari",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Posterior predictive assessment of model fitness via realized discrepancies",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gelman",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Stern",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Statistica Sinica",
+            "volume": "6",
+            "issn": "",
+            "pages": "733--807",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "A linear regression solution to the spatial autocorrelation problem",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Griffith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Journal of Geographical Systems",
+            "volume": "2",
+            "issn": "",
+            "pages": "141--156",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "A spatial filtering specification for the auto-Poisson model",
+            "authors": [],
+            "year": 2002,
+            "venue": "Statistics and Probability Letters",
+            "volume": "58",
+            "issn": "",
+            "pages": "245--251",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "A spatial filtering specification for the auto-logistic model",
+            "authors": [],
+            "year": 2004,
+            "venue": "Environment and Planning A",
+            "volume": "36",
+            "issn": "",
+            "pages": "1791--1811",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Bayesian Variable Selection for Pareto Regression Models with Latent Multivariate Log Gamma Process with Applications to Earthquake Magnitudes",
+            "authors": [
+                {
+                    "first": "H.-C",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chen",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-H",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Geosciences",
+            "volume": "9",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "The Elements of Statistical Learning: Data Mining, Inference, and Prediction",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hastie",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tibshirani",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "A Bayesian spatial-temporal model with latent multivariate log-gamma random effects with application to earthquake magnitudes",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bradley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Stat",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Dimension reduction and alleviation of confounding for spatial generalized linear mixed model",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hughes",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Haran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Journal of the Royal Statistical Society, Series B",
+            "volume": "75",
+            "issn": "",
+            "pages": "139--159",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Bayesian inference for the spatial random effects model",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Kang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Cressie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of the American Statistical Association",
+            "volume": "106",
+            "issn": "",
+            "pages": "972--983",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Bayesian hierarchical spatio-temporal smoothing for very large datasets",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Katzfuss",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Cressie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Environmetrics",
+            "volume": "23",
+            "issn": "",
+            "pages": "94--107",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Bayesian inference for multivariate meta-analysis Box-Cox transformation models for individual patient data with applications to evaluation of cholesterol-lowering drugs",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ibrahim",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lin",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Statistics in Medicine",
+            "volume": "32",
+            "issn": "",
+            "pages": "3972--3990",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Statistical estimation of correlated genome associations to a quantitative trait network",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "PLos Genetics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Theory of Point Estimation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Lehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Casella",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Bayesian regression tree ensembles that adapt to smoothness and sparsity",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Linero",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Journal of the Royal Statistical Society: Series B (Statistical Methodology)",
+            "volume": "80",
+            "issn": "",
+            "pages": "1087--1110",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "High-dimensional semiparametric gaussian copula graphical models",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wasserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "The Annals of Statistics",
+            "volume": "40",
+            "issn": "",
+            "pages": "2293--2326",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "The nonparanormal: Semiparametric estimation of high dimensional undirected graphs",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wasserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "The Journal of Machine Learning Research",
+            "volume": "10",
+            "issn": "",
+            "pages": "2295--2328",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Omnibus Inverse Normal Transformation Based Association Test Improves Power in Genome-Wide Association Studies of Quantitative Traits",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Mccaw",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Lane",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Saxena",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Redline",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lin",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Generalized Linear Models",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mccullagh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Nelder",
+                    "suffix": ""
+                }
+            ],
+            "year": 1989,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "A likelihood analysis of quantile-matching transformations",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mccullagh",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tresoldi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2001.03709"
+                ]
+            }
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Generalized, Linear, and Mixed Models",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Searle",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Neuhaus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Fitting regression models with unknown transformations using dynamic graphics",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Mcculloch",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "Journal of the Royal Statistical Society: Series D (The Statistician)",
+            "volume": "42",
+            "issn": "2",
+            "pages": "153--160",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Posterior predictive p-values",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "The Annals of Statistics",
+            "volume": "22",
+            "issn": "",
+            "pages": "1142--1160",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Notes on Continuous Stochastic Phenomena",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "A P"
+                    ],
+                    "last": "Moran",
+                    "suffix": ""
+                }
+            ],
+            "year": 1950,
+            "venue": "Biometrika",
+            "volume": "37",
+            "issn": "",
+            "pages": "17--23",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "MCMC Using Hamiltonian Dynamics",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Neal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "113--160",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Slice sampling",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Neal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "The annals of statistics",
+            "volume": "31",
+            "issn": "",
+            "pages": "705--767",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "The bayesian bootstrap",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Rubin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "The annals of statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "130--134",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Approximate Bayesian inference for latent Gaussian models using integrated nested Laplace approximations",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Rue",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Martino",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Chopin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Journal of the Royal Statistical Society, Series B",
+            "volume": "71",
+            "issn": "",
+            "pages": "319--392",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "A flexible zero-inflated model to address data dispersion",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sellers",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Raim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Computational Statistics & Data Analysis",
+            "volume": "99",
+            "issn": "",
+            "pages": "68--80",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Imputation-based analysis of association studies: candidate regions and quantitative traits",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Servin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stephens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "PLoS genetics",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Smoothing methods in statistics",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Simonoff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Regularized rank-based estimation of high-dimensional nonparanormal graphical models",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xue",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "The Annals of Statistics",
+            "volume": "40",
+            "issn": "",
+            "pages": "2541--2571",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "A general framework for mixed graphical models",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ravikumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Allen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1411.0288"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "Heterogeneous multitask learning with joint sparsity constraints",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "A new family of power transformations to improve normality or symmetry",
+            "authors": [
+                {
+                    "first": "I.-K",
+                    "middle": [],
+                    "last": "Yeo",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Biometrika",
+            "volume": "87",
+            "issn": "",
+            "pages": "954--959",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "Step 4 of Algorithm 1 for this model involves simulating from posterior distribution of {M k }, {T k }, and \u03c3 2 using BayesTree. The SBART method is an extension of the BART algorithm",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "is used. where the specifications of \u03c3 2 \u03b2 , \u03b1 v , \u03b1 \u03be , \u03b1 \u03b7 , \u03b2 v , \u03b2 \u03be , and \u03b2 \u03b7 are specified the same way as in",
+            "authors": [],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"dense fog",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF67": {
+            "ref_id": "b67",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"dense smoke",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"drought",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"dust devil",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"extreme cold/wind chill",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF71": {
+            "ref_id": "b71",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"flash flood",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF72": {
+            "ref_id": "b72",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"flood",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF73": {
+            "ref_id": "b73",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"frost/freeze",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF74": {
+            "ref_id": "b74",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"funnel cloud",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF75": {
+            "ref_id": "b75",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"heat",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF76": {
+            "ref_id": "b76",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"heavy rain",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF77": {
+            "ref_id": "b77",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"high surf",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF78": {
+            "ref_id": "b78",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"high wind",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF79": {
+            "ref_id": "b79",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"hurricane",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF80": {
+            "ref_id": "b80",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"hurricane (typhoon)",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF81": {
+            "ref_id": "b81",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"lightning",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF82": {
+            "ref_id": "b82",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"rip current",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF83": {
+            "ref_id": "b83",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"sleet",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF84": {
+            "ref_id": "b84",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"storm surge/tide",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF85": {
+            "ref_id": "b85",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"strong wind",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF86": {
+            "ref_id": "b86",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"thunderstorm wind",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF87": {
+            "ref_id": "b87",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"tornado",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF88": {
+            "ref_id": "b88",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"tropical depression",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF89": {
+            "ref_id": "b89",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"tropical storm",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF90": {
+            "ref_id": "b90",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"waterspout",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF91": {
+            "ref_id": "b91",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"wildfire",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF92": {
+            "ref_id": "b92",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of a \"winter storm",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF93": {
+            "ref_id": "b93",
+            "title": "\u2022 Interaction between an indicator for \u2113 and an indicator for the occurrence of \"winter weather",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "and compute a credible region associated with \u03b4 \u03b4 \u03b4 (e.g., seeGelman et al., 2013, for a standard reference). For example, for each i and j, find the values q L,i j and q U,i j , where q U,i j q L,i j f (\u03b4 i j |z)d\u03b4 i j = 1 \u2212 \u03b1; i = 1, . . ., I j , j = 1, . . . , J,",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Estimates versus the truth for a single replicate data set. The data are simulated as described in Section 3.1. The estimate is labeled on the y-axis. The red line indicates the line y = x.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Analysis of Multiple Response Types: A Spatio-Temporal Analysis of Zero-Inflated Records of Public Costs Due to Natural Disasters NOAA's National Centers for Environmental Information (NCEI) is an important governmentalprogram that provides access and maintains one of the most significant and comprehensive archives of the Earth's oceanic, atmospheric, and geophysical information. As part of their responsibilities, they provide a critical resource for addressing severe weather/climate events. Specifically, NOAA's NCEI monitors and analyze important climate events that occur both in the U.S. and internationally, with a perspective that recognizes the economic and societal consequences of such events. NCEI provides weather and climate events that have had the strongest economic consequences from 1980 A violin plot of the RMSE (y-axis) by method (x-axis) over 20 independent replicates of the data. The data are simulated as described in Section 3.1. Each method is implemented using Algorithm 1, except the method \"Saturated.\" The observed data set are used as the predicted values for the method \"Saturated.\" The left panel displays the results of the Bayesian transformation methods, and the right panel presents the results of the original methods.to 2018. In particular, the U.S. has endured a total of 246 weather and climate disasters since 1980,",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "A histogram of the predicted logarithm of public costs due to natural disasters (in billions of dollars) in Florida counties from 2000 to 2018. We add 0.01 to the data before taking the logarithm, since several costs are zero-valued (left-most mode).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "A plot of the predicted logarithm of public costs due to natural disasters (in billions of dollars) in Florida counties from in 2018 by the observed costs in 2018. We add 0.01 to values before taking the logarithm, since several costs are zero-valued.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "of Algorithm 1 for this model involves simulating from the full-conditional distributions in (B.4.2) and(B.4.3).",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This research was partially supported by the U.S. National Science Foundation (NSF) under NSF grant SES-1853099.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgments"
+        },
+        {
+            "text": "The data that support the findings of this study are openly available in https://www.ncdc.noaa.gov/stormevents/.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Availability"
+        },
+        {
+            "text": "Proof of Proposition 1: The distributions in (2) and (3) can be used to produce the following expression of the joint distribution of the data, process, and parameters f (z, y, \u03b8 \u03b8 \u03b8 ) = f (z|h) f (y, \u03b8 \u03b8 \u03b8 |h) f (h|\u03b3 \u03b3 \u03b3) f (\u03b3 \u03b3 \u03b3) dh d\u03b3 \u03b3 \u03b3 = f (y, \u03b8 \u03b8 \u03b8 |h) f (z, h) dh , The full-conditional distributions for the transformation hyperparameters are found by multiplying f (h|\u03b3 \u03b3 \u03b3) and f (\u03b3 \u03b3 \u03b3) as follows:v|\u00b7 \u223c IG I 1 2 + a 1 , \u2211is the indicator function, and IG(a, b) is an inverse gamma distribution with shape a > 0 and rate b > 0. In our implementation we set the parameters a 1 = a 2 = a 3 = \u03b6 2 = \u03b6 3 1 and b 1 = b 2 = b 3 = \u03b7 2 = \u03b7 3 = 1. We have found that our results are robust to this specification.Step 3 of Algorithm 1 involves simulating from the full conditional distributionswhere W is a generic real-valued N \u00d7 N matrix, which is often specified to be an adjacency matrix that characterizes a network. The spectral representation G(X, W) = \u03a6 \u03a6 \u03a6\u039b \u039b \u039b\u03a6 \u03a6 \u03a6 \u2032 , is computed using a N \u00d7 N orthogonal matrix \u03a6 \u03a6 \u03a6 and a N \u00d7 N diagonal matrix with positive elements \u039b. Let the N \u00d7 r real matrix consisting of the first r columns of \u03a6 \u03a6 \u03a6 be denoted by S. The row of S corresponding to the (i, j)-th data is set to equal to S i j . In Section 3, we set r = 500.The full conditional distributions for fixed and random effects for this SME model are wellknown (e.g.,see Bradley et al., 2019b , for a recent reference) and are as follows:The full conditional distributions for variance parameters are well-known (e.g.,see Bradley et al., 2019b, for a recent reference) and are as follows:Step 4 i, j) ; i = 1, . . ., I j , j = 1, 2, 3;Process Model 1 : \u03b7 \u03b7 \u03b7 k |\u03b7 \u03b7 \u03b7 k\u22121 , M k , W k \u223c Normal (M k \u03b7 \u03b7 \u03b7 k\u22121 , W k ) ; Process Model 2 : \u03b7 \u03b7 \u03b7 1 |K 1 \u223c Normal (0 0 0, K 1 ) ;Parameter Model 2 : \u03b2 \u03b2 \u03b2 k \u223c Normal 0 0 0 p , \u03c3 2 \u03b2 I p ;Parameter Model 3 : \u03c3 2 \u03be ,k \u223c IG \u03b1 \u03be , \u03b2 \u03be ;Parameter Model 4 : \u03c3 2 \u03b7 \u223c IG (\u03b1 \u03b7 , \u03b2 \u03b7 ) ; c = 1, ..., L, k = 1, ..., T, (B.4.1) Appendix B.1. We define S k = S i j : t(i, j) = k to be pre-specified covariates. Now, specify S k K k S \u2032 k = cov(S k \u03b7 \u03b7 \u03b7 k ) to be close (in terms of Frobenius norm) to the covariance from a conditional autoregressive (CAR) model associated with {A 1 , . . . ,The vector autoregressive structure in (B.4.1) suggests thatand X k = x i j : t(i, j) = k . Recall that we set x i j \u2261 1 in Section 4 (i.e., an intercept only model).: i = 1, . . ., I j , j = 1, 2, 3),: i = 1, . . . , I j , j = 1, 2, 3). The full conditional distributions for fixed and random effects for this multivariate spatio-temporal mixed effects model are well-known (e.g.,see Bradley et al., 2015 Bradley et al., , 2016 , for a recent reference) and are as follows:\u03b2 \u03b2 \u03b2 k |\u00b7 \u223c Normal \u00b5 \u00b5 \u00b5 * * \u03b2 ,k , \u03a3 \u03a3 \u03a3 * * \u03b2 ,k ,\u03be \u03be \u03be k |\u00b7 \u223c Normal \u00b5 \u00b5 \u00b5 * * \u03be ,k , \u03a3 \u03a3 \u03a3 * * \u03be ,k , \u00b5 \u00b5 \u00b5 * * \u03be ,k \u2261 \u03a3 \u03a3 \u03a3 * \u03be D \u22121 k (h k \u2212 X k \u03b2 \u03b2 \u03b2 t \u2212 S k \u03b7 \u03b7 \u03b7 k )The full-conditional for the stacked vector \u03b7 \u03b7 \u03b7 1:T \u2261 \u03b7 \u03b7 \u03b7 \u2032 k : t = 1, ..., T \u2032 is updated within Gibbs sampler using a Kalman smoother (see Bradley et al., 2015 , for additional details). The full conditional",
+            "cite_spans": [
+                {
+                    "start": 1385,
+                    "end": 1406,
+                    "text": "Bradley et al., 2019b",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1536,
+                    "end": 1551,
+                    "text": "Bradley et al.,",
+                    "ref_id": null
+                },
+                {
+                    "start": 1609,
+                    "end": 1614,
+                    "text": "i, j)",
+                    "ref_id": null
+                },
+                {
+                    "start": 2623,
+                    "end": 2643,
+                    "text": "Bradley et al., 2015",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 2644,
+                    "end": 2666,
+                    "text": "Bradley et al., , 2016",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 3032,
+                    "end": 3052,
+                    "text": "Bradley et al., 2015",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Appendix A: Proofs"
+        }
+    ]
+}

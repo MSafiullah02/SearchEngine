@@ -1,0 +1,1775 @@
+{
+    "paper_id": "12112efc0b97a588ae6740e952f26807a2a8280e",
+    "metadata": {
+        "title": "MIRD-Net for Medical Image Segmentation",
+        "authors": [
+            {
+                "first": "Yongfeng",
+                "middle": [],
+                "last": "Huang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Donghua University",
+                    "location": {
+                        "postCode": "201620",
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Xueyang",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Donghua University",
+                    "location": {
+                        "postCode": "201620",
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Cairong",
+                "middle": [],
+                "last": "Yan",
+                "suffix": "",
+                "affiliation": {},
+                "email": "cryan@dhu.edu.cn"
+            },
+            {
+                "first": "Lihao",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Donghua University",
+                    "location": {
+                        "postCode": "201620",
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Hao",
+                "middle": [],
+                "last": "Dai",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Donghua University",
+                    "location": {
+                        "postCode": "201620",
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Medical image segmentation is a fundamental and challenging problem for analyzing medical images due to the approximate pixel values of adjacent tissues in boundary and the non-linear feature between pixels. Although fully convolutional neural networks such as U-Net has demonstrated impressive performance on medical image segmentation, distinguishing subtle features between different categories after pooling layers is still a difficult task, which affects the segmentation accuracy. In this paper, we propose a Mini-Inception-Residual-Dense (MIRD) network named MIRD-Net to deal with this problem. The key point of our proposed MIRD-Net is MIRD Block. It takes advantage of Inception, Residual Block (RB) and Dense Block (DB), aiming to make the network obtain more features to help improve the segmentation accuracy. There is no pooling layer in MIRD-Net. Such a design avoids loss of information during forward propagation. Experimental results show that our framework significantly outperforms U-Net in six different image segmentation tasks and its parameters are only about 1/50 of U-Net.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Medical image segmentation is the key to determining whether medical images can provide a reliable basis for clinical diagnosis and treatment. However, the borders between tissues in medical images may be blurred by the imaging acquisition, which increases the difficulty on segmentation. The classical CNN (nonfully convolutional networks) such as [18] and Residual connections network (Res-Net) [6] can only classify separate examples and not a whole segmented pixel, because the fully connected layers are used at the end of the network, which can only mark the category of the whole image and not per pixel. Nevertheless, in many medical imaging tasks, especially in medical segmentation, a class label is desired to be assigned to each pixel. The breakthrough by Ciresan et al. [3] was due to sliding-window setup which can predict the class label of each pixel by providing a local context (neighbor region) around that pixel as input. They won the EM segmentation challenge at ISBI 2012.",
+            "cite_spans": [
+                {
+                    "start": 349,
+                    "end": 353,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 783,
+                    "end": 786,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, the approach proposed by Ciresan et al. [3] has some limitations: (1) it needs a long time to process the training image because the network must be run for each neighbor region, and there is a slight redundancy due to overlapping between the neighboring regions. (2) it is hard to keep balance in context and localization accuracy. Smaller neighbor regions make the network see context weakly, while larger neighbor regions need more pooling layers that reduce the localization accuracy. Fully convolutional network (FCN) uses the convolutional layer to replace the fully connected layer, getting the probability of each pixel rather than the scalar of the whole image, which improves the accuracy of segmentation [17] . Moreover, the advantage of FCN is indeed the possibility to have a whole image and its segmentation as training inputs, rather than feeding all possible separate sub-images centered on each labelled pixel like the strategy in Ciresan et al. [3] .",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 52,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 273,
+                    "end": 276,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 724,
+                    "end": 728,
+                    "text": "[17]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 972,
+                    "end": 975,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Inspired by FCN, U-Net, a symmetrical and fully convolutional network, was proposed [16] and widely used because of its elegant architecture. The network has a contracting path and an expanding path that is more or less symmetric to the contracting path, yielding an architecture like letter U. In the expanding path, pooling operators are replaced by upsampling operators to increase the resolution of the output, making the high resolution features from the contracting path combined with the upsampling output through the skip connections, which allows the network to learn more precise feature based on this information. However, the U-Net architecture has one drawback that is difficult to improve performance by shallowing or deepening its depth. Technically, the network with deeper depth is supposed to learn more features and results in better segmentation, while gradients may vanish during the training period, making the network hard to train [8, 20] .",
+            "cite_spans": [
+                {
+                    "start": 84,
+                    "end": 88,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 955,
+                    "end": 958,
+                    "text": "[8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 959,
+                    "end": 962,
+                    "text": "20]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In recent years, some variants of U-Net have been proposed [9, 13, 25] . And these network contain the approximate backbone consisting of downsampling layers, upsampling layers, and skip connection (see Fig. 1 ). The differences among them are the use of different modules and the connected way between layers. Residual Block (RB) [6] and Dense Block (DB) [7] are widely integrated into U-Net due to their scalability. And they can also make it is easy to train the network with deep depth, enabling the network to learn more represented information. Furthermore, the concatenation in Dense-Net makes the final classifier use features from all previous layers (different from classical CNN approaches), resulting in better performance of classification. The challenge is to create a network that excels in accuracy without gradient vanishing and with fewer parameters.",
+            "cite_spans": [
+                {
+                    "start": 59,
+                    "end": 62,
+                    "text": "[9,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "13,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "25]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 331,
+                    "end": 334,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 356,
+                    "end": 359,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 203,
+                    "end": 209,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Motivated by previous work and existing problem in U-net, we propose a new symmetrical network named MIRD-Net. It integrates Residual Block (RB) [6] and Dense Block (DB) [7] into the inception architecture [20] , aiming to excel in accuracy with fewer parameters. The exploration of our network consists of four steps. First, we choose ten layers (including the pooling layers, the convolutional layers, the upsampling layers) as a backbone of the network. Secondly, we try to add RBs as functional modules to the up-down sampling path, and the positions of blocks are discussed through experiments. Thirdly, the backbone is equipped with two DBs when the best positions of RBs are determined. We combine two DBs with RBs, getting two Mini-Inception-Residual-Dense Blocks (MIRD) to replace two RBs which are located in downsampling path. Finally, the pooling layers are replaced with 3\u00d7 3 convolutional layers. The main contributions are as follows: (1) a shallower backbone to decrease the number of parameters. The combination of inception architecture, RB and DB makes the network learn more represented features; (2) simple and flexible implementation of our proposed network architecture; (3) great performance for challenging medical image segmentation tasks.",
+            "cite_spans": [
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 170,
+                    "end": 173,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 206,
+                    "end": 210,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "CNNs have reached the-state-of-the-art in medical segmentation after FCN was proposed, consisting of symmetrical backbone with downsampling path and upsampling path, which allows combining the feature extracted by downsampling with the feature recovered by upsampling through skip connections. Korez et al. [10] proposed a 3D version of FCN to process the MRI image of the human spine. Zhou et al. [24] combined 2D FCN with 3D Majority voting algorithm, achieving great performance in Three-Dimensional segmentation task of human torso CT. Olaf Ronneberger et al. [16] extended FCN to a symmetrical U-Net and won the first prize on the ISBI cell tracking challenge 2015.",
+            "cite_spans": [
+                {
+                    "start": 307,
+                    "end": 311,
+                    "text": "[10]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 398,
+                    "end": 402,
+                    "text": "[24]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 564,
+                    "end": 568,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "FCN in Medical Images"
+        },
+        {
+            "text": "Comparing U-Net with FCN, one important modification in U-Net is skip connections, making the network to fuse the information of the up-down sampling path, which can generate high resolution and more accurate mask. In addition, the U-shaped architecture can be straightened into Line-shaped network approximately, which is similar to the Dense-Net where skip connections are used [7] . Inspired by Dense-Net, Z. Zhou et al. [25] altered U-Net by transforming skip connections into dense skip connections, which makes each node connected with all previous nodes like Dense-Net. Drozdzal et al. [4] demonstrated the importance of skip connections in U-Net and combined cross entropy and dice coefficient as a loss function. Cicek et al. [2] proposed a 3D version of U-Net to implement 3D image segmentation by inputting continuous 2D slices. Fausto et al. [14] converted the 3D version of U-Net to V-net and used dice coefficient instead of binary cross entropy as a loss function to segment the prostate MRI image. Brosh et al. [1] added skip layers to the first downsampling layer and the last upsampling layer in U-Net individually, which can discover the lesion of brain MRI precisely. X. Li et al. [12] proposed H-DenseUnet with mixed dense connections, reducing the memory consumption of GPU during the training step and excelling in Liver MICCAI 2017. Steven Guan et al. [5] designed FD-Unet to remove artifacts of 2D PAT images reconstructed from sparse data and compared FD-Unet with the standard U-Net in terms of reconstructed image quality.",
+            "cite_spans": [
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 424,
+                    "end": 428,
+                    "text": "[25]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 593,
+                    "end": 596,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 735,
+                    "end": 738,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 854,
+                    "end": 858,
+                    "text": "[14]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1027,
+                    "end": 1030,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1201,
+                    "end": 1205,
+                    "text": "[12]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1376,
+                    "end": 1379,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Improvements Based on U-Net"
+        },
+        {
+            "text": "In addition to the improvements in architecture, advances are being made in some functional operations. Pooling layers as a basic module are widely used in CNNs, which can enlarge the Receptive Field (RF) to make network get more effective information during the training period. However, Pooling operations also lose some spatial information due to reducing the size of images. Theoretically, we cannot remove pooling layers and enlarge the size of convolutional kernels directly, because the larger kernel would result in increasing computational consumption. The larger kernel can be replaced by multiple smaller kernel, keeping the parameter low, which can be seen as imposing a regularization on the larger kernel [18] . Assuming that now we have the 3 \u00d7 3 kernel and the 7 \u00d7 7 kernel, and separately implementing the 3 \u00d7 3 kernel three times, the 7 \u00d7 7 kernel once on the same image. According to (1), we can get the same size of output if other conditions (S and P) are consistent. Moreover, F is assumed to be the channels both of input and output, then a single 7 \u00d7 7 convolution would require",
+            "cite_spans": [
+                {
+                    "start": 719,
+                    "end": 723,
+                    "text": "[18]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Functional Operations"
+        },
+        {
+            "text": "where W is the size of an input image, N is the size of an output image through convolutional operations, F is the size of kernels, P is padding size and S is sliding step. Yu. F et al. [22] used the dilated convolution to replace the pooling operation, which has two advantages. First, it can enlarge the RF without losing information like the pooling operation. Secondly, it can be applied in well situations where the image requires global information. Conditional Random Field (CRF) has been used in the field of image segmentation since 2011 [11] . Later, the CRF was added as a functional module to the back end of the neural network to optimize the segmentation result [23] . Fig. 3, Fig. 4 and Fig. 5 respectively. And (3, 5, 8, 10) , (2, 5, 8, 11) , (3, 5, 8, 12) , (2, 5, 8, 12) represent the positions of Residual Block in the Residual-Shallow U-Net.",
+            "cite_spans": [
+                {
+                    "start": 186,
+                    "end": 190,
+                    "text": "[22]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 547,
+                    "end": 551,
+                    "text": "[11]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 676,
+                    "end": 680,
+                    "text": "[23]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 727,
+                    "end": 730,
+                    "text": "(3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 731,
+                    "end": 733,
+                    "text": "5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 734,
+                    "end": 736,
+                    "text": "8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 737,
+                    "end": 740,
+                    "text": "10)",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 743,
+                    "end": 746,
+                    "text": "(2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 747,
+                    "end": 749,
+                    "text": "5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 750,
+                    "end": 752,
+                    "text": "8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 753,
+                    "end": 756,
+                    "text": "11)",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 759,
+                    "end": 762,
+                    "text": "(3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 763,
+                    "end": 765,
+                    "text": "5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 766,
+                    "end": 768,
+                    "text": "8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 769,
+                    "end": 772,
+                    "text": "12)",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 775,
+                    "end": 778,
+                    "text": "(2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 779,
+                    "end": 781,
+                    "text": "5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 782,
+                    "end": 784,
+                    "text": "8,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 785,
+                    "end": 788,
+                    "text": "12)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 683,
+                    "end": 697,
+                    "text": "Fig. 3, Fig. 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 702,
+                    "end": 708,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Functional Operations"
+        },
+        {
+            "text": "The MIRD-Net proposed by us is briefly shown in Fig. 2 ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 48,
+                    "end": 54,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Overview"
+        },
+        {
+            "text": "Residual Block. Experiments have shown that the extraction of features is affected by the depth of the network [19, 20] . Increasing the layers of a network can make it learn more features, but it can also be accompanied by over-fitting, gradients vanishing and other issues, which leads to the extracted features not being fully used. K. He et al. [6] proposed a residual network, which can reuse the feature from the previous layer (see in Fig. 3 ) and ease the training of deeper networks.",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[19,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "20]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 349,
+                    "end": 352,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 442,
+                    "end": 448,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "where x l represents the output of the current layer, x l\u22121 is the output of the previous layer, and H l (\u00b7) is the non-linear calculation including Conv, ReLU [21] , BN [8] in the Residual Block. Inspired by that, we first reduce the number of layers of U-Net [16] to keep the parameters low, then depositing four Residual Blocks (RB) on up-down sampling path (two RBs on upsampling path and another two RBs on downsampling path) to optimize the performance of the network. Theoretically, the number of Residual Blocks can be chosen alternatively but guided by the target of low parameters and good performance, four Residual Blocks are a more reasonable choice. In the case of four Residual Blocks, we have a further discussion on the position where the Residual Blocks are located (see Fig. 2(a-d) ). And after the position determined, we optimize the Residual Block to get a more elegant block in the same position.",
+            "cite_spans": [
+                {
+                    "start": 160,
+                    "end": 164,
+                    "text": "[21]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 170,
+                    "end": 173,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 261,
+                    "end": 265,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 789,
+                    "end": 800,
+                    "text": "Fig. 2(a-d)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "Dense Block. Within the Dense Block [7] , each layer is connected to all previous layers through concatenation as used in U-Net [16] , which has several advantages: (1) it strengthens feature propagation; (2) it alleviates the gradient vanishing during the training period; (3) it makes the feature reused. Figure 4 shows the layout of a Dense Block. Formally, the x l layer are connected with all previous layers (x l\u22121 , x l\u22122 , . . . , x 0 ):",
+            "cite_spans": [
+                {
+                    "start": 36,
+                    "end": 39,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 307,
+                    "end": 315,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "where x l represents the output of the current layer, x l\u22121 , x l\u22122 , . . . , x 0 are the output of all previous layers connected to x l , * (\u00b7) is the concatenation operation, f [\u00b7] is the non-linear calculation including Conv, ReLU [21] , BN [8] in the Dense Block. Fig. 4 . The architecture of a Dense Block with m convolution layers, c0 is the channel of input image and li (growth rate) is the channel of the convolved image. ReLU [21] and BN [8] are attached to each convolution layer in a Dense Block.",
+            "cite_spans": [
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[21]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 244,
+                    "end": 247,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 436,
+                    "end": 440,
+                    "text": "[21]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 268,
+                    "end": 274,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "The Dense Block is effective for our proposed network, which mainly leads to three major advantages: (1) the parameter space can be managed simply through the l i (growth rate); (2) generally, it is hard to make sure that gradients flow smoothly in back propagation. But the dense connections in Dense Block can alleviate the gradient vanishing; (3) the datasets used in our experiments are small. Therefore, it is important to reuse the features, which can make the network get more information. The dense connections comprehensively utilize features from previous layers (instead of only the last layer), thus making it easier to get a smooth decision function with better performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "Motivated by Residual Block and Dense Block, we integrate them into the inception architecture [20] , which is named Mini-Inception-Residual-Dense Block (see in Fig. 5 ). And depositing two MIRD Blocks on downsampling path where two Residual Blocks are located to replace them, while removing pooling layers. The reason that drives us to remove the pooling layers is because pooling operations could discard some pixel-level information. Let us assume the x l is the output of MIRD Block, and the x l\u22121 is the input of MIRD Block, the relation between x l and x l\u22121 is defined in (4):",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[20]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 161,
+                    "end": 167,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "where G(\u00b7) is the function of Inception Block, H(\u00b7) is the calculation in Dense Block, F (\u00b7) is the calculation in Residual Block. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "MIRD Block"
+        },
+        {
+            "text": "We use the number of parameters of each network and a well-known Dice coefficient for evaluation. The size of each dataset used in our experiment is small like the cells dataset used in U-net (only 30 images), which is inappropriate to divide them into three parts including training set, validation set and test set. Therefore, we split each dataset into five subsets (F1-F5) equally and run a 5-fold cross-validation used in [15] . The MDice (Mean Dice coefficient) and StdDice (Std of Dice coefficient) are defined in (5) (6):",
+            "cite_spans": [
+                {
+                    "start": 427,
+                    "end": 431,
+                    "text": "[15]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "where A ij is the predicted image, B ij is the ground truth corresponding to A ij , and m is the number of images in one subset, r is the fold used in cross-validation. The medical segmentation tasks in our experiments are binary classification problem, so the ground truth B ij is the 0-1 matrix.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "The experiment was conducted on a computer with Intel(R) Core (TM) i7-7700 CPU @ 3.60 GHz, Nvidia GeForce GTX 1080 Ti, 16 GB RAM, and Samsung SSD 850 EVO 500 GB. The operating system is Windows 10(1801). All experiments were run under the Keras framework. Electron microscope image of cells dataset used in U-Net contains 30 images [16] . The size of each image is 512 \u00d7 512 pixels. To compare with U-Net, we choose 30 images in other five datasets (Retinal extraction vessel, Nuclei, Lung, Cervical Cytology, Skin Lesion) respectively, which makes the size of datasets consistent. The detailed information about datasets is presented in Table 1 . ",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 638,
+                    "end": 645,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experimental Platform and Datasets"
+        },
+        {
+            "text": "To start with, we explore the impact of depth on U-Net [16] by reducing and increasing the layers of U-Net. Secondly, based on shallower U-Net, we reduce more layers to get smaller backbone and add four Residual Blocks (RB) into up-down sampling path (two RBs on upsampling path and another two RBs on downsampling path) and have a discussion on the position of Residual Block. Thirdly, based on the best position where the RBs are located; Inception, Dense Block and Residual Block are incorporated into Mini-Inception-Residual-Dense Block to replace the RBs in downsampling path, while the pooling layers also are removed. For hyperparameters, each convolution in the block is followed by BN [8] and ReLU [21] , using Adam optimizer with the following parameters: \u03b2 1 = 0.9, \u03b2 2 = 0.999, = 1e\u22128. The sigmoid function is used in the last layer because our target was a binary classification problem. Due to the small size of Computer's graphics memory, a batch size of 3 was used while setting the epochs to 30. The training image and its corresponding labels are simultaneously rotated counterclockwise by 90 \u2022 , 180 \u2022 , and 270 \u2022 to enlarge the dataset, the kernel size is 3 \u00d7 3 and the stride is 1 in convolutional layers except the specific layer in the block.",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[16]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 694,
+                    "end": 697,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 707,
+                    "end": 711,
+                    "text": "[21]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "For the block we used in the experiment, 1 \u00d7 1 convolutional layer is attached to the output of MIRD Block. And f (\u00b7) in the Dense Block (Eq. (2)) actually includes BN-ReLU-Conv(1\u00d71)-BN-ReLU-Conv(3\u00d73). The cross-entropy is used as the loss function for all the networks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "We apply deeper U-Net (DU-Net), U-Net, shallower U-Net (SU-Net), Residual-Shallow U-Net with different positions of Residual Blocks (see Fig. 2(a-d) ) and MIRD-Net on six segmentation tasks (see Table 1 ). The Dice coefficient and the parameters of networks discussed are reported in Table 2 and Table 3 . The segmented results on some example images are shown in Fig. 6 . Table 2 . Average Dice coefficient and its standard deviation for 5-fold cross validation. Table 2 shows average Dice coefficient and its standard deviation for 5-fold cross validation. When compared to U-Net, DU-Net decreases the accuracy, but SU-Net has better performance on Nuclei and Vessel. It shows that DU-Net is likely to overfit. The Residual Blocks in different positions of up-downsampling path can affect the performance of the network. RSU(35810) (Fig. 2(a) ) performs best in all four RSU-Nets we discussed and outperforms U-Net in six datasets. Moreover, it can be seen that there is obvious improvement by MIRD-Net, which achieves elegant results. The parameters of MIRD-Net are only about 1/50 of U-net (Table 3) , which saves the storage memory. For the slight differences which are hard to see directly, we use red and green circles to highlight each of them (Fig. 6) . The region in red circles represents incomplete correct mask which is compared to the label, the green circles in the results of MIRD-Net show the better performance than that of other networks in the same region. Despite a few incomplete correct masks still exist in the final results, MIRD-Net outperforms the other networks discussed by us in segmenting tiny structure and the edge of target.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 137,
+                    "end": 148,
+                    "text": "Fig. 2(a-d)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 195,
+                    "end": 202,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 284,
+                    "end": 303,
+                    "text": "Table 2 and Table 3",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 364,
+                    "end": 370,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 373,
+                    "end": 380,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 464,
+                    "end": 471,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 834,
+                    "end": 844,
+                    "text": "(Fig. 2(a)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1094,
+                    "end": 1103,
+                    "text": "(Table 3)",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1252,
+                    "end": 1260,
+                    "text": "(Fig. 6)",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Results and Comparison"
+        },
+        {
+            "text": "The reasons why MIRD-Net has a better segmentation result than that of U-Net are as following: (1) there are no pooling layers in MIRD-Net, such a design helps alleviate loss of information during forward propagation; (2) the different kernels (1 \u00d7 1 and 3 \u00d7 3) used in MIRD-Block can make the network obtain large-structure information and tiny-structure information simultaneously; (3) MIRD-Net not only use the standard skip connections used in U-Net but also reuse the feature from previous layer in MIRD-Block, which results in more represented features learned by the network; (4) the connections used in MIRD Block can alleviate the gradient vanishing during the training period.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 98,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results and Comparison"
+        },
+        {
+            "text": "In this paper, we propose a new symmetric deep neural network for medical image segmentation. The new network takes advantage of Inception, Res-Net and Dense-Net, outperforming U-Net in six different image segmentation tasks. Its parameters are only about 1/50 of U-Net. Furthermore, the MIRD Block of our proposed architecture can also be simply added to other backbones as a functional module. The shortcoming is the way to select the position of MIRD Block, and we have not proven that the position of MIRD Block is the best choice in theory. In the future, the research would focus on the relevance between performance and the position of MIRD Block in different backbones, finding a better strategy to determine the position of MIRD Block and simplifying this structure.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Deep 3D convolutional encoder networks with shortcuts for multiscale feature integration applied to multiple sclerosis lesion segmentation",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brosch",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "Y W"
+                    ],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yoo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "K B"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Traboulsee",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tam",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Trans. Med. Imaging",
+            "volume": "35",
+            "issn": "5",
+            "pages": "1229--1239",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "3D U-Net: learning dense volumetric segmentation from sparse annotation",
+            "authors": [
+                {
+                    "first": "\u00d6",
+                    "middle": [],
+                    "last": "\u00c7 I\u00e7ek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abdulkadir",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Lienkamp",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ronneberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ourselin",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Joskowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Sabuncu",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Unal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "MICCAI 2016",
+            "volume": "9901",
+            "issn": "",
+            "pages": "424--432",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-46723-8_49"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Deep neural networks segment neuronal membranes in electron microscopy images",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ciresan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gambardella",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Giusti",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Advances in Neural Information Processing Systems (NIPS)",
+            "volume": "25",
+            "issn": "",
+            "pages": "2843--2851",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "The importance of skip connections in biomedical image segmentation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Drozdzal",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Vorontsov",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chartrand",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kadoury",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Pal",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Fully dense UNet for 2D sparse photoacoustic tomography artifact removal",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Guan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sikdar",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Chitnis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE J. Biomed. Health Inform",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "770--778",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Densely connected convolutional networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "2261--2269",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Batch normalization: accelerating deep network training by reducing internal covariate shift",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ioffe",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the International Conference on International Conference on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "448--456",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "The one hundred layers Tiramisu: fully convolutional DenseNets for semantic segmentation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jegou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Drozdzal",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vazque",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)",
+            "volume": "",
+            "issn": "",
+            "pages": "3--11",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Model-based segmentation of vertebral bodies from MR images with 3D CNNs",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Korez",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Likar",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Pernu\u0161",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Vrtovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ourselin",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Joskowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Sabuncu",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Unal",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "MICCAI 2016",
+            "volume": "9901",
+            "issn": "",
+            "pages": "433--441",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Efficient inference in fully connected CRFs with Gaussian edge potentials",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kr\u00e4henb\u00fchl",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Koltun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Advances in Neural Information Processing Systems (NIPS)",
+            "volume": "24",
+            "issn": "",
+            "pages": "109--117",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "H-DenseUNet: hybrid densely connected UNet for liver and tumor segmentation from CT volumes",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Dou",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Heng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Med. Imaging",
+            "volume": "37",
+            "issn": "12",
+            "pages": "2663--2674",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Y-Net: joint segmentation and classification for diagnosis of breast biopsy images",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mehta",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mercan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bartlett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Weaver",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Elmore",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Shapiro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "MICCAI 2018",
+            "volume": "11071",
+            "issn": "",
+            "pages": "893--901",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-00934-2_99"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "V-Net: fully convolutional neural networks for volumetric medical image segmentation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Milletari",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Navab",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ahmadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on 3D Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "565--571",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Mitosis detection for invasive breast cancer grading in histopathological images",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Mukherjee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Trans. Image Process",
+            "volume": "24",
+            "issn": "11",
+            "pages": "4041--4054",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "U-Net: convolutional networks for biomedical image segmentation",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ronneberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fischer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "MICCAI 2015",
+            "volume": "9351",
+            "issn": "",
+            "pages": "234--241",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-24574-4_28"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Fully convolutional networks for semantic segmentation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Shelhamer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Long",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Pattern Anal. Mach. Intell",
+            "volume": "39",
+            "issn": "4",
+            "pages": "640--651",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Very deep convolutional networks for large-scale image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Rethinking the inception architecture for computer vision",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vanhoucke",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ioffe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shlens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wojna",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "2818--2826",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Going deeper with convolutions",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Deep sparse rectifier neural networks. In: International Conference on Artificial Intelligence and Statistics (AISTATS)",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Glorot",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "315--323",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Multi-scale context aggregation by dilated convolutions",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Koltun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "2015 IEEE International Conference on Computer Vision (ICCV)",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1529--1537",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Three-dimensional CT image segmentation by combining 2D fully convolutional network with 3D majority voting",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ito",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Takayama",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hara",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fujita",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "LABELS/DLMIA 2016",
+            "volume": "10008",
+            "issn": "",
+            "pages": "111--120",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-46976-8_12"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "UNet++: a nested U-Net architecture for medical image segmentation",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rahman Siddiquee",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tajbakhsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Approximate backbone in the variants of U-Net.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Brief description of U-Net, Residual-Shallow U-Net (RSU-Net), MIRD-Net. Residual Block, Dense Block and MIRD Block are shown in",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "(f). It consists of skip connections, downsampling path and upsampling path, but has four different points from U-net: (1) a shallower backbone is used in MIRD-Net, aiming to keep parameter low; (2) the MIRD-Net has no pooling layers, such a design avoids loss of information during forward propagation; (3) MIRD-Net is also designed with MIRD Blocks (Mini-Inception-Residual-Dense Block), which makes the network learn more represented features; (4) two Residual Blocks (RB) are embedded in the upsampling path.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "The Residual Block used in the experiment, 3 \u00d7 3 and 1 \u00d7 1 are the size of filers with N channels, and F (x l\u22121 ) includes Conv, ReLU[21] and BN (Batch Normalization[8])",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Mini-Inception-Residual-Dense Block.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Some results processed by DU-Net, U-Net, SU-Net, RSU-Net(2,5,8,12), RSU-Net(2,5,8,11), RSU-Net(3,5,8,12), RSU-Net(3,5,8,10) and MIRD-Net. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Detailed information of datasets.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "The parameters of each network (\u00d710 6 ).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

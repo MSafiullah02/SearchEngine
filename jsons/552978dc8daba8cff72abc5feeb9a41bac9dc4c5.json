@@ -1,0 +1,2119 @@
+{
+    "paper_id": "552978dc8daba8cff72abc5feeb9a41bac9dc4c5",
+    "metadata": {
+        "title": "Counterfactual Online Learning to Rank",
+        "authors": [
+            {
+                "first": "Shengyao",
+                "middle": [],
+                "last": "Zhuang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Queensland",
+                    "location": {
+                        "settlement": "St Lucia",
+                        "country": "Australia"
+                    }
+                },
+                "email": "s.zhuang@uq.edu.au"
+            },
+            {
+                "first": "Guido",
+                "middle": [],
+                "last": "Zuccon",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Queensland",
+                    "location": {
+                        "settlement": "St Lucia",
+                        "country": "Australia"
+                    }
+                },
+                "email": "g.zuccon@uq.edu.au"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Exploiting users' implicit feedback, such as clicks, to learn rankers is attractive as it does not require editorial labelling effort, and adapts to users' changing preferences, among other benefits. However, directly learning a ranker from implicit data is challenging, as users' implicit feedback usually contains bias (e.g., position bias, selection bias) and noise (e.g., clicking on irrelevant but attractive snippets, adversarial clicks). Two main methods have arisen for optimizing rankers based on implicit feedback: counterfactual learning to rank (CLTR), which learns a ranker from the historical click-through data collected from a deployed, logging ranker; and online learning to rank (OLTR), where a ranker is updated by recording user interaction with a result list produced by multiple rankers (usually via interleaving).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "In this paper, we propose a counterfactual online learning to rank algorithm (COLTR) that combines the key components of both CLTR and OLTR. It does so by replacing the online evaluation required by traditional OLTR methods with the counterfactual evaluation common in CLTR. Compared to traditional OLTR approaches based on interleaving, COLTR can evaluate a large number of candidate rankers in a more efficient manner. Our empirical results show that COLTR significantly outperforms traditional OLTR methods. Furthermore, COLTR can reach the same effectiveness of the current state-of-the-art, under noisy click settings, and has room for future extensions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Traditional learning to rank (LTR) requires labelled data to permit the learning of a ranker: that is, a training dataset with relevance assessments for every querydocument pair is required. The acquisition of such labelled datasets presents a number of drawbacks: they are expensive to construct [5, 25] , there may be ethical issues in privacy-sensitive tasks like email search [37] , and they cannot capture changes in user's preferences [19] .",
+            "cite_spans": [
+                {
+                    "start": 297,
+                    "end": 300,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 301,
+                    "end": 304,
+                    "text": "25]",
+                    "ref_id": null
+                },
+                {
+                    "start": 380,
+                    "end": 384,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The reliance on users implicit feedbacks such as clicks is an attractive alternative to the construction of editorially labelled datasets, as this data does not present the aforementioned limitations [15] . However, this does not come without its own drawbacks and challenges. User implicit feedback cannot be directly treated as (pure) relevance labels because it presents a number of biases, and part of this implicit user signal may actually be noise. For example, in web search, users often examine the search engine result page (SERP) from top to bottom. Thus, higher ranked documents have a higher probability to be examined, attracting more clicks (position bias), which in turn may infer these results as relevant even when they are not [7, 18, 24] . Other types of biases may affect this implicit feedback including selection and presentation bias [2, 16, 40] . In addition, clicks on SERP items may be due to noise, e.g., sometimes users may click for unexpected reasons (e.g., clickbaits and serendipity), and these noisy clicks may hurt the learnt ranker. Hence, in order to leverage the benefits of implicit feedback, LTR algorithms have to be robust to these biases and noises. There are two main categories of approaches to learning a ranker from implicit feedback [14] :",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 204,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 745,
+                    "end": 748,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 749,
+                    "end": 752,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 753,
+                    "end": 756,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 857,
+                    "end": 860,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 861,
+                    "end": 864,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 865,
+                    "end": 868,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1280,
+                    "end": 1284,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(1) Offline LTR: Methods in this category learn a ranker using historical clickthrough log data collected from a production system (logging ranker). A representative method in this category is Counterfactual Learning to Rank (CLTR) [18] , where a user's observation probability (known as propensity) is adopted to construct an unbiased estimator which is used as the objective function to train the ranker. (2) Online LTR (OLTR): Methods in this category interactively optimize a ranker given the current user's interactions. A representative method in this category is Dueling Bandit Gradient Descent (DBGD) [39] , where multiple rankers are used to produce an interleaved 1 results list to display to the user and collect clicks. This signal is used to unbiasedly indicate which rankers that participated in the interleaving process are better (Online Evaluation) and to trigger an update of the ranker in production.",
+            "cite_spans": [
+                {
+                    "start": 232,
+                    "end": 236,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 609,
+                    "end": 613,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The aim of the counterfactual and the online evaluations is similar: they both attempt to unbiasedly evaluate the effectiveness of a ranker and thus can provide LTR algorithms with reliable updating information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we introduce Counterfactual Online Learning to Rank (COLTR), the first online LTR algorithm that combines the key aspects of both CLTR and OLTR approaches to obtain an effective ranker that can learn online from user feedback. COLTR uses the DBGD framework from OLTR to interactively update the ranker used in production, but it uses the counterfactual evaluation mechanism of CLTR in place of online evaluation. The main challenge we address is that counterfactual evaluation cannot be directly used in online learning settings because the propensity model is unknown. This is resolved by mirroring solutions developed for learning in the bandit feedback problem (and specifically the Self-Normalized Estimator [34] ) within the considered ranking task -this provides a position-unbiased evaluation of rankers. Our empirical results show that COTLR significantly improves the traditional DBGD baseline algorithm. In addition, because COTLR does not require interleaving or multileaving, which is the most computationally expensive part in online evaluation [28] , COLTR is more efficient than DBGD. We also find that COLTR performance is at par with the current state-of-the-art OLTR method [22] under noisy click settings, while presenting a number of avenues for further improvement.",
+            "cite_spans": [
+                {
+                    "start": 727,
+                    "end": 731,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1073,
+                    "end": 1077,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1207,
+                    "end": 1211,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The goal of counterfactual learning to rank (CLTR) is to learn a ranker from historical user interaction logs obtained with the ranker used in production. An advantage of this approach is that candidate rankers are trained and evaluated offline, i.e., before being deployed in production, thus avoiding exposing users to rankers of lesser quality compared to that currently in production. However, unlike traditional supervised LTR methods [20] , users interaction data provides only partial feedback which cannot be directly treated as absolute relevance labels [14, 16] . This is because clicks may have not been observed on some results because of position or selection bias, and clicks may have instead been observed because of noise or errors. As a result, much of the prior work has focused on removing these biases and noise.",
+            "cite_spans": [
+                {
+                    "start": 440,
+                    "end": 444,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 563,
+                    "end": 567,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 568,
+                    "end": 571,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "According to position bias, users are more likely to click on top-ranked search results than those at the bottom of the SERP [2, 16, 18] : in CLTR this probability is referred to as propensity. Joachims et al. [18] developed an unbiased (with respect to position) LTR that relies on clicks using a modified SVMRank approach that optimizes the empirical risk computed using the Inverse Propensity Scoring (IPS) estimator. The IPS is an unbiased estimator which can indicate the effectiveness of a ranker given propensity (the probability that the user will examine a document) and click data [18] . However, this approach requires a propensity model to compute the IPS score. To estimate this, randomization experiments are usually required when collecting the interaction data and the propensity model is estimated under offline setting [37, 38] .",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 128,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 129,
+                    "end": 132,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 133,
+                    "end": 136,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 591,
+                    "end": 595,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 837,
+                    "end": 841,
+                    "text": "[37,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 842,
+                    "end": 845,
+                    "text": "38]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Aside from position bias, selection bias is also important, and it dominates problems in other ranking tasks such as recommendation and ad placement. Selection bias refers to the fact that users can only interact with items presented to them. Typically, in ad placement systems, the assumption is made that users examine the displayed ads with certainty if only one item is shown: thus no position bias. However, users are given the chance to click on the displayed item only, so clicks are heavily biased due to selection. User interactions with this kind of systems are referred to as bandit feedback [17, 33, 34] . The Counterfactual Risk Minimization (CRM) learning principle [33] is used to remove the bias from bandit feedback. Instead of a deterministic ranker, this group of methods assume the system relies on the hypothesis that a probability distribution is available over the candidate items, which is used to sample items to show to users. Importance sampling [3] is commonly used to remove selection bias.",
+            "cite_spans": [
+                {
+                    "start": 603,
+                    "end": 607,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 608,
+                    "end": 611,
+                    "text": "33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 612,
+                    "end": 615,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 680,
+                    "end": 684,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 973,
+                    "end": 976,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Online Learning to Rank aims to optimize the production ranker interactively by exploiting user clicks [10, 22, 23, 29] . Unlike CLTR, OLTR algorithms do not require a propensity model to handle position or selection bias. Instead, they assume that relevant documents are more likely to receive more clicks than nonrelevant documents and exploits clicks to identify the gradient's direction.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 107,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Dueling Bandit Gradient Descent (DBGD) based algorithms [39] are commonly used in OLTR. The traditional DBGD uses online evaluation to unbiasedly compare two or more rankers given a user interaction [12, 29] . Subsequent methods developed more reliable or more efficient online evaluation methods, including Probabilistic Interleaving (PIGD) which has been proven to be unbiased [12] . The Probabilistic Multileaving extension (PMGD) [28] , compares multiple rankers at each interaction, resulting in the best DBGD-based algorithm, which reaches a better convergence given less training impressions [23] . However, this method suffers from a high computational cost because it requires sampling ranking assignments to infer outcomes. Further variations that reuse historical interaction data to accelerate the learning in DBDG have also been investigated [10] .",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 199,
+                    "end": 203,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 379,
+                    "end": 383,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 855,
+                    "end": 859,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The current state-of-the-art OLTR algorithm is Pairwise Differentiable Gradient Descent (PDGD) [22] , which does not require sampling candidate rankers to create interleaved results lists for online evaluation. Instead, PDGD creates a probability distribution over the document set and constructs the result list by sampling documents from this distribution. Then the gradients are estimated from pairwise documents preferences based on user clicks. This algorithm provides much better performance than traditional DBGD-based methods in terms of final convergence and user online experience.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The proposed COLTR method uses counterfactual evaluation to estimate the effectiveness of candidate rankers based on the click data collected by the logging ranker. This is unlike DBGD and other OLTR methods that use interleaving. In the counterfactual learning to rank setting, the IPS estimator is used to eliminate position bias [18] , providing an unbiased estimation. However, the IPS estimator requires that the propensities of result documents are known. The propensity of a document is the probability that the user will examine the document. In offline LTR settings, propensities are estimated using offline click-through data, via a randomization experiment [38] . Offline click-through data is not available in the online setting we consider, and thus the use of IPS in such an online setting becomes a challenge. To overcome this, we adapt the counterfactual estimator used in batch learning from logged bandit feedback [32, 34] . This type of counterfactual learning treats rankers as policies and samples documents from a probability distribution to create the result list. This allows us to use importance sampling to fix the distribution mismatch between policies and to use Monte Carlo approximation to estimate the risk function R(f \u03b8 ):",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 668,
+                    "end": 672,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 932,
+                    "end": 936,
+                    "text": "[32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 937,
+                    "end": 940,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "Where k is the number of documents in the result list, \u03b8 is the feature weights of the logging ranker, \u03b8 is the new ranker's feature weights which need to be estimated, and \u03b4 is the reward function. Following the Counterfactual Risk Minimization (CRM) learning principle [33] , we set:",
+            "cite_spans": [
+                {
+                    "start": 271,
+                    "end": 275,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "In counterfactual learning to rank, the user examination is modelled as propensity. In learning from logged bandit feedback, only the examined documents are considered. In the online setting, however, it is unclear how to determine which documents the user has examined (e.g. a user may have considered a snippet, but did not click on it). We make the assumption that users always examine documents from top to bottom, and thus consider the documents ranked above the one that was clicked last as having been examined. With this in place, the reward function described in Eq. 2 can be used to assign rewards to documents in the result list.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "Unlike traditional DBGD-based OLTR which ranks documents according to the scores assigned by the ranking function (i.e., deterministically), COLTR creates the result list to be provided to the user for gathering feedback by sampling documents from a known probability distribution. That is, document d i is drawn from a distribution p(d i |f \u03b8 , D) computed by the logging ranker \u03b8. We use softmax to convert document scores into a probability distribution:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "where \u03c4 is the temperature parameter, which is commonly used in the field of reinforcement learning to control the sharpness of the probability distribution [31] . For high values of \u03c4 (\u03c4 \u2192 \u221e), the distribution becomes uniform. For low values (\u03c4 \u2192 0), the probability of the document with the highest score tends to 1. After a document has been picked, the probability distribution will be renormalized to avoid sampling duplicates. This kind of probabilistic ranker has been used in previous works [4, 14, 22] . While it has been proved that the risk estimator in Eq. 1 is an unbiased estimator, it does suffer from the propensity overfitting problem [34] , i.e., the learning algorithm may learn a ranker that assigns small probability values over all the documents d i in the result list, as this can minimize the risk function.",
+            "cite_spans": [
+                {
+                    "start": 157,
+                    "end": 161,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 499,
+                    "end": 502,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 503,
+                    "end": 506,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 507,
+                    "end": 510,
+                    "text": "22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 652,
+                    "end": 656,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "To address this problem, we use the self-normalized risk estimator R SN (f \u03b8 ) (similar to [34] ):",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 95,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "where: Intuitively, if propensity overfitting does occur, S(f \u03b8 ) will be small, giving a penalty to R SN (f \u03b8 ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "Following the CRM principle, the aim of the learning algorithm is to find a ranker with feature weights \u03b8 that can optimize the self-normalized risk estimator, as well as its empirical standard deviation; formally:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "The V ar(R SN (f \u03b8 )) is the empirical variance of R SN (f \u03b8 ), to compute which we use an approximate variance estimation [27] , where \u03bb = 1 controls the impact of empirical variance:",
+            "cite_spans": [
+                {
+                    "start": 123,
+                    "end": 127,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Counterfactual Evaluation for Online Learning to Rank"
+        },
+        {
+            "text": "The previous section described the counterfactual evaluation that can be used in an online learning to rank setting. Next, we introduce the COLTR algorithm that can leverage the counterfactual evaluation to update the current ranker weights \u03b8 t . COLTR uses the DBGD framework to optimize the current production ranker, but it does not rely on interleaving or multileaving comparisons.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning a Ranker with COLTR"
+        },
+        {
+            "text": "Counterfactual Evaluation (inf er winners(\u03b4 t , \u03b8 t , C, L t , D t , \u03bb)). Algorithm 1 describes the COLTR updating process: similar to DBGD, it requires the initial ranker weights \u03b8 1 , the learning rate \u03b1 which is used to control the update speed, and the step size \u03b7 which controls the gradient size. At each timestamp t, i.e., at each round of user interactions (line 2), the search engine receives a query q t issued by a user (line 3). Then the candidate document set D t is generated given q t (line 4), and the results list L t is created by sampling documents d i without replacement from the probability distribution computed by Eq. 3 (line 5). The results list is then presented to the user and clicks observed. Then the reward label vector \u03b4 t is generated according to Eq. 2 (line 6) 2 . Next, an empty candidate ranker pool C is created (line 7) and candidate rankers are generated and added to the pool (lines [8] [9] [10] [11] [12] . Counterfactual evaluation is used to compute the risk associated to each ranker, as described in Algorithm 2. The rankers with a risk lower than the logging ranker are said to win and are placed in the set W (line 13). Finally, the current ranker weights are updated by adding the mean of the winners' unit vector (line 14) modulated by the learning rate \u03b1.",
+            "cite_spans": [
+                {
+                    "start": 924,
+                    "end": 927,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 928,
+                    "end": 931,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 932,
+                    "end": 936,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 937,
+                    "end": 941,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 942,
+                    "end": 946,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 2."
+        },
+        {
+            "text": "The method COLTR uses for computing gradients is similar to that of DBGD with Multileaving (PMGD) [29] . However, COLTR is more efficient. In fact, it does not need to generate an interleaved or multileaved result list for exploring user preferences. When the length of the result list is large, the computational cost for multileaving becomes considerable. In addition, using online evaluation to infer outcomes is very expensive, especially for probabilistic multileaving evaluation [28] : this type of evaluation requires sampling a large number of ranking assignments to decide which ones are the winner rankers -a computationally expensive operation. In contrast, the time complexity for counterfactual evaluation increases linearly with the number of candidate rankers (the for loop in Algorithm 2, line 3 3 ). To compute the probabilities of sampling documents for the logging and new rankers (Algorithm 2, line 6 and 7), the document scores in Eq. 3 need to be renormalized after each rank: this attracts additional computational cost. For efficiency reasons, we approximate these probabilities by assuming independence, so that we can compute the probabilities only once 4 . As a result, COLTR can efficiently compare a large number of candidate rankers at each interaction.",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 102,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 485,
+                    "end": 489,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 2."
+        },
+        {
+            "text": "Datasets. We used four publicly available web search LTR datasets to evaluate COLTR. Each dataset contains query-document pair features and (graded) relevance labels. All feature values are normalised using MinMax at the query level. The datasets are split into training, validation and test sets using the splits according to the datasets. The smallest datasets in our experiments are MQ2007 (1,700 queries) and MQ2008 (800 queries) [25] , which are a subset of LETOR 4.0. They rely on the Gov2 collection and the query set from the TREC Million Query Track [1] . Query-document pairs are represented with respect to 46 features and 3-graded relevance (from 0, not relevant, to 2, very relevant). In addition to these datasets, we use the larger MLSR-WEB10K [25] and Yahoo! Learning to Rank Challenge datasets [5] . Data for these datasets comes from commercial search engines (Bing and Yahoo, respectively), and relevance labels are assigned on a five-point scale (0 to 4). MLSR-WEB10K contains 10,000 queries and 125 retrieved documents on average, which are represented with respect to 136 features; while, Yahoo! is the largest dataset we consider, with 29,921 queries and 709,877 documents, represented using 700 features.",
+            "cite_spans": [
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[25]",
+                    "ref_id": null
+                },
+                {
+                    "start": 559,
+                    "end": 562,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 759,
+                    "end": 763,
+                    "text": "[25]",
+                    "ref_id": null
+                },
+                {
+                    "start": 811,
+                    "end": 814,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "Simulating User Behaviour. Following previous OLTR work [9, 11, 22, 23, 29, 41] , we use the cascade click model (CCM) [6, 8] to generate user clicks. This click model assumes users examine documents in the result list from top to bottom and decide to click with a probability p(click = 1|R), where R is the relevance grade of the examined document. After a document is clicked, the user may stop examining the remainder of the list with probability p(stop = 1|R). In line with previous work, we study three different user behaviours and the corresponding click models. The perfect model simulates the user who clicks on every relevant document in the result list and never clicks on non-relevant documents. The navigational model simulates the user looking for a single highly relevant document and thus is unlikely to continue after finding the first relevant one. The informational model represents the user that searches for topical information and that exhibits a much nosier click behaviour. We use the settings used by previous work for instantiating these click behaviours, e.g., see Table 1 in [23] . In our experiments, the issuing of queries is simulated by uniformly sampling Baselines. Three baselines are considered for comparison with COLTR. The traditional DBGD with probabilistic interleaving (PIGD) [12] is used as a representative OLTR method -note that COLTR also uses DBGD, but with counterfactual evaluation in place of the interleaving method. For PIGD, only one candidate ranker is sampled at each interaction; sampling occurs by randomly varying feature weights on the unit sphere with step size \u03b7 = 1, and updating the current ranker with learning rate \u03b1 = 0.01. The Probabilistic Multileaving Gradient Descent method (PMGD) [23] is also used in our experiments, as it is the DBGD-based method that has been reported to achieve the highest performance so far for this class of approaches [21] . For this baseline, we use the same parameters settings reported in previous work [22] , where the number of candidates was set to n = 49, step size to \u03b7 = 1 and learning rate to \u03b1 = 0.01. The third baseline we consider is the Pairwise Differentiable Gradient Descent (PDGD) [22] , which is the current state-of-the-art OLTR method. We set PDGD's parameters according to Oosterhuis et al. [22] , and specify learning rate \u03b1 = 0.1 and use zero initialization. For COLTR, we use \u03b7 = 1. We use a learning rate decay for \u03b1: in this case, \u03b1 starts at 0.1 and decreases according to \u03b1 = \u03b1 * 0.99966 after each update. We set the temperature parameter \u03c4 = 0.1 when sampling documents and test different numbers of candidate rankers from n = 1 to n = 999. For all experiments, we only display k = 10 documents to the user, and all methods are used to optimize a linear ranker. Note, we do not directly compared with Counterfactual LTR approaches like that of Joachims et al. [18] because we consider an online setup (while counterfactual LTR requires a large datasets of previous interactions, and the estimation of propensity, which is unfeasible to be performed in an online setting). Evaluation Measures. The Effectiveness of the considered OLTR methods is measured with respect to both offline and online performance. For offline performance, we average the nDCG@10 scores of the production ranker over the queries in the held-out test set. This measure indicates the effectiveness of the learned ranker. The offline performance of each method is measured for 10,000 impressions, and the final offline performance is also recorded. Online performance is computed as the nDCG@10 score produced by the result list displayed to the user during the training phase [13] . This measure indicates the quality of the user experience during training. A discount factor \u03b3 is used to ensure that long-term impressions have less impact, i.e. t=1 nDCG(L t ) \u00b7 \u03b3 t\u22121 . Following previous work [21] [22] [23] , we choose \u03b3 = 0.9995 so that impressions after the horizon of 10,000 have less than a 1% impact. We repeated each experiment 125 times, spread over different training folds. The evaluation results are averaged and statistically significant differences between system pairs are computed using a two-tailed t-test.",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 59,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 64,
+                    "end": 67,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 68,
+                    "end": 71,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 76,
+                    "end": 79,
+                    "text": "41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 119,
+                    "end": 122,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 123,
+                    "end": 125,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1103,
+                    "end": 1107,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1317,
+                    "end": 1321,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1751,
+                    "end": 1755,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1914,
+                    "end": 1918,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 2002,
+                    "end": 2006,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 2195,
+                    "end": 2199,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 2309,
+                    "end": 2313,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 2887,
+                    "end": 2891,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 3676,
+                    "end": 3680,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 3895,
+                    "end": 3899,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 3900,
+                    "end": 3904,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 3905,
+                    "end": 3909,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1092,
+                    "end": 1099,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "We first investigate how the number of candidate rankers impacts offline performance. Figure 1(a) displays the offline nDCG of COLTR and the baselines under the informational click setting when a different number of candidate rankers is used by COLTR (recall that PIGD uses two rankers and PMGD uses 49 rankers). Consider COLTR with one candidate ranker in addition to the production ranker (n = 1) and PIGD: both are considering a single alternative ranker to that in production. From the figure, it is clear that PIGD achieves a better offline performance than COLTR. However, when more candidate rankers are considered, e.g., n is increased to 49, the offline performance of COLTR becomes significantly higher than that of PIGD. Furthermore, COLTR is also better than PMGD when the same number of candidate rankers are considered. Moreover, COLTR allows to efficiently compare a large number of candidate rankers at each interaction (impression), and thus can test with a larger set of candidate rankers. We find that increasing the number of candidate rankers can help boosting the offline performance of COLTR and achieve a higher final converge. When n = 499, COLTR can reach significantly better (p < 0.01) offline performance than PDGD, the current state-of-the-art OLTR method. However, beyond n = 499 there are only minor improvements in offline performance, achieved at a higher computational cost -thus, in the remaining experiments, we consider only n = 499. We also consider long-term convergence. Figure 1 (b) displays the results for COLTR (with n = 499) and the baselines after 100,000 impressions. Because a learning rate decay is used in COLTR, the learning rate becomes insignificant after 30,000 impressions. In order to prevent this to happen, we stop the learning rate decay when \u03b1 < 0.01, and we leave \u03b1 = 0.01 constant for the remaining impressions. The figure shows that, contrary to the results in Fig. 1(a) , PMGD can reach much higher performance than PIGD when enough impressions are considered -this finding is consistent with previously reported observations [22] . Nevertheless, both COLTR and PDGD are still significantly better than PIGD and PMGD, and have similar convergence: their offline performance is less affected by the long term impressions. Figure 2 displays the offline performance across datasets of varying dimensions (small: MQ2007, and large: MSLR-WEB10K) under three different click models and for 10,000 impressions. The results show that PDGD and COLTR outperform PIGD and PMGD for all click models. We also find that, overall, COLTR and the current state-of-the-art online LTR approach, PDGD have very similar learning curves across all click models and datasets, apart for the perfect click model on the MSLR-WEB10K dataset, for which COLTR is severely outperformed by PDGD. Note, the trends observed in Fig. 2 found also for the majority of the remaining datasets. For space reasons, we omit these results from the paper, but we make them available as an online appendix at http://ielab. io/COLTR. Table 1 reports the final convergence performance for all datasets and click models (including statistical significance analysis), displaying similar trends across the considered datasets. ",
+            "cite_spans": [
+                {
+                    "start": 2091,
+                    "end": 2095,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 86,
+                    "end": 97,
+                    "text": "Figure 1(a)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1512,
+                    "end": 1520,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1925,
+                    "end": 1934,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 2286,
+                    "end": 2294,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 2859,
+                    "end": 2865,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 3054,
+                    "end": 3061,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Offline Performance: Final Ranker Convergence"
+        },
+        {
+            "text": "Along with the performance obtained by rankers once training is over, the user experience obtained during training should also be considered. Table 2 reports the online performance of all methods, for all datasets and click models. The state-of-the-art PDGD has the best online performance across all conditions. COLTR outperforms PIGD and PMGD when considering the perfect click model. For other click models, COLTR is better than PIGD but it does provide less cumulative online performance than PMGD, even if it achieves a better offline performance. We posit that this is because PMGD uses a deterministic ranking function to create the result list the user observes, and via multileaving it guarantees that the interleaved result list is not worse than that of the worst candidate ranker. COLTR instead uses a probabilistic ranking function, and if the document sampling distribution is too similar to a uniform distribution, the result list may incorrectly contain many non-relevant documents: this results in a bad online performance. A uniform sampling distribution is obtained because noisy clicks result in some candidate rankers randomly winning the counterfactual evaluation and thus slowing down the gradient convergence and achieving an \"elastic effect\", where the weight vectors go forward in one interaction, and backwards in the next. This will cause the margins between the documents' scores assigned by the ranking function to become too small and thus the softmax function will not generate a \"deterministic\" distribution. This also explains why the online performance is much better when clicks are perfect: the gradient directions corresponding to the winning candidates are likely similar, leading the current ranker moving fast through large gradient updates (no elastic effect). ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 142,
+                    "end": 149,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Online Performance: User Experience"
+        },
+        {
+            "text": "In this paper, we have presented a novel online learning to rank algorithm that combines the key aspects of counterfactual learning and OLTR. Our method, counterfactual online learning to rank (COLTR), replaces online evaluation, which is the most computational expensive step in the traditional DBGD-style OLTR methods, with counterfactual evaluation. COLTR does not derive a gradient function and use it to optimise an objective, but still samples different rankers, akin to the online evaluation practice. As a result, COLTR can evaluate a large number of candidate rankers at a much lower computational expense. Our empirical results, based on publicly available web search LTR datasets, also show that the COLTR can significantly outperform DBGD-style OLTR methods across different datasets and click models for offline performance. We also find that COLTR achieves the same offline performance as the state-ofthe-art OLTR model, the PDGD, across all datasets under noisy click settings. This means COLTR can provide a robust and effective ranker to be deployed into production, once trained online. However, due to the uniform sampling distribution employed by COLTR to select among candidate documents, COLTR has worse online performance than PMGD and PDGD.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Future work will investigate the difference between gradients provided by PDGD and COLTR, as they both use a probabilistic ranker to create the result list. This analysis could provide further indications about the reasons why the online performance of COLTR is limited. Other improvements could be implemented for COLTR. First, instead of stochastically learning at each interaction, historical user interaction data could be used to perform batch learning, which may provide even more reliable gradients under noisy clicks. Note that this extension is possible, and methodologically simple for COLTR, but not for PDGD. Second, the use of the exploration variance reduction method [35, 36] could be investigated to reduce the gradient exploration space: this may solve the uniform sampling distribution problem.",
+            "cite_spans": [
+                {
+                    "start": 682,
+                    "end": 686,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 687,
+                    "end": 690,
+                    "text": "36]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Million query track",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Allan",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Carterette",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Aslam",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Pavlu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Dachev",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kanoulas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "TREC Proceedings",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Bias on the web",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Baeza-Yates",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Commun. ACM",
+            "volume": "61",
+            "issn": "6",
+            "pages": "54--61",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Counterfactual reasoning and learning systems: the example of computational advertising",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bottou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "14",
+            "issn": "1",
+            "pages": "3207--3260",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Learning to rank: from pairwise approach to listwise approach",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 24th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "129--136",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Yahoo! learning to rank challenge overview",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Chapelle",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the Learning to Rank Challenge",
+            "volume": "",
+            "issn": "",
+            "pages": "1--24",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Click models for web search",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Chuklin",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Markov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Synth. Lect. Inf. Concepts Retrieval Serv",
+            "volume": "7",
+            "issn": "3",
+            "pages": "1--115",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "An eye tracking study of the effect of target rank on web search",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Guan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Cutrell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the SIGCHI Conference on Human Factors in Computing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "417--420",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Efficient multiple-click models in web search",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the Second ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "124--131",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Evaluation of methods for relative comparison of retrieval systems based on clickthroughs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 18th ACM Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "2029--2032",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Reusing historical interaction data for faster online learning to rank for IR",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hofmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Schuth",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the Sixth ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "183--192",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Balancing exploration and exploitation in learning to rank online",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hofmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ECIR 2011",
+            "volume": "6611",
+            "issn": "",
+            "pages": "251--263",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-20161-5_25"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A probabilistic method for inferring preferences from clicks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hofmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the 20th ACM International Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "249--258",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Fast and reliable online learning to rank for information retrieval",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hofmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "SIGIR Forum",
+            "volume": "47",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "To model or to intervene: a comparison of counterfactual and online learning to rank from user interactions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jagerman",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Oosterhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "15--24",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Optimizing search engines using clickthrough data",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the Eighth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "133--142",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Accurately interpreting clickthrough data as implicit feedback",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Granka",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hembrooke",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "5",
+            "issn": "",
+            "pages": "154--161",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Deep learning with logged bandit feedback",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Swaminathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The Sixth International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Unbiased learning-to-rank with biased feedback",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Swaminathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schnabel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Tenth ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "781--789",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Online exploration for detecting shifts in fresh intent",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lefortier",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Serdyukov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 23rd ACM International Conference on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "589--598",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Learning to rank for information retrieval",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "3",
+            "issn": "3",
+            "pages": "225--331",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Balancing speed and quality in online learning to rank for information retrieval",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Oosterhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 ACM on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "277--286",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Differentiable unbiased online learning to rank",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Oosterhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 27th ACM International Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "1293--1302",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Probabilistic multileave gradient descent",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Oosterhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Schuth",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ECIR 2016",
+            "volume": "9626",
+            "issn": "",
+            "pages": "661--668",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-30671-1_50"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "In google we trust: users' decisions on rank, position, and relevance",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hembrooke",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lorigo",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Gay",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Granka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "J. Comput.-Mediat. Commun",
+            "volume": "12",
+            "issn": "3",
+            "pages": "801--823",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "How does clickthrough data reflect retrieval quality",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Radlinski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kurup",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 17th ACM Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "43--52",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Simulation and the Monte Carlo Method",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Rubinstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kroese",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Probabilistic multileave for online retrieval evaluation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Schuth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 38th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "955--958",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Multileave gradient descent for fast online learning to rank",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Schuth",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Oosterhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the Ninth ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "457--466",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Multileaved comparisons for fast online evaluation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Schuth",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Sietsma",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lefortier",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 23rd ACM International Conference on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "71--80",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Reinforcement Learning: An Introduction",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sutton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Barto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Batch learning from logged bandit feedback through counterfactual risk minimization",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Swaminathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "16",
+            "issn": "1",
+            "pages": "1731--1755",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Counterfactual risk minimization: learning from logged bandit feedback",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Swaminathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "814--823",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "The self-normalized estimator for counterfactual learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Swaminathan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3231--3239",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Variance reduction in gradient exploration for online learning to rank",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mccord-Snook",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Efficient exploration of gradient space for online learning to rank",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Langley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mccord-Snook",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "145--154",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Learning to rank with selection bias in personal search",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bendersky",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Najork",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 39th International ACM SIGIR conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "115--124",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Position bias estimation for unbiased learning to rank in personal search",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Golbandi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bendersky",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Najork",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Eleventh ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "610--618",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Interactively optimizing information retrieval systems as a dueling bandits problem",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yue",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Joachims",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 26th Annual International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1201--1208",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Beyond position bias: examining result attractiveness as a source of presentation bias in clickthrough data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yue",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Patel",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Roehrig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of the 19th International Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "1011--1018",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Relative confidence sampling for efficient on-line ranker evaluation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zoghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Whiteson",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Munos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 7th ACM International Conference on Web Search and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "73--82",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "performance for 10,000 impressions, for COLTR under different settings of n and the baselines.(b) Long term offline performance (100,000 impressions). For clarity, only n = 499 is reported for COLTR.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Offline performance on the MQ2007 with the informational click model. from the training dataset (line 3 in Algorithm 1). Then a result list is generated in answer to the query and the list is then displayed to the user. Finally, user's clicks on displayed results are simulated using CCM.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Offline performance under three different click models",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Algorithm 1. Counterfactual Online Learning to Rank (COLTR). 1: Input: Initial weights \u03b81, ranking function f , reward function \u03b4, number of candidate ranker n, learning rate \u03b1, step size \u03b7, variance control \u03bb; 2: for t \u2190 1....\u221e do j\u2208W uj //update \u03b8t to the mean of winners' unit vector 15: end for",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Input: rewards \u03b4t, logging ranker \u03b8t candidate ranker set C, result list Lt, candidate document set Dt, variance control \u03bb; 2: R \u2190 [\u03b8t], k \u2190 length(Lt) 3: for \u03b8i in C do",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Offline nDCG performance obtained under different click models. Significant gains and losses of COLTR over PIGD, PMGD and PDGD are marked by , (p < 0.05) and , (p < 0.01) respectively.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Online cumulative nDCG performance under different click models. Significant gains and losses of COLTR over PIGD, PMGD and PDGD are marked by , (p < 0.05) and , (p < 0.01) respectively.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Dr Guido Zuccon is the recipient of an Australian Research Council DECRA Research Fellowship (DE180101579) and a Google Faculty Award.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements."
+        }
+    ]
+}

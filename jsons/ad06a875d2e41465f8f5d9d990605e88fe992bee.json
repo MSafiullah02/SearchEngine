@@ -1,0 +1,1042 @@
+{
+    "paper_id": "ad06a875d2e41465f8f5d9d990605e88fe992bee",
+    "metadata": {
+        "title": "JPLink: On Linking Jobs to Vocational Interest Types",
+        "authors": [
+            {
+                "first": "Amila",
+                "middle": [],
+                "last": "Silva",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Melbourne",
+                    "location": {
+                        "settlement": "Melbourne",
+                        "country": "Australia"
+                    }
+                },
+                "email": "amila.silva@student.unimelb.edu.au"
+            },
+            {
+                "first": "Pei-Chi",
+                "middle": [],
+                "last": "Lo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Management University",
+                    "location": {
+                        "settlement": "Singapore",
+                        "country": "Singapore, Singapore"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ee-Peng",
+                "middle": [],
+                "last": "Lim",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Management University",
+                    "location": {
+                        "settlement": "Singapore",
+                        "country": "Singapore, Singapore"
+                    }
+                },
+                "email": "eplim@smu.edu.sg"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Linking job seekers with relevant jobs requires matching based on not only skills, but also personality types. Although the Holland Code also known as RIASEC has frequently been used to group people by their suitability for six different categories of occupations, the RIASEC category labels of individual jobs are often not found in job posts. This is attributed to significant manual efforts required for assigning job posts with RIASEC labels. To cope with assigning massive number of jobs with RIASEC labels, we propose JPLink, a machine learning approach using the text content in job titles and job descriptions. JPLink exploits domain knowledge available in an occupation-specific knowledge base known as O*NET to improve feature representation of job posts. To incorporate relative ranking of RIASEC labels of each job, JPLink proposes a listwise loss function inspired by learning to rank. Both our quantitative and qualitative evaluations show that JPLink outperforms conventional baselines. We conduct an error analysis on JPLink's predictions to show that it can uncover label errors in existing job posts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Motivation. Job profiling refers to uncovering important characteristics of jobs for generating useful insights about job trends and for matching jobs with talents. According to Holland's theory [5] , each occupation (or applicant) can be assigned 1 to 3 out of 6 personality types characterizing different personality types. These personality types are assigned RIASEC labels: Realistic (R), Investigative (I), Artistic (A), Social (S), Enterprising (E) and Conventional (C) (see Fig. 1a ). Ideally, one should match people with jobs based on personality types, assuming that all other job criteria (e.g., skills, abilities, knowledge, etc.) are already met. For example, doctor, researcher, and lawyer are jobs ideal for people with investigative personality type, while photographer, musician, and architect are jobs ideal for people with artistic personality type.",
+            "cite_spans": [
+                {
+                    "start": 195,
+                    "end": 198,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 481,
+                    "end": 488,
+                    "text": "Fig. 1a",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Nevertheless, RIASEC labels are usually not found in the job descriptions. Experts in the past attempted to focus on manually performing personality type annotations at the occupation level as each occupation represents a set of jobs involving similar job tasks (see Fig. 1b for examples). Such an approach assumes that jobs of the same occupation share the same personality types. This assumption does not always work well when people are often expected to be recommended specific jobs instead of occupations. Also, the manual approach does not timely profile new occupations which are expected to emerge at faster pace due to recent technology disruptions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 267,
+                    "end": 274,
+                    "text": "Fig. 1b",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Objectives. We aim to determine the personality types of a large collection of job posts. In this task, one has to address a few research challenges: (a) limited labeled data; (b) noisy word semantics; and (c) ranked personality types.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "First, there are very limited labeled data available for training and evaluation. One can certainly find pre-existing occupations labeled with personality types but not jobs. To the best of our knowledge, the number of occupations is usually at the scale of less than 1500, much smaller than the millions of job posts available. In this work, we use the labeled data available in O*NET at the occupation level, which consists of 974 different occupations with RIASEC labels. Without labeled jobs as ground truth, we have to use labeled occupations in some distant supervision solution approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Second, the description for the same job can be vastly different due to different word choices, job scopes and requirements. One has to accommodate these differences in developing an accurate prediction model. Although there are previous attempts to use pre-trained word embedding to profile job posts [16] , domain-specific words are not accurately represented in pre-trained word embeddings as they often do not carry their domain-specific meanings in a general corpus. For instance, the word spark in a software developer job mostly refers to a cluster computing framework, although it means \"an emission of fire or electricity\" in a general corpus.",
+            "cite_spans": [
+                {
+                    "start": 302,
+                    "end": 306,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Finally, up to three personality types can be associated with a job post and they are ranked. We thus require the prediction model to recover the ranking.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To address these challenges, we propose JPLink, a framework to profile jobs with their personality types, which: (1) jointly learns domain-specific word and occupation representations using knowledge available in O*NET. To the best of knowledge, this is the first work to learn word representations specific to occupations and jobs; (2) incorporates a novel supervised approach to assign RIASEC labels to occupations and job posts using their text context, which considers the inter-correlations among RIASEC dimensions. JPLink outperforms the conventional baselines by 4.86% and it yields a high ranking accuracy measured by NDCG (=0.949); and (3) predicts the personality type labels for a set of job posts, extracted from Singapore's JobsBank 1 , for which weak labels are assigned using a distant supervision approach. Our error analysis shows JPLink can effectively overcome the imperfections caused by the limitation of assuming all jobs of the same occupation share the identical personality type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contributions."
+        },
+        {
+            "text": "Personality types have been extensively studied using empirical evidence. The study in [10] provides empirical evidence of the personality type dimensions underlying the hexagon of Hollands' theory and it shows that individuals' personality types characterize the tasks they prefer to perform in jobs. [11] introduces a procedure to associate occupations with Holland's hexagon (Hexagon Congruence Index ) using the personality type scores and empirically shows that Hexagon Congruence Index provides a basis for a new index of congruence (e.g., person-occupation, occupation-occupation), by which similar occupations and user profiles can be identified.",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 302,
+                    "end": 306,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Nevertheless, there are very little efforts on assigning personality types to jobs as opposed to occupations. To the best of our knowledge, there are three types of methods for occupational level personality type determination: (a) Incumbent Method, in which the personality type of an occupation is the average of the personality types of a representative sample of workers taking jobs of that occupation (based on the Holland's idea that people sharing the same occupation represent the occupation). This method requires the personality types of many individuals and is therefore very costly (i.e., less practical); (b) Empirical Method, which uses occupational analysis data (collected using Incumbent Method ) to develop classifiers to predict the personality type of occupations; and (c) Judgment Method, which involves trained experts making direct personality type assignment to occupations. An example for such an approach is O*NET interest profiler [12] . It constructs initial personality type of occupations based on discriminant functions derived from the ratings of Occupational Units [12] . Judgment method is then performed to fine-tune the constructed personality profiles using expert knowledge. Usually, human judges are trained to determine occupations' personality profiles after looking at attributes of occupations such as title, description, and job tasks. Hence, such an approach requires a considerable human effort. It is also difficult to extend this kind of approach for new emerging occupations and jobs. Almost all these previous efforts share the assumption of all job posts of the same occupation share the same personality type. This differentiates our research from them.",
+            "cite_spans": [
+                {
+                    "start": 958,
+                    "end": 962,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1098,
+                    "end": 1102,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "For the purpose of learning domain-specific word embedding as well as for evaluation of interest profile prediction, we crawled the O*NET occupation knowledge base which covers 1110 different occupations and their RIASEC profiles, which is publicly available at https://www.onetonline.org/. Each occupation has a profile consisting of six numerical scores in the range [0, 100], one for each RIASEC dimension. The dimensions with scores more than 50 are known as the interest codes of the occupation. For example, an occupation with profile of (R = 80, I = 40, A = 20, S = 60, E = 10, C = 70) will be assigned the Holland codes R, C and S. The rightmost column in Table 1 shows the RIASEC distribution for the 1110 occupations found in O*NET. Table 1 depicts the Spearman's correlation between personality type dimensions. We observe that the correlations among dimension is consistent with Holland's Hexagonal Model (Fig. 1a) . The opposite and consecutive dimensions in Holland's Hexagon have significant negative correlations (e.g., Realistic vs Social, Enterprising vs Investigative, and Artistic vs Conventional) and positive correlations (e.g., Artistic vs Social) respectively.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 664,
+                    "end": 671,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 743,
+                    "end": 750,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 917,
+                    "end": 926,
+                    "text": "(Fig. 1a)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Occupation-Specific Knowledge Base Extraction"
+        },
+        {
+            "text": "In other words, jobs for realistic people may not suit social people, jobs for enterprising people may not suit investigative people, etc. On the other hand, artistic people may be able to take on social jobs. O*NET also identifies similar occupations for each occupation. We thus construct a network of similar occupations known as occupation network and measure homophily of RIASEC labels in occupation network using Affinity [7] measure, which is defined as the ratio between the observed fraction of links between interest dimension sharing occupations in the network, and the expected fraction of links between interest dimension sharing occupations. Here, we assign each occupation in the network with its highest-scored RIASEC dimension. The occupation network reports an Affinity of 2.82 ( 1), implying that occupations connected by a link in the network are 2.82 times more likely to share the similar dimension than that between any two random occupations. Such a strong homophily property demonstrates the importance of taking advantage of O*NET occupation network information for RIASEC prediction.",
+            "cite_spans": [
+                {
+                    "start": 428,
+                    "end": 431,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Occupation-Specific Knowledge Base Extraction"
+        },
+        {
+            "text": "To quantitatively evaluate JPLink, we crawled a set of 217,874 job posts from Singapore's Jobsbank posted during the period from September 2017 to December 2018. Each job post consists of fields such as job title, skill description, and SSOC (Singapore Standard Occupational Classification) 2 category. These job posts however do not come with any personality type profile.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extraction of Job Posts from Singapore's JobsBank"
+        },
+        {
+            "text": "Weakly Labelling Personality Type Profile of Job Posts. As mentioned in Sect. 2, personality type profiles are only available at the occupation level, not at the job level. While each job post has an SSOC code corresponding to some occupation, the code is not associated with RIASEC profiles. To derive the latter, we propose a distant supervised approach to map SSOC occupations to most similar O*NET occupations (for which personality types are assigned). Since there is no direct mapping between SSOC and SOC, we first use a mapping table 3 matching SSOC occupation codes with ESCO occupation codes which are the occupation codes standardized in the EU region. Subsequently, we determine the most similar SOC occupations for each ESCO occupation using another mapping table from Bureau of Labor Statistics of USA 4 . Finally, the RIASEC profile of an SSOC occupation is defined as the average of its similar SOC occupations' profiles. Following the assumption that jobs have RIASEC profiles similar to their occupations, we assign weak interest profile labels to the job posts. In this way, we are able to map 96.71% of SSOC occupations to 96.57% of ESCO occupations, and finally 75.23% of SOC occupations. This amounts to 171,946 job posts assigned with weak interest profile labels, which are used in Sect. 6 to train JPLink and to evaluate the prediction accuracy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Extraction of Job Posts from Singapore's JobsBank"
+        },
+        {
+            "text": "We define the RIASEC profile prediction problem to consist of (a) learning domain-specific representations for words and occupations; and (b) prediction of personality profiles (RIASEC dimensions) for occupations and job posts. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RIASEC Profile Prediction Problem"
+        },
+        {
+            "text": "Our proposed JPLink framework consists of three parts as depicted in Fig. 2: (1) learning job-domain specific embedding for words and occupations (JPLink-Emb); (2) prediction of personality type profiles for occupations and jobs (JPLink-Pred); and (3) representation construction for new occupations or job posts.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 69,
+                    "end": 76,
+                    "text": "Fig. 2:",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "JPLink"
+        },
+        {
+            "text": "JPLink-Emb is motivated by skip-gram model [6] , a popular language model in NLP. For a given set of sentences, the skip-gram model loops on the words in each sentence and uses the current word to predict its neighbors. Formally, for a given sentence w 1 , w 2 , w 3 , ..., w T , the skip-gram model maximizes:",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 46,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Learning Job-Domain Specific Embedding for Words and Occupations (JPLink-Emb)"
+        },
+        {
+            "text": "where c is the window size around the center word w t . By doing so, representations of the words with similar context will be closed to each other in the embedding space (second order proximity is preserved). Generally, the skip-gram model is trained on a large general text corpora (i.e., Wikipedia and Google News) which do not carry any occupation-specific knowledge. The trivial way of constructing representations for multi-word entities is taking the mean representation of the words in the particular entity (e.g., the representation of \"computer programmer\" is the mean of the representations of \"computer\" and \"programmer\"). We refer this approach as PretrainedEmb for the rest of this paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Job-Domain Specific Embedding for Words and Occupations (JPLink-Emb)"
+        },
+        {
+            "text": "Knowledge Graph Construction. In our model, a knowledge graph G is constructed, in which both w \u2208 W and o \u2208 O are nodes. We create edges between two occupations by connecting each o \u2208 O to the similar occupations in E o . For each o \u2208 O, a set of discriminative words are selected from W o and these are connected to the o's node. This derives a graph G with useful first-order context to represent each node (word or occupation).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Job-Domain Specific Embedding for Words and Occupations (JPLink-Emb)"
+        },
+        {
+            "text": "We perform random walks around each node in G and then the skip-gram model is used to learn representations for nodes, considering random walk sequences are analogous to sentences in a language. Due to the importance of first-order context, we perform breadth-first random walks with random restarts (inspired by node2vec [4] ). We observe that such a procedure provides the relevant context for each node and outperforms conventional network representation learning techniques (e.g., deepwalk [8] and LINE [14] ) for this particular task.",
+            "cite_spans": [
+                {
+                    "start": 322,
+                    "end": 325,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 494,
+                    "end": 497,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 507,
+                    "end": 511,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Learning Job-Domain Specific Embedding for Words and Occupations (JPLink-Emb)"
+        },
+        {
+            "text": "In this work, the discriminative words are determined empirically by their normalized document frequency < 10%. We leave the exploration of other threshold settings and the embedding schemes for knowledge graph to future work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning Job-Domain Specific Embedding for Words and Occupations (JPLink-Emb)"
+        },
+        {
+            "text": "We formulate the predicted personality type profile (\u0177 o \u2208 R 1\u00d76 ) of an occupation o as a linear projection A of input features followed by a bias offset b and a softmax activation function. Formally,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Predictions of Personality Type Profiles for Occupations and Jobs (JPLink-Pred)"
+        },
+        {
+            "text": "denotes the embedding of o while A 6\u00d7k and b 1\u00d76 are the trainable linear projection matrix and bias offsets respectively. As we defined in Sect. 4, the objective of this prediction model is to produce correct ranking of the personality type dimensions for a given o. This motivates us to propose an approach to predict the personality type profiles by learning to rank [1, 2] . We introduce a listwise loss function for learning, which consider the relative ranking information of all RIASEC dimensions together. We adopt ListNet [2] , a listwise learning to rank method, to compute the target top one probability of dimension d for a given occupation o as,",
+            "cite_spans": [
+                {
+                    "start": 370,
+                    "end": 373,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 374,
+                    "end": 376,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 531,
+                    "end": 534,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Predictions of Personality Type Profiles for Occupations and Jobs (JPLink-Pred)"
+        },
+        {
+            "text": "y o is used as the corresponding modeled top one probability. Then, JPLink-Pred optimizes the following loss function using SGD,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Predictions of Personality Type Profiles for Occupations and Jobs (JPLink-Pred)"
+        },
+        {
+            "text": "Once the prediction model is learned, we can apply the model to predict personality type profiles of jobs. Before that, we construct the representations of a new job. Given a job j, we use words appearing in the job title W t j and job description W d j to generate representation f (j) as shown in Eq. 3. The representation for a new occupation can be constructed in the same way.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Construct Representations of New Occupations or Jobs"
+        },
+        {
+            "text": "denote the representations constructed for the job (or occupation) title and job (or occupation) description respectively. The parameter \u03b2 controls the importance given to title and description in the final representation. The optimal value of \u03b2 is determined using a grid search (see [13] for detailed results).",
+            "cite_spans": [
+                {
+                    "start": 285,
+                    "end": 289,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Construct Representations of New Occupations or Jobs"
+        },
+        {
+            "text": "Baselines. We compare JPLink-Emb with two baselines: (1) Pre-trainedEmb, which adopts the pretrained word embeddings 5 as introduced in Sect. 5.1; and (2) Wikipedia2Vec, which adopts the model proposed in [15] to jointly learn embedding for words and multi-word entities, considering occupations as entities.",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 209,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We compare JPLink-Pred with two well known baselines: (1) Point, which adopts Logistic Regression classifier with binary cross entropy loss. Point ignores the relative ranking of the RIASEC dimensions; and (2) Pair, which adopts the pairwise learning to rank loss function proposed in RankNet [1] .",
+            "cite_spans": [
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "RankNet considers the relative ranking information between pairs of output dimensions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Measuring Performance. As claimed by [3] , occupations should be characterized by a variable size set of interest dimensions. Hence the prediction engine should be capable to produce the correct ranking of RIASEC dimension for a given occupation o or job j. We thus measure the performance of RIASEC dimension prediction using Normalized Discounted Cumulative Gain (NDCG), which is commonly used to evaluate the performance of rankers in a multi-graded relevance setting. To calculate NDCG, each RIASEC dimension ",
+            "cite_spans": [
+                {
+                    "start": 37,
+                    "end": 40,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "NDCG for job j can be similarly defined by replacing o by j, and \u03c3 o by \u03c3 j .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "In this section, we compare different embedding techniques (i.e., JPLink-Emb, PretrainedEmb and Wikipedia2Vec). The size of the embedding is set to 300 for all three methods. We train both JPLink-Emb and Wikipedia2Vec using O*NET, which are initialized using PretrainedEmb.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation of the Job-Domain Specific Embeddings"
+        },
+        {
+            "text": "Qualitative Evaluation. Our first evaluation is qualitative: we randomly select a few target occupations and manually inspect the 5 most similar occupations and words to the target occupations (by cosine similarity) using the three occupation/word embedding representations. Due to the space limitations, we direct readers to [13] for the detailed results of the experiment. We first discuss the most similar occupations. For almost all the target occupations, PretrainedEmb returns similar occupations which have overlapping words with the target occupations. For example, the target occupation \"financial managers\" is similar to several other occupations of \"manager\" role. The target occupation \"technical writers\" is similar to occupations containing \"technical\" and/or \"writers\" in their titles. On the other hand, JPLink-Emb produces similar occupations that may not have overlapping words. For example, JPLink-Emb shows \"financial managers\" and \"loan officers\" are similar, \"health educators\", \"rehabilitation counselors\" and \"recreational therapists\" are similar, which are reasonable with respect to their domains. In contrast, Wikipedia2Vec produces some of the similar occupations that are less obvious, e.g., an occupation similar to \"technical writers\" is \"broadcast news analysts\". Also, when we compute the proportion of the 20 most similar occupations returned by each embedding scheme appearing as similar occupations of the target occupations in O*NET. We found that only 20% of similar occupations by PretrainedEmb appears in O*NET for the target occupations. In contrast, JPLink-Emb and Wikipedia2Vec show 55% and 40% of their 20 most similar occupations appearing in O*NET respectively. This shows the importance of incorporating O*NET knowledge base into the learning of occupation representations. We next analyse the most similar words to the target occupations. Pre-trainedEmb returns either target occupation title words or their synonyms. E.g., \"writers\" and \"technical\" are the most similar words for technical writers, while \"investors\" and \"bankers\" are for financial managers. JPLink-Emb and Wikipedia2Vec, on the other hand, returns domain-specific words associated with the occupational tasks. E.g., \"lifestyle\", \"smoking\", \"vaccines\" and \"nutritionally\" are words relevant to the tasks of the target occupation health educators. These words are useful to understand the requirement of health educator occupation. Because usually words overlapped with the title and its synonyms do not appear in job descriptions. Instead of that domain-specific information (tasks and skills) related to the jobs are appeared in the description.",
+            "cite_spans": [
+                {
+                    "start": 326,
+                    "end": 330,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation of the Job-Domain Specific Embeddings"
+        },
+        {
+            "text": "To quantitatively evaluate our end-to-end framework, we report the results for the task of predicting the RIASEC labels for occupations. In this experiment, we trained the prediction models (POINT, PAIR and JPLink-Pred) using 50% of 974 O*NET occupations and then the model is evaluated using the predicted RIASEC labels for the rest 50%, using different occupation representations. As shown in Table 2 , JPLink-Emb outperforms PretrainedEmb and Wikipedia2Vec for all the three prediction methods. Wikipedia2Vec is slightly better than PretrainedEmb in this prediction task. These results are consistent with our qualitative analysis results.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 395,
+                    "end": 402,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Quantitative Evaluation."
+        },
+        {
+            "text": "Among the three prediction methods, POINT shows the worst performance as it does not consider the relative ranking of RIASEC dimensions. And JPLink-Pred consistently outperforms PAIR which only considers the relative ranking of pairs of RIASEC dimensions. This observation shows the importance of having ranking information of RIASEC dimensions in the training phase to capture significant relationships among RIASEC dimensions in Table 1 . To illustrate this fact further, we further analyze the learned parameters of the JPLink-Pred model. As depicted in Table 3 , in JPLink-Pred, each row in the A projection matrix corresponds to the linear mapping learned for a RIASEC dimension. As shown in Table 3 , the correlations among the rows of A reflect the actual correlations between the corresponding RIASEC dimensions. These correlations are consistent with those seen in Table 1 . Moreover, we also found the bias values (b) of our model are consistent with the actual distribution of RIASEC dimensions in O*NET. Hence, we can say that JPLink is capable of capturing the inherent patterns of the interest dimensions. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 431,
+                    "end": 438,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 557,
+                    "end": 564,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 697,
+                    "end": 704,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 874,
+                    "end": 881,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Quantitative Evaluation."
+        },
+        {
+            "text": "Here, we analyze the predictive power of our model trained using occupation data to predict the personality type profiles of 171,946 job posts with weak RIASEC profiles (see Sect. 3). To derive the representation of these job posts, we use the approach introduced in Eq. 3. We observe that JPLink-Pred model with JPLink-Emb embeddings consistently gives the best performance for all different \u03b2 settings. The \u03b2 values in the range of [0.6, 0.7] give the best performance for JPLink (see [13] for detailed results). This means that job title should be given more weight (60%) when constructing the representation of job posts, which is consistent with the results in [16] .",
+            "cite_spans": [
+                {
+                    "start": 487,
+                    "end": 491,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 666,
+                    "end": 670,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Prediction of Personality Type Profiles for Job Posts"
+        },
+        {
+            "text": "Error Analysis. In the above results, we use the weak labels derived by a distant supervision approach for the evaluation. There might be some imperfections in these labels. In addition, we use the SSOC occupation label assigned to job posts from Singapore Jobsbank in the weakly labeling approach (see Sect. 3), which might not be perfectly accurate too. To identify whether these imperfections adversely affect our evaluation, we manually inspect a few job posts that are wrongly predicted from our model. Table 4 lists a few cases where JPLink wrongly predicts labels. In these example cases, job titles and descriptions do not tally with the corresponding occupations (assigned by the current system). For instance, the job title lead full stack developer is assigned to the occupation category, \"Graphics and Multimedia Designers and Artists\", instead of an occupation related to software development (e.g., Software Developer). JPLink actually predicts a personality type profile appropriate to the occupations like Software Developer ({I, R, C, E, A, S}). Similarly, the predicted interest profiles for other example cases are reasonable with respect to their descriptions and titles. These results further signify the potential of this work to replace the current labor-intensive manual approach to profile job posts.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 508,
+                    "end": 515,
+                    "text": "Table 4",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Prediction of Personality Type Profiles for Job Posts"
+        },
+        {
+            "text": "In this paper, we proposed JPLink, a framework to automate the profiling of jobs with their interest profiles. JPLink: (1) explored the domain-specific knowledge available in O*NET to improve existing word and occupation representations, which are subsequently used as input features to assign corresponding interest profiles; and (2) proposed a novel loss function for the prediction of RIASEC profiles, which captures the interrelationship between RIASEC dimensions. Finally, we profiled a set of job posts using JPLink and showed that our model managed to identify a type of imperfection, existed in the current profiling system. There might be other imperfections in the current system (e.g., imperfections in mapping between different occupation taxonomies), which could be identified via a deep analysis of our predictions with the knowledge of domain experts. Also, our model can be used to understand individuals' behaviors using the job posts that they prefer to apply. For instance, if individuals tend to apply for jobs with similar interest profiles, our model might be used to infer individuals' interest profile, which is currently collected via surveys. Likewise, we believe that our effort will open the door for many promising research directions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Learning to rank using gradient descent",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Burges",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Learning to rank: from pairwise approach to listwise approach",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Using career-related aspects to elicit preferences and characterize occupations for a better person-environment fit",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gati",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "J. Vocat. Behav",
+            "volume": "52",
+            "issn": "3",
+            "pages": "343--356",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "node2vec: scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of KDD",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Making Vocational Choices: A Theory of Vocational Personalities and Work Environments",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Holland",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Psychological Assessment Resources",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "You are who you know: inferring user profiles in online social networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mislove",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Viswanath",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Gummadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Druschel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of WSDM",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Deepwalk: online learning of social representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Al-Rfou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of KDD",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Mapping occupations and interests: a graphic aid for vocational guidance and research",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Prediger",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "Vocat. Guidance Q",
+            "volume": "30",
+            "issn": "1",
+            "pages": "21--36",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Dimensions underlying Holland's hexagon: missing link between interests and occupations?",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Prediger",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "J. Vocat. Behav",
+            "volume": "21",
+            "issn": "3",
+            "pages": "259--287",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Locating occupations on Holland's hexagon: beyond RIASEC",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Prediger",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Vansickle",
+                    "suffix": ""
+                }
+            ],
+            "year": 1992,
+            "venue": "J. Vocat. Behav",
+            "volume": "40",
+            "issn": "2",
+            "pages": "111--128",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Development of occupational interest profiles for O*NET",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Rounds",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Hubert",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rivkin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "JPLink: on linking jobs to vocational interest types",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Silva",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pei-Chi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ee-Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2002.02557"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Line: large-scale information network embedding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Mei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Joint learning of the embedding of words and entities for named entity disambiguation",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Yamada",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Shindo",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Takeda",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Takefuji",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of SIGNLL",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Document embedding strategies for job title classification",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Javed",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ozturk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of FLAIRS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "(a) The Hexagonal Model of Holland's vocational interest types (source: [9]); and (b) a few examples for jobs and occupations (source: O*NET)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "JPLink framework Formally, let O = {o 1 , o 2 , ..., o n } is the 1110 (= n) occupations available in O*NET. Each occupation o \u2208 O is a tuple W o , E o , y o , where W o is a sequence of words describing the tasks, job activities, and other aspects of occupation o, and E o is the set of similar occupations to o. The personality profile of o is denoted as y o a vector with elements y d o \u2208 R [0,100] which is the score of the d th dimension, where d \u2208 {R, I, A, S, E, C} represents the personality type dimensions. Learning Domain-Specific Word and Occupation Representations. The goal of this task is to learn mapping function f : w|o \u2192 R 1\u00d7k for o \u2208 O, w \u2208 W , where W = o W o and k is the dimension of the embedding space. W o denotes the set of words in occupation o.Prediction of RIASEC/Personality Type Profiles for Occupations and Job Posts.Here, our goal is to predict personality type profile\u0177 o for a given o \u2208 O or\u0177 j for a given job post j \u2208 J, where J is the set of job posts. A job post j is a tuple W t j , W d j , where both W t j and W d j are word sequences to represent j's title and description respectively.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "(d \u2208 {R, I, A, S, E, C}) is assigned a relevance score R d (o) using the ground truth score (y d o ) taken from O*NET for o as R d (o) = y d o /20 , where . denotes the conventional floor operator. Suppose a method ranks the interest dimensions of an occupation o as\u03c3 o such that\u03c3 o (l) (1 \u2264 l \u2264 6) returns the l th ranked interest dimension. We then define NDCG to be:",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Descriptive Statistics of O*NET knowledge base",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "RAISEC profile prediction result -NDCG@6",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "A few job posts predicted with \"wrong\" RIASEC profile by JPLink",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This research was supported by the National Research Foundation, Prime Minister's Office, Singapore under its International Research Centres in Singapore Funding Initiative.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

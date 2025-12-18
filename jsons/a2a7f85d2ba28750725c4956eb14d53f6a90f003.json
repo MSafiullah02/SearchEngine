@@ -1,0 +1,2496 @@
+{
+    "paper_id": "a2a7f85d2ba28750725c4956eb14d53f6a90f003",
+    "metadata": {
+        "title": "Improving Knowledge Graph Embedding Using Locally and Globally Attentive Relation Paths",
+        "authors": [
+            {
+                "first": "Ningning",
+                "middle": [],
+                "last": "Jia",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "State Key Laboratory of Networking and Switching Technology",
+                    "institution": "Beijing University of Posts and Telecommunications",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "People's Republic of China"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Xiang",
+                "middle": [],
+                "last": "Cheng",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "State Key Laboratory of Networking and Switching Technology",
+                    "institution": "Beijing University of Posts and Telecommunications",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "People's Republic of China"
+                    }
+                },
+                "email": "chengxiang@bupt.edu.cn"
+            },
+            {
+                "first": "Sen",
+                "middle": [],
+                "last": "Su",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "State Key Laboratory of Networking and Switching Technology",
+                    "institution": "Beijing University of Posts and Telecommunications",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "People's Republic of China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Knowledge graphs' incompleteness has motivated many researchers to propose methods to automatically infer missing facts in knowledge graphs. Knowledge graph embedding has been an active research area for knowledge graph completion, with great improvement from the early TransE to the current state-of-the-art ConvKB. ConvKB considers a knowledge graph as a set of triples, and employs a convolutional neural network to capture global relationships and transitional characteristics between entities and relations in the knowledge graph. However, it only utilizes the triple information, and ignores the rich information contained in relation paths. In fact, a path of one relation describes the relation from some aspect in a fine-grained way. Therefore, it is beneficial to take relation paths into consideration for knowledge graph embedding. In this paper, we present a novel convolutional neural network-based embedding model PConvKB, which improves knowledge graph embedding by incorporating relation paths locally and globally. Specifically, we introduce attention mechanism to measure the local importance of relation paths. Moreover, we propose a simple yet effective measure DIPF to compute the global importance of relation paths. Experimental results show that our model achieves substantial improvements against state-of-the-art methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Large-scale knowledge graphs such as Freebase [3] , DBpedia [1] , and Wikidata [38] store real-world facts in the form of triples (head, relation, tail ), abbreviated as (h, r, t), where head and tail are entities and relation represents the relationship between head and tail. They are important resources for many intelligence applications like question answering and web search. Although current knowledge graphs consist of billions of triples, they are still far from complete and missing crucial facts, e.g., 75% of the person entities in Freebase have no known nationality [8] , which hampers their usefulness in the aforementioned applications.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 49,
+                    "text": "[3]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 79,
+                    "end": 83,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 579,
+                    "end": 582,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Various methods are proposed to address this problem, and the knowledge graph embedding methods have attracted increasing attention in recent years. The main idea of knowledge graph embedding is to embed entities and relations of a knowledge graph into a continuous vector space and predict missing facts by manipulating the entity and relation embeddings involved. Among knowledge graph embedding methods, the translation-based models are simple and efficient, also perform well. For example, given a triple (h, r, t), the most wellknown translation-based model TransE [5] models the relation r as a translation vector r connecting the embeddings h and t of the two entities, i.e., h + r \u2248 t. It performs well on simple relations, i.e., 1-to-1 relations. but poorly on complicated relations, i.e., 1-to-N, N-to-1 and N-to-N relations. To address this issue, TransH [41] , TransR [20] and TransD [14] are proposed. Unfortunately, these models are less simplicity and efficiency than TransE. Nickel et al. [26] present HolE, which uses circular correlation to combine the expressive power of the tensor product with the simplicity and efficiency of TransE.",
+            "cite_spans": [
+                {
+                    "start": 570,
+                    "end": 573,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 866,
+                    "end": 870,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 880,
+                    "end": 884,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 896,
+                    "end": 900,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1005,
+                    "end": 1009,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently, several convolutional neural network (CNN)-based models [7, 22, 23] have been proposed to learn the embeddings of entities and relations in knowledge graphs, in which [22] reserves the transitional characteristic in translationbased models and is comparably simple and efficient, achieves state-of-the-art performance. However, it only focuses on knowledge triples, ignoring the rich knowledge contained in relation paths. In fact, a path of one entity pair describes the relation connecting the entity pair from some aspect in a fine-grained way, and the importance of each path is different. For example, in Fig. 1 , the two paths place of birth -country and friend -nationality of entity pair (Tom Cruise, America) describes the relation nationality from the location and social way, respectively. Since the path place of birth -country is more essential than friend -nationality to express the relation nationality, thus it is more important from the local view. Moreover, from the global view the path friend -nationality also occurs in entity pair (Tom Cruise, England), which is connecting by the relation travel, thus it is less important than the path place of birth -country to express the relation nationality.",
+            "cite_spans": [
+                {
+                    "start": 66,
+                    "end": 69,
+                    "text": "[7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 70,
+                    "end": 73,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 74,
+                    "end": 77,
+                    "text": "23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 177,
+                    "end": 181,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 620,
+                    "end": 626,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we present a path-augmented CNN-based model, which incorporates relation paths for knowledge graph embedding. Specifically, we first introduce the attention mechanism to automatically measure the local importance of each path for the given entity pair, then inspired by inverse document frequency, we propose degree-guided inverse path frequency to compute the global importance of each path. Finally, we improve knowledge graph embedding by incorporating locally and globally attentive relation paths.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our contributions in this paper are summarized as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We present a path-augmented CNN-based knowledge graph embedding model, which improves embedding model by incorporating relation paths locally and globally. 1 . An illustration that a path of one relation describes the relation from some aspect in a fine-grained way, and the importance of each path is different.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 157,
+                    "end": 158,
+                    "text": "1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We introduce attention mechanism to model the local importances of relation paths for knowledge graph embedding. -We propose a simple yet effective measure, degree-guided inverse path frequency, to compute the global importances of relation paths for knowledge graph embedding. -In addition, we apply three pooling operations to aggregate convolutional feature maps, which reduces the number of parameters greatly. -The experimental results on four benchmark datasets show that our model achieves state-of-the-art performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Given a knowledge graph G, which is a collection of valid factual triples (h, r, t), where h, t \u2208 E and r \u2208 R. E is the entity set and R is the relation set. In knowledge graph completion, embedding methods aim to define a score function f that gives an implausibility score for each triple (h, r, t) such that valid triples receive lower scores than invalid triples.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Definition"
+        },
+        {
+            "text": "In this section, we briefly describe the state-of-the-art CNN-based model Con-vKB, and choose it as the base of our model. For each triple (h, r, t), ConvKB denotes the dimensionality of embeddings by k, such that each embedding triple (v h , v r , v t ) can be viewed as a matrix",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ConvKB"
+        },
+        {
+            "text": "where \u00b7 denotes a dot product, A i,: is the i-th row of A, b is a bias term, and g is the non-linear activation function ReLU. In particular, if \u03c9 = [1, 1, \u22121], b = 0, and g(x) = |x| or g(x) = x 2 , ConvKB reduces to the plain TransE. Hence, in some point of view, ConvKB is an extension of TransE, which models triple more globally and comprehensively. The overview of ConvKB is shown in Fig. 2 . Let \u03a9 and n denote the set of filters and the number of filters, respectively. ConvKB uses n filters to generate n feature maps. These feature maps are concatenated into a single vector, which is then calculated using the dot product with a weight vector w \u2208 R nk\u00d71 to give an implausibility score for the triple (h, r, t). Formally, the score function of ConvKB is defined as follows:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 389,
+                    "end": 395,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "ConvKB"
+        },
+        {
+            "text": "where \u03a9 and w are shared parameters, independent of h, r and t, * denotes the convolution operator, and concat denotes the concatenation operator. It is obvious that ConvKB only learns from triples, ignoring the rich knowledge contained in relation paths, which can lead to poor performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "ConvKB"
+        },
+        {
+            "text": "In this section, we present our model PConvKB, which learns the embeddings by taking relation paths into consideration. Moreover, we also take into account the local and global importances of the relation paths. The architecture of our model is shown in Fig. 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 254,
+                    "end": 260,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "PConvKB"
+        },
+        {
+            "text": "We denote relation paths between the head entity h and the tail entity t as P (h, t) = {p 1 , p 2 , . . . , p N }, where relation path p = (r 1 , . . . , r m ) is a series of interconnected relations between the entities, i.e., h r1 \u2212 \u2192 . . . rm \u2212 \u2212 \u2192 t. Similar to ConvKB, for each triple (h, r, t), the score function of our model PConvKB is defined as follows: where \u03c3 denotes the non-linear function, i.e., sigmoid, \u03c8 denotes the average pooling operation, \u03a6 Gi denotes the global importance of the i-th path, \u03a6 Li denotes the local importance of the i-th path, p i is the embedding of the i-th path, which is computed as m i=1 v ri , \u03a9 and w are shared parameters. The computation of local and global importances is detailed in Sects. 3.2 and 3.3, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PConvKB"
+        },
+        {
+            "text": "Attention mechanism [2] is designed to improve the performance of encoderdecoder model on machine translation, which assigns different weights to different data to allow the model focusing on important data. In recent years, attention mechanism has been widely used in several research topics, such as question answering [18] and image captioning [40] . In this paper, we apply attention mechanism to measure the local importances of relation paths for knowledge graph embedding. Given a triple (h, r, t) and its set of relation paths P (h, t) = {p 1 , p 2 , . . . , p N }, we compute the local importance of each path as:",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 23,
+                    "text": "[2]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 321,
+                    "end": 325,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 347,
+                    "end": 351,
+                    "text": "[40]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Measuring Local Importances of Relation Paths by Attention Mechanism"
+        },
+        {
+            "text": "where W L \u2208 R k\u00d7k is the parameter matrix. Similar to [19] , we set the maximum length of each path to 3.",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Measuring Local Importances of Relation Paths by Attention Mechanism"
+        },
+        {
+            "text": "Since the attention mechanism only focuses on the set of relation paths P (h, t) of the given entity pair (h, t) that connects by the relation r. It does not consider that the path in the set of relation paths may also occur in other entity pairs that connects by other relations. Typically, the more set of relation paths a path occurs in, the less importance the path is. Therefore, inspired by inverse document frequency [10, 16] , which is a weighting function that has been widely used for measuring how informative each word is in a set of documents. We propose the Degree-guided Inverse Path Frequency (DIPF) to model the global importance of each path in the set of relation paths. For each relation r \u2208 R in the knowledge graph G, we first find its corresponding entity pairs (h r , t r ) i , i = 1, 2, . . . , n r , where n r is the number of entity pairs connecting by the relation r. i.e.,",
+            "cite_spans": [
+                {
+                    "start": 424,
+                    "end": 428,
+                    "text": "[10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 429,
+                    "end": 432,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Measuring Global Importances of Relation Paths by Degree-Guided Inverse Path Frequency"
+        },
+        {
+            "text": "Then, we choose the entity pair (h r , t r ) b , which has the biggest node degree and is computed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Measuring Global Importances of Relation Paths by Degree-Guided Inverse Path Frequency"
+        },
+        {
+            "text": "where NodeDegree(\u00b7) is the function to compute the node degree of an entity pair, max[\u00b7] is the maximum function, deg(\u00b7) is the node degree of an entity, which is computed as the number of the edges connected with the entity. Next, we count the set of relation paths for entity pair (h r , t r ) b , and is denoted as P ((h r , t r ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 320,
+                    "end": 331,
+                    "text": "((h r , t r",
+                    "ref_id": null
+                }
+            ],
+            "section": "Measuring Global Importances of Relation Paths by Degree-Guided Inverse Path Frequency"
+        },
+        {
+            "text": "where m r is the number of paths of entity pair (h r , t r ) b . Similar to local importance computation, we set the maximum length of each path to 3. Finally, the global importance of each path in the set of relation paths P (h, t) = {p 1 , p 2 , . . . , p N } of the given triple (h, r, t) is computed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Measuring Global Importances of Relation Paths by Degree-Guided Inverse Path Frequency"
+        },
+        {
+            "text": "where |R| is the cardinality of R (i.e., total number of relations in R), pt i is the number of times the path p i occurs in the set of {P ((h r , t r ) b ), r \u2208 R}.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Measuring Global Importances of Relation Paths by Degree-Guided Inverse Path Frequency"
+        },
+        {
+            "text": "As mentioned in Sect. 2.1, ConvKB uses concatenate operation to aggregate feature maps. However, previous works [30, 35] demonstrate that pooling operation can better aggregate feature maps than simply concatenate operation, and reduce the number of parameters greatly. In this paper, we adopt the following three pooling operations to replace the concatenate operation, respectively:",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 116,
+                    "text": "[30,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 117,
+                    "end": 120,
+                    "text": "35]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Aggregating Feature Maps Using Pooling Operation"
+        },
+        {
+            "text": "The average pooling operation is finally chosen due to its superior performance in the experiments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Aggregating Feature Maps Using Pooling Operation"
+        },
+        {
+            "text": "The objective is to ensure that a triple in the golden set G should have a lower implausibility score than a triple in the corrupted triple set G . Similar to [22] , we adopt Adam optimizer [17] to train PConvKB, and minimize the loss function with L 2 regularization on the weight vector w as follows:",
+            "cite_spans": [
+                {
+                    "start": 159,
+                    "end": 163,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 190,
+                    "end": 194,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Training"
+        },
+        {
+            "text": "We ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "For a fair comparison, we evaluate our model on two tasks: link prediction [5] , and triples classification [33] . Both of them evaluate the accuracy of predicting unseen triples from different viewpoints.",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 108,
+                    "end": 112,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We evaluate our model on four benchmark datasets WN18 [5] , FB15k [5] , WN18RR [7] and FB15k-237 [36] . WN18 is extracted from WordNet [21] , which contains word concepts and lexical relations between the concepts. FB15k is a subset of Freebase constructed by Bordes et al. [5] . As noted by Toutanova and Chen [36] , WN18 and FB15k have problematic reversible triples causing abnormally high results. This is the reason that the refined version of WN18 and FB15k, i.e., WN18RR and FB15k-237, are widely used in state-of-the-art methods. Table 1 shows the statistics of the datasets used in our experiments. ",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 57,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 66,
+                    "end": 69,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 79,
+                    "end": 82,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 97,
+                    "end": 101,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 274,
+                    "end": 277,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 311,
+                    "end": 315,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 538,
+                    "end": 545,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "To demonstrate the effectiveness of our model, we compare PConvKB against a variety of knowledge graph embedding methods developed in recent years.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison Methods"
+        },
+        {
+            "text": "-TransE [5] is one of the most widely used knowledge graph embedding methods. -TransH [41] associates each relation with a relation-specific hyperplane to alleviate the complex relations problem. -TransD [14] not only considers the complex relations, but also the diversity of entities, by embedding entities and relations into separate entity space and relation-specific spaces. -HolE [26] uses circular correlation, a novel compositional operator, to capture rich interactions of embeddings. -ConvE [7] is the first CNN-based model for knowledge graph embedding.",
+            "cite_spans": [
+                {
+                    "start": 8,
+                    "end": 11,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 86,
+                    "end": 90,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 386,
+                    "end": 390,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 501,
+                    "end": 504,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison Methods"
+        },
+        {
+            "text": "-ConvKB [22] improves ConvE by taking the transitional characteristic (i.e., one of the most useful intuitions for knowledge graph completion) into consideration. -CapsE [23] combines convolutional neural network with capsule network [29] for knowledge graph embedding.",
+            "cite_spans": [
+                {
+                    "start": 8,
+                    "end": 12,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison Methods"
+        },
+        {
+            "text": "Link prediction task is to complete a triple (h, r, t) with h or t missing, i.e., to predict the missing h given (r, t) or the missing t given (h, r).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Link Prediction"
+        },
+        {
+            "text": "To evaluate the performance in link prediction, we follow the standard protocol used in [5] . For each test triple (h, r, t), we replace either h or t by each of other entities in E to create a set of corrupted triples, and calculate implausibility scores on the corrupted triples. Ranking these scores in ascending order, we can get the rank of the test triple. Notice that a corrupted triple may exist in train, validation or test set, we use the Filtered setting protocol [5] to eliminate its misleading effect, i.e., not taking any corrupted triples that appear in the knowledge graph into accounts. We employ two common evaluation metrics: mean rank (MR) and Hits@10. MR is the mean of the test triples' ranks. Hits@10 is the percentage of test triples that are ranked within top 10.",
+            "cite_spans": [
+                {
+                    "start": 88,
+                    "end": 91,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 475,
+                    "end": 478,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Protocol."
+        },
+        {
+            "text": "Following the previous work [41] , we use the common Bernoulli trick to generate the head or tail entities when sampling invalid triples. Like in ConvKB [22] , we also use entity and relation embeddings produced by TransE to initialize entity and relation embeddings in PConvKB. We use the pre-trained 100-dimensional glove word embeddings [28] to train TransE model, and employ the TransE implementation provided by [25] . We select the learning rate in {5e \u22126 , 1e \u22125 , 5e \u22125 , 1e \u22124 }, the number of filters in {50, 100, 200, 400}. We fix the batch size at 128 and set the L 2 -regularizer \u03bb at 0.001 in our objective function. We run PConvKB up to 150 epochs and monitor the Hits@10 score after every 10 training epochs to choose optimal hyper-parameters. We obtain the highest Hits@10 scores on the validation set when learning rate at 5e \u22125 , the number of filters at 400 on WN18; and learning rate at 1e \u22125 , the number of filters at 50 on FB15k; and the learning rate at 5e \u22126 , the number of filters at 400 on WN18RR; and the learning rate at 1e \u22125 , the number of filters at 200 on FB15k-237. For comparison methods, we use the codes released by [11] , [7] and [22] . Table 2 . Experiments results on link prediction. Hits@10 is reported in %. The best score is in bold, while the second best score is in underline. For comparison methods, the values in black color are the results listed in the original publication, except Con-vKB uses the [23] implemented version, which has been reported significantly better performance than the original one. The values in blue color are obtained by implementations from the OpenKE repository. Results. Table 2 shows the link prediction results of our model and the comparison methods on the four benchmark datasets. From the results, we can observe that:",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 32,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 153,
+                    "end": 157,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 340,
+                    "end": 344,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 417,
+                    "end": 421,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1156,
+                    "end": 1160,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1163,
+                    "end": 1166,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1171,
+                    "end": 1175,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1452,
+                    "end": 1456,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1178,
+                    "end": 1185,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 1652,
+                    "end": 1659,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Implementation Details."
+        },
+        {
+            "text": "1. PConvKB obtains the best MR and highest Hits@10 scores on the four benchmark datasets, demonstrating the effectiveness of incorporating relation paths for knowledge graph embedding. 2. Among PConvKB, PConvKB (local) and PConvKB (global), PConvKB obtains the best performance, which indicates that considering relation paths locally and globally is beneficial for knowledge graph embedding. 3. PConvKB does better than the closely related model ConvKB on all experimental datasets, especially on FB15k where PConvKB gains significant improvements of 275 \u2212 247 = 28 in MR (which is about 10.1% relative improvement) and 59.8% \u2212 54.7% = 5.1% absolute improvement in Hits@10.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details."
+        },
+        {
+            "text": "Triple classification task is to determine whether a given triple (h, r, t) is correct or not, i.e., binary classification on a triple.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Triple Classification"
+        },
+        {
+            "text": "Evaluation Protocol. We follow the same protocol in [33] . For each triple in test set and validation set, we construct one negative triple by switching entities from test triples and validation triples, respectively. The triple classification decision rule is: for a triple (h, r, t), if its implausibility score is below the relationspecific threshold \u03c3 r , predict positive, otherwise negative. The relation-specific threshold \u03c3 r is determined by maximizing classification accuracy on the validation set. The triple classification accuracy is the percentage of triples in the test set that are classified correctly. Implementation Details. We use TransE to initialize entity and relation embeddings in PConvKB, select the learning rate in {5e \u22126 , 1e \u22125 , 5e \u22125 , 1e \u22124 }, the number of filters in {50, 100, 200, 400}. We set the batch size at 128 and set the L 2 -regularizer \u03bb at 0.001 in our objective function. We run PConvKB up to 150 epochs and monitor the accuracy after every 10 training epochs to choose optimal hyper-parameters. We obtain the highest accuracy on the validation set when learning rate at 5e \u22125 , the number of filters at 400 on WN18; and learning rate at 1e \u22125 , the number of filters at 50 on FB15k; and the learning rate at 5e \u22126 , the number of filters at 400 on WN18RR; and the learning rate at 1e \u22125 , the number of filters at 200 on FB15k-237. For comparison methods, we implement them by the codes released by [11] , [7] and [22] . Table 3 shows the triple classification results of our model and the comparison methods on the four benchmark datasets. From the results, we can observe that: ",
+            "cite_spans": [
+                {
+                    "start": 52,
+                    "end": 56,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1447,
+                    "end": 1451,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1454,
+                    "end": 1457,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1462,
+                    "end": 1466,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1469,
+                    "end": 1476,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Triple Classification"
+        },
+        {
+            "text": "Various methods have been proposed for knowledge graph embedding, such as general linear-based models [6] , bilinear-based models [13, 27, 34] , translationbased models [5, 9, 14, 15, 20, 41, 43] , and neural network-based models [4, 7, 22, 23, [31] [32] [33] . We refer to [24, 39] for a recent survey. In this section, we focus on the most relevant neural network-based models, and briefly review the other related methods. Socher et al. [33] introduce neural tensor networks for knowledge graph embedding, which allows mediated interaction of entity embeddings via a tensor. Schlichtkrull et al. [31] present relational graph convolutional networks for knowledge graph completion. Shi and Weninger [32] present a shared variable neural network model called ProjE, which fills-in missing facts in a knowledge graph by learning joint embeddings of entities and relations. Dettmers et al. [7] present a multi-layer convolutional network model, namely ConvE, which uses 2D convolutions over embeddings to predict missing links in knowledge graphs. Nguyen et al. [22] present a CNN-based embedding model, i.e., ConvKB. It applies CNN to explore the global relationships among same dimensional entries in each embedding triple, which generalizes the transitional characteristics in the transition-based embedding models. Nguyen et al. [23] present CapsE, which combines CNN with capsule networks [29] for knowledge graph embedding. All these models treat a knowledge graph as a collection of triples, and disregard the rich information exist in relation paths.",
+            "cite_spans": [
+                {
+                    "start": 102,
+                    "end": 105,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 130,
+                    "end": 134,
+                    "text": "[13,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "27,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 139,
+                    "end": 142,
+                    "text": "34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 169,
+                    "end": 172,
+                    "text": "[5,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 173,
+                    "end": 175,
+                    "text": "9,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 176,
+                    "end": 179,
+                    "text": "14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 180,
+                    "end": 183,
+                    "text": "15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 184,
+                    "end": 187,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 188,
+                    "end": 191,
+                    "text": "41,",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 192,
+                    "end": 195,
+                    "text": "43]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 230,
+                    "end": 233,
+                    "text": "[4,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 234,
+                    "end": 236,
+                    "text": "7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 237,
+                    "end": 240,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 241,
+                    "end": 244,
+                    "text": "23,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 245,
+                    "end": 249,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 250,
+                    "end": 254,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 255,
+                    "end": 259,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 274,
+                    "end": 278,
+                    "text": "[24,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 279,
+                    "end": 282,
+                    "text": "39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 440,
+                    "end": 444,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 701,
+                    "end": 705,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 889,
+                    "end": 892,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1061,
+                    "end": 1065,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1332,
+                    "end": 1336,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1393,
+                    "end": 1397,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "There are several translation-based models [12, 19, 37, 42, 44] incorporating relation paths to improve the embeddings of entities and relations. However, they fully rely on hand-designed features to measure the importance of each path, which is not differentiable and cannot adjust during training. Moreover, they all based on translation-based models, which are not suitable for CNNbased model. To the best of our knowledge, our model PConvKB is the first attempt which incorporates relation paths in CNN-based embedding model.",
+            "cite_spans": [
+                {
+                    "start": 43,
+                    "end": 47,
+                    "text": "[12,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 48,
+                    "end": 51,
+                    "text": "19,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 52,
+                    "end": 55,
+                    "text": "37,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 56,
+                    "end": 59,
+                    "text": "42,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "44]",
+                    "ref_id": "BIBREF44"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In this paper, we present a novel CNN-based embedding model PConvKB, which improves knowledge graph embedding by incorporating relation paths locally and globally. In particular, we introduce attention mechanism to measure the local importance of relation paths. Moreover, we propose a simple yet effective measure DIPF to compute the global importance of relation paths. We evaluate our model on link prediction and triple classification. Experimental results show that our model achieves substantial improvements against state-of-the-art methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "DBpedia: a nucleus for a web of open data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Auer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bizer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kobilarov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cyganiak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ives",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Neural machine translation by jointly learning to align and translate",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bahdanau",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "3rd International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "7--9",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Freebase: a collaboratively created graph database for structuring human knowledge",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bollacker",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Evans",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Paritosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Sturge",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Taylor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 2008 ACM SIGMOD International Conference on Management of Data",
+            "volume": "",
+            "issn": "",
+            "pages": "1247--1250",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A semantic matching energy function for learning with multi-relational data -application to word-sense disambiguation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Glorot",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Mach. Learn",
+            "volume": "94",
+            "issn": "2",
+            "pages": "233--259",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10994-013-5363-6"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Translating embeddings for modeling multi-relational data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garcia-Duran",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Yakhnenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2787--2795",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Learning structured embeddings of knowledge bases",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Collobert",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the Twenty-Fifth AAAI Conference on Artificial Intelligence, AAAI 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Convolutional 2D knowledge graph embeddings",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Dettmers",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Minervini",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Stenetorp",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Riedel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Thirty-Second AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Knowledge vault: a web-scale approach to probabilistic knowledge fusion",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "601--610",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "TorusE: knowledge graph embedding on a lie group",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ebisu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ichise",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Thirty-Second AAAI Conference on Artificial Intelligence (AAAI-2018), the 30th Innovative Applications of Artificial Intelligence (IAAI-2018), and the 8th AAAI Symposium on Educational Advances in Artificial Intelligence (EAAI-2018)",
+            "volume": "",
+            "issn": "",
+            "pages": "1819--1826",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Class specific TF-IDF boosting for short-text classification: application to short-texts generated during disasters",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Desarkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Companion of the The Web Conference 2018 on The Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "1629--1637",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3184558.3191621"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "OpenKE: an open toolkit for knowledge embedding",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "2018",
+            "issn": "",
+            "pages": "139--144",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Improved knowledge base completion by the pathaugmented TransR model",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "KSEM 2017",
+            "volume": "10412",
+            "issn": "",
+            "pages": "149--159",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-63558-3_13"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "A latent factor model for highly multi-relational data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jenatton",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Roux",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Obozinski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Advances in Neural Information Processing Systems 25: 26th Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3176--3184",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Knowledge graph embedding via dynamic mapping matrix",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing",
+            "volume": "1",
+            "issn": "",
+            "pages": "687--696",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Knowledge graph completion with adaptive sparse transfer matrix",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the Thirtieth AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "985--991",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Multi-co-training for document classification using various document representations: TF-IDF, LDA, and Doc2Vec",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Seo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Inf. Sci",
+            "volume": "477",
+            "issn": "",
+            "pages": "15--29",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.ins.2018.10.006"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "3rd International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Beyond RNNs: positional self-attention with co-attention for video question answering",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The Thirty-Third AAAI Conference on Artificial Intelligence, AAAI 2019, The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence",
+            "volume": "2019",
+            "issn": "",
+            "pages": "8658--8665",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Modeling relation paths for representation learning of knowledge bases",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Luan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "705--714",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Learning entity and relation embeddings for knowledge graph completion",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Twenty-Ninth AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "WordNet: a lexical database for English",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Miller",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Commun. ACM",
+            "volume": "38",
+            "issn": "11",
+            "pages": "39--41",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "A novel embedding model for knowledge base completion based on convolutional neural network",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Phung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "2",
+            "issn": "",
+            "pages": "327--333",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "A capsule networkbased embedding model for knowledge graph completion and search personalization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Vu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Phung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1808.04122"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "An overview of embedding models of entities and relationships for knowledge base completion",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "STransE: a novel embedding model of entities and relationships in knowledge bases",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sirts",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NAACL HLT 2016: The 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "",
+            "issn": "",
+            "pages": "460--466",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Holographic embeddings of knowledge graphs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Rosasco",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Poggio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Thirtieth AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "A three-way model for collective learning on multi-relational data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Tresp",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kriegel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of the 28th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "809--816",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "GloVe: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Dynamic routing between capsules",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sabour",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Frosst",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3856--3866",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Detail-preserving pooling in deep networks",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Saeedan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Weber",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Goesele",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "9108--9116",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Modeling relational data with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schlichtkrull",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bloem",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Van Den",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Berg",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Titov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ESWC 2018",
+            "volume": "10843",
+            "issn": "",
+            "pages": "593--607",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-93417-4_38"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "ProjE: embedding projection for knowledge graph completion",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Weninger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Thirty-First AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "1236--1242",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Reasoning with neural tensor networks for knowledge base completion",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "926--934",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Modelling relational data using Bayesian clustered tensor factorization",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Tenenbaum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Advances in Neural Information Processing Systems 22: 23rd Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1821--1828",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Hybrid pooling for enhancement of generalization ability in deep convolutional neural networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tanaka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Neurocomputing",
+            "volume": "333",
+            "issn": "",
+            "pages": "76--85",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.neucom.2018.12.036"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Observed versus latent features for knowledge base and text inference",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 3rd Workshop on Continuous Vector Space Models and their Compositionality",
+            "volume": "",
+            "issn": "",
+            "pages": "57--66",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Compositional learning of embeddings for relation paths in knowledge base and text",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yih",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Poon",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Quirk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "1",
+            "issn": "",
+            "pages": "7--12",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Wikidata: a free collaborative knowledge base",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vrande\u010di\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kr\u00f6tzsch",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Commun. ACM",
+            "volume": "57",
+            "issn": "",
+            "pages": "78--85",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Knowledge graph embedding: a survey of approaches and applications",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "29",
+            "issn": "12",
+            "pages": "2724--2743",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/TKDE.2017.2754499"
+                ]
+            }
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Hierarchical attention network for image captioning",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The Thirty-Third AAAI Conference on Artificial Intelligence, AAAI 2019, The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence, EAAI 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "8957--8964",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Knowledge graph embedding by translating on hyperplanes",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Twenty-Eighth AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Knowledge graph embedding via relation paths and dynamic mapping matrix",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Duan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Woo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Ling",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ER 2018",
+            "volume": "11158",
+            "issn": "",
+            "pages": "106--118",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-01391-2_18"
+                ]
+            }
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "TransGate: knowledge graph embedding with shared gate structure",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The Thirty-Third AAAI Conference on Artificial Intelligence, AAAI 2019, The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence",
+            "volume": "2019",
+            "issn": "",
+            "pages": "3100--3107",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Discriminative path-based knowledge graph embedding for precise link prediction",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ECIR 2018",
+            "volume": "10772",
+            "issn": "",
+            "pages": "276--288",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Fig. 1. An illustration that a path of one relation describes the relation from some aspect in a fine-grained way, and the importance of each path is different.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The architecture of ConvKB.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "The architecture of our model PConvKB.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "compare the parameter size and computational complexity of our model PConvKB with ConvKB. Let N e denote the number of entities, N r the number of relations, K the embedding dimension, S the number of triples for learning, P the expected number of relation paths connecting two entities, and L the expected length of relation paths. The parameter size of PConvKB is equal to the parameter size of ConvKB, i.e., (N e + N r )K. For each iteration in optimization, the computational complexity of PConvKB is O(SKP L), and the computational complexity of ConvKB is O(SK).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Statistics of the experimental datasets",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Experiments results on triple classification (%). The best score is in bold, while the second best score is in underline.1. On the whole, PConvKB yields the best performance on the four benchmark datasets, which is consistent with the results of link prediction, and further illustrates taking the relation paths into consideration is beneficial for knowledge graph embedding. 2. More specifically, on FB15k-237, the accuracy of triple classification improves from 80.6% of PConvKB(locally) to 82.1% PConvKB, and 80.9% of PCon-vKB (global) to 82.1% PConvKB. It demonstrates that considering the importances of relation paths locally and globally can better improve the knowledge graph embedding.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "We acknowledge anonymous reviewers for their valuable comments. This work was supported by the National Natural Science Foundation of China ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgments."
+        }
+    ]
+}

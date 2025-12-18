@@ -1,0 +1,1466 @@
+{
+    "paper_id": "a8b3d74cc9815d172cd5cf549aa3098a75a2ab4d",
+    "metadata": {
+        "title": "Tendi: Tensor Disaggregation from Multiple Coarse Views",
+        "authors": [
+            {
+                "first": "Faisal",
+                "middle": [
+                    "M"
+                ],
+                "last": "Almutairi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Minnesota",
+                    "location": {
+                        "postCode": "55455",
+                        "settlement": "Minneapolis",
+                        "region": "MN",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Charilaos",
+                "middle": [
+                    "I"
+                ],
+                "last": "Kanatsoulis",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Minnesota",
+                    "location": {
+                        "postCode": "55455",
+                        "settlement": "Minneapolis",
+                        "region": "MN",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Nicholas",
+                "middle": [
+                    "D"
+                ],
+                "last": "Sidiropoulos",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Virginia",
+                    "location": {
+                        "postCode": "22903",
+                        "settlement": "Charlottesville",
+                        "region": "VA",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Multidimensional data appear in various interesting applications, e.g., sales data indexed by stores, items, and time. Oftentimes, data are observed aggregated over multiple data atoms, thus exhibit low resolution. Temporal aggregation is most common, but many datasets are also aggregated over other attributes. Multidimensional data, in particular, are sometimes available in multiple coarse views, aggregated across different dimensions -especially when sourced by different agencies. For instance, item sales can be aggregated temporally, and over groups of stores based on their location or affiliation. However, data in finer granularity significantly benefit forecasting and data analytics, prompting increasing interest in data disaggregation methods. In this paper, we propose Tendi, a principled model that efficiently disaggregates multidimensional (tensor) data from multiple views, aggregated over different dimensions. Tendi employs coupled tensor factorization to fuse the multiple views and provide recovery guarantees under realistic conditions. We also propose a variant of Tendi, called TendiB, which performs the disaggregation task without any knowledge of the aggregation mechanism. Experiments on real data from different domains demonstrate the high effectiveness of the proposed methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Low-resolution data, aggregated over multiple data indices, are found in the databases of diverse applications, e.g., economics [8] , health care [15] , education [5] , and smart grid systems [6] , to name a few. The most common type of aggregation is temporal aggregation, for example, the GDP quarterly national accounts are aggregated over months. Aggregation over other dimensions is also common, such as geographically (e.g., population of New York by county) or according to a defined affiliation (e.g., number of students by majors). The latter is known in economics literature as contemporaneous aggregation. The different types of aggregation are often combined. For instance, the number of foreigners who visited different US states in 2019 can be aggregated in time, location (states), and affiliation (nationality). Aggregated data offer data summarization, which serves multiple purposes, including scalability, communication cost, and privacy. On the other hand, a plethora of data mining and machine learning tasks strive for data in high-resolution (disaggregated). Analysis results can differ substantially when using aggregated versus disaggregated data in many application domains, such as economics [8] , education [5] , and supply chains [20] . This has motivated numerous works in developing algorithms for data disaggregation.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 146,
+                    "end": 150,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 163,
+                    "end": 166,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 192,
+                    "end": 195,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1219,
+                    "end": 1222,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1235,
+                    "end": 1238,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1259,
+                    "end": 1263,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The task of data disaggregation, in general, boils down to finding a solution to a system of linear equations Ux = y, where y is the vector of aggregated observations, x is the target disaggregated series, and U is the aggregation matrix that maps the target series to the aggregated measurements. In practical settings, the linear system is under-determined as the number of observations is often significantly smaller than the length of the target series, resulting in an ill-posed problem. In order to tackle the problem, disaggregation techniques exploit side information or domain knowledge [2, 14] , in their attempt to overdetermine the problem and enhance the disaggregation accuracy. Some common prior models, imposed on the target high-resolution data, involve smoothness, periodicity [14] , non-negativity, and sparsity over a given dictionary [2] . The main issue with these approaches is that they impose application-specific constraints and therefore they cannot generalize to different disaggregation tasks in a straightforward manner. Moreover, it is unclear whether the assumed models are identifiable (i.e., an optimal solution of the model is not guaranteed to be the true disaggregated data), especially when the solution does not exactly follow the imposed constraints. Note that, identifiability is important, in the sense of assuring correct recovery under certain reasonable conditions. In our present context, identifiability has not received the attention it deserves, likely because guaranteed recovery is considered mission impossible under realistic conditions. An interesting special case of disaggregation arises when data are aggregated over more that one dimension. This is a popular research problem in the area of business and economics going back to the 70's [4] . In this case, temporal and contemporaneous aggregated views of the data are available. For instance, we are interested in estimating the quarterly Gross Regional Product (GRP) values for regions of a country, given: 1) the annual GRP per region (temporal aggregates), and 2) the GDP quarterly national accounts (contemporaneous aggregates) [16] .",
+            "cite_spans": [
+                {
+                    "start": 596,
+                    "end": 599,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 600,
+                    "end": 603,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 795,
+                    "end": 799,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 855,
+                    "end": 858,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1795,
+                    "end": 1798,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 2141,
+                    "end": 2145,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Another notable example appears in healthcare, where data are collected by national, regional, and local government agencies, health and scientific organizations, insurance companies and other entities, and are often aggregated in many dimensions (e.g., temporally, geographically, or group of hospitals), often to preserve privacy [15] -see Sect. 2.2 for another example. Algorithms have been developed to integrate the multiple aggregates in the disaggregation process [4, 16] . The majority of them leverage linear regression models with priors and require additional information to perform the disaggregation task.",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 471,
+                    "end": 474,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 475,
+                    "end": 478,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper we study the multiview dissagregation task using a tensor decomposition approach, which provably converts the ill-posed problem to an identifiable one. Our work is inspired by the following question: Is the disaggregation task possible when the data are: 1) multidimensional, and 2) observed by different agencies via diverse aggregation mechanisms? This is a well motivated problem due to the ubiquitous presence of data with multiple dimensions (three or more), also known as tensors, in a large number of applications. It is also very common that aggregation happens in more than one dimensions as in the previously explained examples. The informal definition of the problem is:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-Given: two (or more) observations of a multidimensional dataset, each representing a view of the data aggregated in one (or more) dimension (e.g., temporal and contemporaneous aggregates). -Recover: the data in high-resolution (disaggregated) in all the dimensions.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Informal Problem 1 (Multidimensional Disaggregation)"
+        },
+        {
+            "text": "We propose Tendi: a principled model for fusing the multiple aggregates of multidimensional data. The proposed approach represents the target highresolution data as a tensor, and models them using the canonical polyadic decomposition (CPD) to reduce the number of unknowns, while capturing correlations and higher-order statistical dependencies across dimensions. Tendi employs a coupled CPD approach and estimates the low-rank factors of the target data, to perform the disaggregation task. This way the originally ill-posed disaggregation problem is transformed to an over-determined one, by leveraging the uniqueness properties of the CPD. Tendi can disaggregate under the challenging scenario where the views are doubly aggregated, i.e., a view is aggregated in two dimensions. We also propose an algorithm (called TendiB) that handles the disaggregation task in cases where the aggregation pattern is unknown. As a result, the proposed framework not only provides a disaggregation algorithm, but also gives insights that can be potentially exploited in creating accurately retrievable data summaries for database applications. Along the same lines, our work provides insights on when aggregation does not preserve anonymity. With the aid of another view of aggregated data, estimating the individual-level accurately is possible as we show in this work, even without knowing the aggregation pattern. This leads to privacy violation if data are aggregated to preserve anonymity. Experiments on real data from different applications show that Tendi is very effective and significantly improves the accuracy of the baselines. In summary, the contributions of our work are as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Informal Problem 1 (Multidimensional Disaggregation)"
+        },
+        {
+            "text": "-Formulation: we formally define the multidimensional data disaggregation task from multiple views, aggregated across different dimensions, and provide an efficient algorithm. -Identifiability: the considered model can provably transform the original ill-posed disaggregation problem to an identifiable one. -Effectiveness: Tendi recovers real data accurately and reduces the disaggregation error of the best baseline by up to 48%. -Blind disaggregation: the proposed model works very effectively, even when the aggregation mechanism is unknown (TendiB).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Informal Problem 1 (Multidimensional Disaggregation)"
+        },
+        {
+            "text": "Notation: x, X, X denote a vector, a matrix, and a tensor, respectively, X (n) is mode-n matricization of X , . F is the Frobenius norm, and [[.] ] denotes the Kruskal operator, e.g., X \u2248 [[A, B, C]]. X T is the Transpose of X, and vec(\u00b7) is the vectorization operator for matrix X or tensor X . Finally, \u2022, , and denote the outer, Khatri-Rao, and Hadamard (element-wise) products, respectively.",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 145,
+                    "text": "[[.]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Preliminaries and Problem Statement"
+        },
+        {
+            "text": "Tensors are multidimensional arrays indexed by three or more indices, (i, j, k, ...).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tensor Preliminaries"
+        },
+        {
+            "text": "A third-order tensor X \u2208 R I\u00d7J\u00d7K consists of three modes: columns X (:, j, k), rows X (i, :, k), and fibers X (i, j, :). Moreover, X (i, :, :), X (:, j, :), and X (:, :, k) denote the i th horizontal, j th lateral, and k th frontal slabs/slices of X , respectively-refer to [13, 17] for more background on tensors.",
+            "cite_spans": [
+                {
+                    "start": 274,
+                    "end": 278,
+                    "text": "[13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 279,
+                    "end": 282,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tensor Preliminaries"
+        },
+        {
+            "text": "A rank-one third-order tensor X \u2208 R I\u00d7J\u00d7K results from the outer product of three vectors, i.e.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tensor Decomposition (CPD):"
+        },
+        {
+            "text": "A striking property of CDP is that it is essentially unique (the rank-one components a r \u2022 b r \u2022 c r are unique; or, equivalently, A, B, C can be identified up to common column permutation and scaling) under mild conditions [3] . The CPD can also be expressed using the matricized (unfolded) tensors as X (1) (2) \u2208 R J\u00d7IK , and X (3) \u2208 R K\u00d7IJ are mode-1, mode-2, and mode-3 unfolding of X , respectively.",
+            "cite_spans": [
+                {
+                    "start": 224,
+                    "end": 227,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 305,
+                    "end": 308,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 309,
+                    "end": 312,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tensor Decomposition (CPD):"
+        },
+        {
+            "text": "Mode Product: is the multiplication of a matrix by a tensor in one particular mode, e.g., mode-1 product of matrix U \u2208 R Iu\u00d7I and tensor X \u2208 R I\u00d7J\u00d7K corresponds to multiplying every column X (:, j, k) of the tensor by U. Similarly, mode-2 (mode-3) product corresponds to multiplying every row (fiber) of X by a matrix. Mode products can also be expressed in terms of unfolded tensors. Multiplying a matrix U in the n th mode can be denoted as: Y = X \u00d7 n U \u21d0\u21d2 Y (n) = UX (n) , where \"\u00d7 n \" is the product over the n th mode-see Fig. 1 for an illustration. An important observation is that mode products can be absorbed in the CPD of the tensor, i.e., in Fig ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 527,
+                    "end": 533,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 653,
+                    "end": 656,
+                    "text": "Fig",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fig. 1. Illustration of mode products"
+        },
+        {
+            "text": "Given a set of low-resolution observations y \u2208 R Iu (e.g., monthly) about a time series x \u2208 R I , the goal of the time series disaggregation problem is to estimate the series x in a higher resolution (e.g., weekly). This can be cast as a linear inverse problem y = Ux, where U \u2208 R Iu\u00d7I is a 'fat' aggregation matrix that maps the observations in y with the variables in x. In this work, we consider the case where the target high-resolution data are multidimensional (tensor). The different dimensions represent the physical dimensions of the data, e.g., time stamps, locations, etc. For the sake of simplicity of exposition, we focus on three-dimensional data in our formulation and algorithm. However, the proposed method can handle more general cases with data of higher order. Specifically, let X \u2208 R I\u00d7J\u00d7K be the target high-resolution third-order tensor. In the considered problem, we are given two sets of observations, each aggregated over one or more different dimension(s), which is common when data are reported by different agencies, resulting in multiple views of the same information. The key insight is that the given aggregates can be modeled as mode product(s) of X by an aggregation matrix in a particular mode(s). To see this, consider tensor X \u2208 R 4\u00d72\u00d72 , a simple example of a set of observations aggregated over the first mode can be expressed as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Disaggregation Problem"
+        },
+        {
+            "text": "The same idea applies when the aggregation is over the second (third) mode using mode-2 (mode-3) product. The major challenge in data disaggregation is that the number of available aggregated observations is much smaller than the number of variables, resulting in an under-determined ill-posed problem. This is the case even when more than one set of aggregates are available. Before defining the problem formally, we explain the concept with an example of retail sales. There are two sources of data used to forecast future demand in retail sales: 1) store-level data, commonly aggregated in time (temporal aggregate Y t ); and 2) historical orders by the retailers' Distribution Centers (DC orders), aggregated over their multiple stores (contemporaneous aggregate Y c ). Note that both store-level and DC orders data are used for demand forecasting, and especially store-level data are vital in predicting future orders [20] . Hence, many retailers share data with their suppliers to assist in the forecasting task and avoid shortage or excess in inventory [9] . In a more restricted scenario, the second source collects sales of each category of items rather than each item individually. The question that arises is whether we can fuse these sources to reconstruct high-resolution data in stores, items, and time dimensions. Formally, we are interested in:",
+            "cite_spans": [
+                {
+                    "start": 923,
+                    "end": 927,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1060,
+                    "end": 1063,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Disaggregation Problem"
+        },
+        {
+            "text": "We tackle this problem using a coupled low-rank factorization model as we explain next. Coupled factorization techniques are commonly used to fuse information when data share common dimension(s) for different tasks, e.g., link prediction [7] , demand forecasting [21] , context-aware recommendation [1] , medical imaging [10] , and remote sensing [11] . Closest to our work is the approach in [11] , which employs a coupled CPD to fuse a hyperspectral image with a multispectral image, to produce a high spatial and spectral resolution image. To our knowledge, this work is the first to propose a coupled tensor factorization to tackle data disaggregation applications. Tendi builds upon two basic principles. The first is that the target tensor, X \u2208 R I\u00d7J\u00d7K , admits a CPD model (X \u2248 [[A, B, C]] ). The second notes that the available aggregates, Y t and Y c , are resulting from the mode product of an aggregation matrix (matrices) by X in a particular mode(s). In particular, Y t = X \u00d7 3 W, and Tendi learns the factor matrices A, B, and C by applying a coupled CPD model on the available aggregates- Fig. 2 illustrates the high level picture of Tendi. Specifically, we propose the following formulation: ",
+            "cite_spans": [
+                {
+                    "start": 238,
+                    "end": 241,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 263,
+                    "end": 267,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 299,
+                    "end": 302,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 321,
+                    "end": 325,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 347,
+                    "end": 351,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 393,
+                    "end": 397,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 783,
+                    "end": 796,
+                    "text": "\u2248 [[A, B, C]]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1104,
+                    "end": 1110,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Disaggregation Problem"
+        },
+        {
+            "text": "Note that additional aggregated views can be handled in a similar fashion.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method: Tendi"
+        },
+        {
+            "text": "Problem (2) is non-convex, and NP-hard in general. To tackle it we employ a block coordinate descent (BCD) approach and update the three factors in an alternating fashion as summarized in Algorithm 1. The gradient of the loss function L w.r.t. A is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "Using the properties of the Khatri-Rao product, the space and time computational complexity of the products (C (VB)) T (C (VB)) can be reduced using the following element-wise Hadamard product C T C B T V T VB (similarly for ((WC) B) T ((WC) B) ) [19] . The updates of the factors B and C can be derived similarly using mode-2 and mode-3 unfolding of the tensors, respectively. The step size parameters \u03b1, \u03b2, and \u03b3 in Algorithm 1 are chosen by the exact line search method-see steps 1,3, and 5 in Algorithm 1.",
+            "cite_spans": [
+                {
+                    "start": 247,
+                    "end": 251,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 236,
+                    "end": 244,
+                    "text": "((WC) B)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Algorithm"
+        },
+        {
+            "text": "The initialization step in Algorithm 1 is crucial to the disaggregation accuracy. Thus, we propose to initialize as follows: if Y c is aggregated in two modes, then we initialize by:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "if Y c is aggregated only in one mode, i.e., V = I, then B is common in the two aggregated tensors and we can use the CPD of either to get two \"disaggregated\" factors. In this case, if I > K, then we initialize with (4), otherwise, we use:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "This way we have obtained an initial guess for all the factors. We use the Matlabbased package Tensorlab to compute the CPD in the initialization step. The computational complexity of each step in Algorithm 1 boils down to matrix multiplications that are dominated by O (I u J v K + IJK w )R . Since R is very small relative to the size of the tensors with many real data, the complexity is linear in the number of observations in Y t and Y c .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm"
+        },
+        {
+            "text": "In most practical applications, the aggregation details are known. However, there exists cases with limited or no information on how data are aggregated (i.e., U, V, and W are unknown). This happens in privacy sensitive domains such as healthcare [15] , where hospital records are aggregated to protect the privacy of patients. For such cases, we propose TendiB (Tendi with Blind disaggregation) to get the factors of the disaggregated tensor (A, B, and C): ",
+            "cite_spans": [
+                {
+                    "start": 247,
+                    "end": 251,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "TendiB: Tendi with Blind Disaggregation"
+        },
+        {
+            "text": "Where A = UA, and C = WC are treated as separate variables since we do not know U and W. This results in a more challenging problem than (2) as the number of variables is increased, with the same number of equations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "TendiB: Tendi with Blind Disaggregation"
+        },
+        {
+            "text": "Another challenge is that there is a scaling ambiguity between the factors of the two tensors, if we omit the third term in (6) . To overcome this, we observe that temporal aggregation W in most aggregated data is non-overlapping and includes all the time ticks 1 . This means that the respective column sums of C and C should be equal. We exploit this observation by adding the last term in (6) , thereby reconciling the scaling ambiguity. In order to solve (6), we adopt an Alternating Optimization (AO) procedure described in Algorithm 2. The updates of A, A, and B are solving overdetermined linear systems, and those for C, C boil down to solving a Sylvester equation. The Sylvester equation is a special form of a linear system of equations, which can be handled efficiently [12] . To initialize the variables in Algorithm 2, we compute the (CPD(Y c )) to get A, B, and C. To get an initial estimate of C, we exploit the fact that the temporal aggregates are the summation over consecutive time stamps in most real data. As such, we sum every consecutive w = round( K KW ) rows in C (In the experiments, we make sure that the true and estimated temporal aggregation do not align). ",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 127,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 262,
+                    "end": 263,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 781,
+                    "end": 785,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "TendiB: Tendi with Blind Disaggregation"
+        },
+        {
+            "text": "As mentioned earlier, the disaggregation task is an inverse ill-posed problem. Modeling the data with CPD allows to provably transform the ill-posed disaggregation problem to an identifiable one. In other words, the optimal solution of (2) and (6) are guaranteed to be unique, under mild conditions and identify the original high-resolution tensor almost surely. Formally identifiability is established in Proposition 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Identifiability Analysis"
+        },
+        {
+            "text": "with rank R. Also let Y t \u2208 R I\u00d7J\u00d7Kw = X \u00d7 3 W and Y c \u2208 R Iu\u00d7Jv\u00d7K = X \u00d7 1 U \u00d7 2 V be the two aggregated observations. Assume that A, B and C are drawn from some absolutely continuous distribution, and that (A , B , C ) is an optimal solutions to problem (2) or (6) .",
+            "cite_spans": [
+                {
+                    "start": 255,
+                    "end": 258,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 262,
+                    "end": 265,
+                    "text": "(6)",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 207,
+                    "end": 219,
+                    "text": "(A , B , C )",
+                    "ref_id": null
+                }
+            ],
+            "section": "Proposition 1. Let X \u2208 R I\u00d7J\u00d7K be the target high-resolution tensor data that admits a CPD X = [[A, B, C]]"
+        },
+        {
+            "text": "The proof is relegated to a journal version of this work due to space limitation, and it leverages the uniqueness properties of the CPD. From our experiments, we observed the tested data approximately exhibit a low-rank structure and therefore our identifiability conditions are satisfied.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1. Let X \u2208 R I\u00d7J\u00d7K be the target high-resolution tensor data that admits a CPD X = [[A, B, C]]"
+        },
+        {
+            "text": "We evaluate Tendi using the following publicly online available datasets: DFF : retail sales data from Dominick's Finer Foods (DFF), which used to be a grocery store chain in Chicago until it closed. DFF data were collected by the James M. Kilts Center, University of Chicago Booth School of Business. We create 2 ground-truth category-specific (stores \u00d7 items \u00d7 weeks) tensors X \u2208 R I\u00d7J\u00d7K containing the number of sold items of 50 different types of Cheese (CHE) and fabric softeners (FSF). We choose these two categories because they have different statistics, i.e., different sparsity and standard deviation (SD), to thoroughly examine the disaggregation performance. In addition, we form a (stores \u00d7 items \u00d7 weeks) tensor containing items from 10 different categories combined, 50 items from each (namely DFF in Table 1 ). DFF data contain the geographical locations of stores, which we use to aggregate stores into groups.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 816,
+                    "end": 823,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "Crime: number of crime incidents in the City of Chicago from 2001 to present, marked with beats (police geographical areas), and codes indicating the crime types. We form a (locations (by beat) \u00d7 crime types \u00d7 months) tensor.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "Walmart: weekly sales for a number of departments in 45 Walmart stores. A (stores \u00d7 departments \u00d7 weeks) tensor is created from this data. The information on square feet size of stores is available and we use it to aggregate the stores.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "Weather: daily weather observations from 49 stations in Australia. These data include 17 different variables, e.g., min/max temperature, humidity, etc. We form a (station \u00d7 variables \u00d7 days) tensor of daily observations for one year.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "The data, we aim to disaggregate, are created using the datasets summarized with their statistics in Table 1 and represented by X \u2208 R I\u00d7J\u00d7K . We examine the performance on two different scenarios: 1) Scenario A: we are given temporally aggregated tensor Y t = X \u00d7 3 W (i.e., aggregated in the third dimension), and contemporaneously aggregated tensor Y c = X \u00d7 1 U aggregated in the first mode (stores/locations dimension); and 2) Scenario B: where we observe Y t similar to scenario A, however, the contemporaneous aggregate is aggregated in the first and second dimensions in this scenario (double aggregation), i.e., Y c = X \u00d7 1 U\u00d7 2 V. The difficulty of the problem also depends on the aggregation level, i.e., the number of data points (e.g., weeks) in one sum. Fewer aggregated samples result in more challenging problems, and we test the performance using different aggregation levels. We evaluate the performance of Tendi using the Normalized Disaggregation Error (NDE = X \u2212 X 2 F / X 2 F ), whereX is the estimated data. We compare the performance to state-of-art approaches in time series disaggregation literature as well as methods developed to fuse multiple views of multidimensional data, but for different tasks (CMTF baseline). To the best of our knowledge our work is the first to perform disaggregation on multidimensional data from multiple views.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 101,
+                    "end": 108,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "Mean: assumes that the constituents data atoms (entries in X ) have equal contribution in their aggregated samples. The final estimate of Mean is the average of the estimation from the temporal and contemporaneous aggregates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "LS: baseline is inspired by [16] . However, this work uses additional information that is not available in our context. Therefore, we find the minimum-norm solution to the least squares criterion on the linear relationship between vec(X ), and vec(Y t ) and vec(Y c ).",
+            "cite_spans": [
+                {
+                    "start": 28,
+                    "end": 32,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "H-Fuse: [14] constrains the solution of LS baseline above to be smooth, i.e., it penalizes the large differences between adjacent time ticks.",
+            "cite_spans": [
+                {
+                    "start": 8,
+                    "end": 12,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "HomeRun: [2] solves for vec(X ) in the frequency domain. Specifically, it searches for the vector s such that s = Dvec(X ), where D is a matrix containing the Discrete Cosine Transform basis.",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 12,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "CMTF: [18] is coupled low-rank matrix factorization of the matricized tensors.",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 10,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "CP: fits a CPD model to the ground-truth tensor X using Tensorlab. Then,X is reconstructed from the learned factors (lower bound on the NDE we can achieve).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Baselines and Metrics"
+        },
+        {
+            "text": "In the experiments, we set \u03bc = 100, and choose R for Tendi (and CP baseline) based on Proposition 1. For CMTF we perform a grid search and show results with the best R. We run 10 iterations of the CPD in the initialization step of Algorithms 1 and 2 using Tensorlab, then 10 iterations of Tendi (or TendiB).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effectiveness"
+        },
+        {
+            "text": "We test this scenario with two aggregation levels on four datasets (CHE, FSF, Walmart, and Weather) as shown in Fig. 3 . The aggregation levels with CHE and FSF data are: 1) weeks are aggregated into months in Y t , whereas 93 stores are divided into 16 areas in Y c with the moderate aggregation (\"mod agg\") level; and 2) quarterly samples (every 12 weeks) in Y t , and stores are divided into only 9 areas with the high aggregation (\"high agg\") level. We conclude from the results of CHE and FSF that Tendi is more robust compared to all baselines when aggregation is aggressive (only few samples are available). For instance, with \"high agg\", the number of available samples in Y t and Y c is only 8.56% and 9.68% of the original size, respectively. In this case, the NDE of the second best baseline is 1.89x (1.81x) the error of Tendi with CHE (FSF) data. The best baseline is CP, which is a lower bound of the NDE we can achieve. Moreover, TendiB, which does not have access to the aggregation matrices, works remarkably well. It reduces the NDE of the second best baseline, that uses the aggregation information, by 37.77% (30.98%) with \"high agg\" level on CHE (FSF) data. With Walmart data in Fig. 3 (c) , \"mod agg\" means: weeks are aggregated into months in Y t , and 45 stores are clustered into 15 groups in Y c . Whereas, \"high agg\" is: weeks \u2192 quarterly samples in Y t , and 45 stores \u2192 9 groups in Y c . CMTF works slightly better when the aggregation is moderate, which can be explained from the fact that departments (second mode in Walmart data) do not exhibit high correlation levels and thus the advantage of a tensor model over a matricized tensor one is not obvious. However, Tendi works markedly better with aggressive aggregation, even without using the aggregation information (TendiB).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 112,
+                    "end": 118,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 1200,
+                    "end": 1210,
+                    "text": "Fig. 3 (c)",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Results on Scenario A:"
+        },
+        {
+            "text": "With Weather data (it has 93.30% zeros) in Fig. 3(d) , \"mod agg\" corresponds to the daily weather observations averaged into weekly samples in Y t , and the 49 stations are clustered into 13 stations resolution in Y c . On the other hand, days \u2192 months in Y t , and 49 stations \u2192 7 groups in Y c in the \"high agg\" level. Although CMTF and H-Fuse work better with this datasets compared to the other data, Tendi improves their error, especially with \"high agg\". HomeRun is excluded in Fig. 3(d) as it imposes non-negativity. CMTF works better with this dataset owing to the fact that the second mode is small (J = 17), thus the advantage of a tensor over a matricized tensor model is less clear. H-Fuse works well as it imposes smoothness, and weather data are suitable for such constraint. Although TendiB does not work as well as with other data, it still has smaller error than the simple baselines (Mean and LS), especially with aggressive aggregation. The CP error is invisible in Fig. 3(d) as it is close to zero.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 43,
+                    "end": 52,
+                    "text": "Fig. 3(d)",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 484,
+                    "end": 493,
+                    "text": "Fig. 3(d)",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 985,
+                    "end": 994,
+                    "text": "Fig. 3(d)",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Results on Scenario A:"
+        },
+        {
+            "text": "In this scenario, Y c is doubly aggregated in two dimensions: stores and items, or crime locations and types. We test the performance on DFF and Crime data and compare with Mean, CMTF, and CP baselines. We omit the other baselines as they run out of memory. Difficulty (i.e., level of aggregation), increases as we move from case (a) to (c) in Fig. 4 . With DFF data, these levels are: a) weeks \u2192 months in Y t , and 93 stores \u2192 16 areas in Y c with no aggregation over the items; b) weeks \u2192 months in Y t , and 93 stores \u2192 16 areas and 500 items \u2192 50 categories in Y c ; and c) weeks \u2192 quarters (12 weeks), and 93 stores \u2192 16 areas and 500 items \u2192 20 categories in Y c . One can see that Tendi significantly improves the disaggregation accuracy of the baselines with DFF data in Fig. 4(a) , with double aggregation and few available samples. With Crime data in Fig. 4(b) , the aggregation levels are: a) months \u2192 quarters in Y t , and 304 locations \u2192 61 areas and 388 types \u2192 78 categories in Y c ; b) months \u2192 quarters in Y t , and 304 locations \u2192 31 areas and 388 types \u2192 39 categories in Y c ; and c) months \u2192 bi-yearly samples in Y t , and 304 locations \u2192 16 areas and 388 types \u2192 20 categories in Y c . Crime dataset is challenging as it has 91.56% zero values and small SD. The naive mean (Mean) has a relatively large NDE with moderate aggregation in case (a), which indicates that the task is difficult. Although CMTF performs slightly better with the first two levels, Tendi becomes superior with extreme aggregation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 344,
+                    "end": 350,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 780,
+                    "end": 789,
+                    "text": "Fig. 4(a)",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 862,
+                    "end": 871,
+                    "text": "Fig. 4(b)",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "Results on Scenario B:"
+        },
+        {
+            "text": "In this work, we proposed a novel framework for fusing multiple aggregated views of multidimensional data. The proposed method leverages the properties of tensors in estimating the low-rank factors of the target data in higher resolution. The assumed model is provably transforming a highly ill-posed problem to an identifiable one. Experimental results show that the proposed algorithm is very effective, even with aggressive aggregation. The contributions of our work are summarized as follows: 1) Formulation: we formally defined the problem of multidimensional data disaggregation from views aggregated in different dimensions; 2) Identifiability: The considered tensor model provably converts a highly ill-posed problem to an identifiable one; 3) Effectiveness: Tendi reduces the disaggregation error of the competing alternatives by up to 48% on real data; and 4) Unknown aggregation: TendiB works even when the aggregation mechanism is unknown.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Context-aware recommendationbased learning analytics using tensor and coupled matrix factorization",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Almutairi",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Karypis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE J. Sel. Topics Sig. Process",
+            "volume": "11",
+            "issn": "5",
+            "pages": "729--741",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Homerun: scalable sparse-spectrum reconstruction of aggregated historical data",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Almutairi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Zadorozhny",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. VLDB Endow",
+            "volume": "11",
+            "issn": "",
+            "pages": "1496--1508",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "On generic identifiability of 3-tensors of small rank",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Chiantini",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ottaviani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "SIAM J. Matrix Anal. App",
+            "volume": "33",
+            "issn": "3",
+            "pages": "1018--1037",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Best linear unbiased interpolation, distribution, and extrapolation of time series by related series",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Chow",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 1971,
+            "venue": "Rev. Econ. Stats",
+            "volume": "",
+            "issn": "",
+            "pages": "372--375",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "The effects of student-faculty interactions on minority students' college grades: differences between aggregated and disaggregated data",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cole",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Professoriate",
+            "volume": "3",
+            "issn": "2",
+            "pages": "137--160",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Privacypreserving data aggregation in smart metering systems: an overview",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Erkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Troncoso-Pastoriza",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Lagendijk",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "P\u00e9rez-Gonz\u00e1lez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE Sig. Process. Mag",
+            "volume": "30",
+            "issn": "2",
+            "pages": "75--86",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Link prediction in heterogeneous data via generalized coupled tensor factorization",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ermi\u015f",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Acar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Cemgil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Data Mining Knowl. Discov",
+            "volume": "29",
+            "issn": "1",
+            "pages": "203--236",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10618-013-0341-y"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Aggregated versus disaggregated data in regression analysis: implications for inference",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Garrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Econ. Lett",
+            "volume": "81",
+            "issn": "1",
+            "pages": "61--65",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Forecasting with temporally aggregated demand signals in a retail supply chain",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Tokar",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Waller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "J. Bus. Logist",
+            "volume": "36",
+            "issn": "2",
+            "pages": "199--211",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Tensor completion from regular sub-Nyquist samples",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Kanatsoulis",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Akcakaya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Trans. Sig. Proc",
+            "volume": "68",
+            "issn": "",
+            "pages": "1--16",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Hyperspectral superresolution: a coupled tensor factorization approach",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Kanatsoulis",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Sig. Process",
+            "volume": "66",
+            "issn": "24",
+            "pages": "6503--6517",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Fast algorithms for the Sylvester equation ax \u2212 xb t = c",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kirrinnis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Theoret. Comput. Sci",
+            "volume": "259",
+            "issn": "1",
+            "pages": "623--638",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Tensor decompositions and applications",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Kolda",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Bader",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "SIAM Rev",
+            "volume": "51",
+            "issn": "3",
+            "pages": "455--500",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "H-fuse: efficient fusion of aggregated historical data",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Zadorozhny",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 SIAM International Conference on Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "786--794",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Ludia: an aggregate-constrained low-rank reconstruction algorithm to leverage publicly released health data",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 20th ACM SIGKDD",
+            "volume": "",
+            "issn": "",
+            "pages": "55--64",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "On estimating contemporaneous quarterly regional GDP",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Pav\u00eda-Miralles",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Cabrer-Borr\u00e1s",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "J. Forecasting",
+            "volume": "26",
+            "issn": "3",
+            "pages": "155--170",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Tensor decomposition for signal processing and machine learning",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sidiropoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "De Lathauwer",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Papalexakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Sig. Process",
+            "volume": "65",
+            "issn": "13",
+            "pages": "3551--3582",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "A convex formulation for hyperspectral image superresolution via subspace-based regularization",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sim\u00f5es",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bioucas-Dias",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Almeida",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chanussot",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE Trans. Geosci. Remote Sens",
+            "volume": "53",
+            "issn": "6",
+            "pages": "3373--3388",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Multi-aspect streaming tensor completion",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Caverlee",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "435--443",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Creating order forecasts: point-of-sale or order history?",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Waller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Bus. Logist",
+            "volume": "31",
+            "issn": "2",
+            "pages": "231--251",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Temporal regularized matrix factorization for highdimensional time series prediction",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Rao",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Dhillon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "847--855",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": ". 1, if X = [[A, B, C]], then Y = [[UA, VB, WC]].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Overview of Tendi.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "and V \u2208 R Jv\u00d7J are aggregation matrices with K w < K, I u < I, and J v < J. As a result, the aggregated views admit CPD models: Y t \u2248 [[A, B, WC]] and Y c \u2248 [[UA, VB, C]].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "A, B, C) := Yt \u2212 [[A, B, WC]] 2 F + Yc \u2212 [[UA, VB, C]]",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": ":= Yt \u2212 [[A, B, C]] 2 F + Yc \u2212 [[ A, B, C]] 2 F + \u00b5 1 T C \u2212 1 T C 2 2",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Tendi(2) input: Yt, Yc, U, V, W, R output: A, B, C Initialize: A, B, C by (4) or (5)Repeat 1. \u03b1 \u2190 argmin \u03b1\u22650 L(A \u2212 \u03b1\u2207AL) 2. A = A \u2212 \u03b1\u2207AL 3. \u03b2 \u2190 argmin \u03b2\u22650 L(B \u2212 \u03b2\u2207BL) 4. B = B \u2212 \u03b2\u2207BL 5. \u03b3 \u2190 argmin \u03b3\u22650 L(C \u2212 \u03b3\u2207CL) 6. C = C \u2212 \u03b3\u2207CL Until convergence (max. #iteration)Algorithm 2 : TendiB (6) input: Yt, Yc, R, \u03bc \u2265 0 output: A, B, C Initialize: A, B, C\u2190 CPD(Yc) C(kw, :)\u2190 w\u00d7kw k=w(kw \u22121)+1 C(k, :) Repeat -A \u2190 argmin A F (A, B, C, A, C) -C \u2190 argmin C F (A, B, C, A, C) -A \u2190 argmin A F (A, B, C, A, C) -C \u2190 argmin C F (A, B, C, A, C) -B \u2190 argmin B F (A, B, C, A, C) Until convergence (max. #iteration)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Tendi works well with extreme aggregation on different data.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Tendi works with double aggregation.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Summary of datasets.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}
