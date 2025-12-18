@@ -1,5 +1,5 @@
-from src.tokenizer import tokenize
-from src.semantic_search import get_semantic_engine
+from tokenizer import tokenize
+from semantic_search import get_semantic_engine
 import os
 import json
 import numpy as np
