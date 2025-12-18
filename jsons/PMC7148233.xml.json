@@ -1,0 +1,918 @@
+{
+    "paper_id": "PMC7148233",
+    "metadata": {
+        "title": "Learning Advanced Similarities and Training Features for Toponym Interlinking",
+        "authors": [
+            {
+                "first": "Joemon",
+                "middle": [
+                    "M."
+                ],
+                "last": "Jose",
+                "suffix": "",
+                "email": "joemon.jose@glasgow.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Emine",
+                "middle": [],
+                "last": "Yilmaz",
+                "suffix": "",
+                "email": "emine.yilmaz@ucl.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Jo\u00e3o",
+                "middle": [],
+                "last": "Magalh\u00e3es",
+                "suffix": "",
+                "email": "jm.magalhaes@fct.unl.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Pablo",
+                "middle": [],
+                "last": "Castells",
+                "suffix": "",
+                "email": "pablo.castells@uam.es",
+                "affiliation": {}
+            },
+            {
+                "first": "Nicola",
+                "middle": [],
+                "last": "Ferro",
+                "suffix": "",
+                "email": "ferro@dei.unipd.it",
+                "affiliation": {}
+            },
+            {
+                "first": "M\u00e1rio",
+                "middle": [
+                    "J."
+                ],
+                "last": "Silva",
+                "suffix": "",
+                "email": "mjs@inesc-id.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Fl\u00e1vio",
+                "middle": [],
+                "last": "Martins",
+                "suffix": "",
+                "email": "flaviomartins@acm.org",
+                "affiliation": {}
+            },
+            {
+                "first": "Giorgos",
+                "middle": [],
+                "last": "Giannopoulos",
+                "suffix": "",
+                "email": "giann@athenarc.gr",
+                "affiliation": {}
+            },
+            {
+                "first": "Vassilis",
+                "middle": [],
+                "last": "Kaffes",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Georgios",
+                "middle": [],
+                "last": "Kostoulas",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Interlinking (alt. deduplication, entity matching/linking, record linkage), in its most common form, is the task of identifying, from two entity sources, pairs of entity descriptions that correspond to the same real world entities. Interlinking is a crucial task in several domains, since it is quite often the case that real world entities are modeled, represented and gathered by different stakeholders, following different schemas, procedures and quality standards. As a result, multiple databases might exist for representing the same groups of real world entities, in heterogeneous ways. Examples include: person names, product names and spatio-textual entities (toponyms, POIs, addresses) in different data providers.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper, we examine the problem of interlinking spatio-textual entities, based solely on their name, i.e. we handle the problem of toponym interlinking. A toponym might refer to a broad range of spatio-textual entities, from small places, to countries. In our problem setting, the name of a spatio-textual entity/toponym, is its only reliable attribute that can be used for identifying same entities; the other attributes, such as spatial coordinates, categories, extended textual descriptions, are either non-existent or of too low quality/accuracy to be used for interlinking. Consider the scenario of a toponym data provider that maintains a proprietary toponym database, and periodically enriches/extends it with toponym entities extracted from user check-ins in social media. It is quite often the case that a check-in regarding a specific place is performed in locations that are considerably distant from the actual place. In this case, the coordinates extracted for the specific place are inaccurate and might even hurt the interlinking process, e.g. by leading to the rejection of a link between two toponyms that are actually the same, but appear to have distant locations. The authors of [4] elegantly describe the problem of dealing with extremely noisy location coordinates in the Facebook database. In another scenario, the recognition and extraction of toponyms might be performed on documents (e.g. travel guides), where the coordinates of toponyms are non-existent. Further, in either scenario, no other properties of the toponyms, such as categories or extended textual descriptions, can generally be retrieved for the majority of the extracted toponyms.",
+            "cite_spans": [
+                {
+                    "start": 1206,
+                    "end": 1207,
+                    "mention": "4",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Competitive approaches from the literature utilize generic string similarity measures to solve the problem and limit their contributions to tuning their parameters or using them as training features in machine learning (ML) algorithms for classification. We take a different approach, claiming that domain knowledge is a critical factor for toponym interlinking that needs to be captured and incorporated within the interlinking process. To this end, we analyse a large toponym dataset, Geonames1, which contains, among other toponym metadata, alternative names for millions of toponyms. Based on the insights we gain, we build an elaborate meta-similarity function, LGM-Sim, that takes into account and incorporates within its processing steps the specificities of toponym names. Additionally, we derive training features from LGM-Sim, that can be used for interlinking via classification. We demonstrate the superiority of the proposed models in two settings: similarity-based and classification-based toponym interlinking.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "The rest of the paper is organized as follows. Section 2 discusses related work on interlinking, emphasizing on spatio-textual data. Section 3 defines the toponym interlinking problem and presents the two generic methodologies for solving it and, further, briefly discusses our findings and insights on the domain specificities of toponyms. Section 4 presents our proposed methods that incorporate the aforementioned insights, including domain specific similarity functions and training features, for toponym interlinking. Section 5 evaluates the effectiveness of the proposed methods in two different interlinking settings: similarity-based and classification-based. Finally, Sect. 6 concludes the paper.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Considering the more general problem of name matching, various methods are proposed in the literature, with several previous studies [2, 3] performing thorough evaluations of the most prominent ones in several datasets and demonstrating that there are no distinctively better methods that surpass all others in all settings/datasets. A generic framework for named entity interlinking is presented in [10], aiming to properly handle a variety of generic tasks where accuracy is not the most important criterion. In this frame, an enhancement of the Soft-TFIDF measure, combined with the Levenshtein similarity, is proposed.",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 135,
+                    "mention": "2",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 137,
+                    "end": 138,
+                    "mention": "3",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 401,
+                    "end": 403,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Metrics specifically designed for toponym interlinking that mostly correspond to variations of the procedures used for generic name matching are proposed in [5, 8]. The DAS similarity measure [8] comprises a hybrid, three-stages method that combines features from token-based and edit-based approaches. The meta-similarity proposed in [5] takes into account accentuation and other language-specific aspects of toponym names, in a four-stages process. The set of algorithms evaluated in [2] were assessed in the toponym interlinking problem by [12]. The authors experimented on place names listed in the GEOnet Names Server, that contains romanized toponyms from 11 different countries. Based on their study, no similarity measure achieves the highest accuracy in all datasets. In [4], the problem of business places deduplication is studied, taking a different approach. In the proposed solution, certain words (core terms) are identified, that are of higher significance in the name deduplication process. Based on these terms, a name model is constructed and properly combined with a spatial context model, using unsupervised learning algorithms.",
+            "cite_spans": [
+                {
+                    "start": 158,
+                    "end": 159,
+                    "mention": "5",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 161,
+                    "end": 162,
+                    "mention": "8",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 193,
+                    "end": 194,
+                    "mention": "8",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 336,
+                    "end": 337,
+                    "mention": "5",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 487,
+                    "end": 488,
+                    "mention": "2",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 544,
+                    "end": 546,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 781,
+                    "end": 782,
+                    "mention": "4",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Several works apply supervised machine learning approaches by extracting training features on name, coordinates, category, as well as textual, topological and semantic similarity, and utilizing them within classifiers [1, 9, 15, 16]. A framework for improving duplicate detection using learnable text distance functions is presented in [1], however, in this work too, generic string similarity measures are used for the feature scores computation. The authors of [15] extract features for location name, coordinates, location type and demographic information. Then, machine learning algorithms are used to weight all features to solve the spatial entity matching problem. The work in [16] proposes a machine learning based approach to detect duplicate location entities. For this, a proposed metric is calculated for each key feature consisting of name, address and category similarity that describe entity pairs. Then, these extracted features are fed in a classification model to decide whether two entities are duplicates or not. Suport Vector Machine (SVM) and an alternating Decision Tree classifiers are used to combine different similarity features in [9]. The authors consider a variety of features corresponding to place name similarity, geospatial footprint similarity, place type similarity, similarity measures corresponding to semantic relations and temporal similarity. Contrary to these works, our study bases the matching process exclusively on toponym names. Utilizing richer spatio-textual profiles that enable the construction of features based on location-based, temporal or categorical similarity is beyond the scope of this work.",
+            "cite_spans": [
+                {
+                    "start": 219,
+                    "end": 220,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 222,
+                    "end": 223,
+                    "mention": "9",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 225,
+                    "end": 227,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 229,
+                    "end": 231,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 337,
+                    "end": 338,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 464,
+                    "end": 466,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 685,
+                    "end": 687,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1160,
+                    "end": 1161,
+                    "mention": "9",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Most closely comparable to ours is the work presented in [14], where a thorough overview of the literature and an extended comparison of 13 different string similarity functions on toponym interlinking is performed. Additionally, these similarity functions are also assessed as training features within state of the art supervised machine learning algorithms for classification. Similarly, most works reviewed in [14] do not take into account the specificities of toponyms, however, using these methods as baselines for comparison allows as to compare with a large part of the literature. Our preliminary work on the problem [6], presents a first version of the LGM-Sim, a meta-similarity function aiming to capture the specificities of toponyms. In [6] we demonstrate that applying LGM-Sim on top of several baseline similarity functions improves their interlinking accuracy by a large extent. In outr current work, we fine-tune the LGM-Sim function and we exploit it into deriving training features to be used within classification algorithms for toponym interlinking, demonstrating further increases in accuracy.",
+            "cite_spans": [
+                {
+                    "start": 58,
+                    "end": 60,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 414,
+                    "end": 416,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 626,
+                    "end": 627,
+                    "mention": "6",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 751,
+                    "end": 752,
+                    "mention": "6",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Deep Learning methods for toponym interlinking are also being proposed in the literature. [13] present such a method, were Siamese RNNs are applied, yielding better accuracy results than traditional classifiers on similarity-based training features. Incorporating Deep Learning methods eliminates the need for feature extraction and engineering, however, it requires large amounts of data to train proper models, as well as engineering proper DNN architectures. The goal of the currently presented work is to demonstrate the potential and the gains of incorporating domain knowledge into generic similarity measures and classifiers for toponymm interlinking. Comparing traditional classification methods with Deep Learning methods, as well as devising approaches for exploiting both worlds comprises part of our ongoing work. Thus, in the current manuscript, the approach of [13] is considered orthogonal but potentially complementary.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 93,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 876,
+                    "end": 878,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "A different research strand focus on improving the efficiency of the interlinking process [11], since, in its naive version, it is an \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$O(n^2)$$\\end{document} problem, and thus prohibitive for large datasets. Such methods consider as a given that the similarity functions they apply will be sufficiently accurate on identifying same entities, and focus on developing indexes, structures and schemes for optimizing the performance of the interlinking process, in terms of time-efficiency and scalability. Following a different rationale, the Magellan system, presented in [7], aims to provide the tools to end users to exploit a wide range of techniques related to the entity matching process under a unified framework. However, the implemented similarity functions are generic, widely adopted similarities that are not specialized or properly tuned for the setting of comparing geospatial entities. Further, an integral concept in Magellan is user interaction, prescribing pipelines where automated interlinking tasks and user feedback are iteratively combined. These categories of works on interlinking solve orthogonal/complementary problems and are not directly comparable to our proposed methods.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 93,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 839,
+                    "end": 840,
+                    "mention": "7",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Given a set of candidate toponym pairs, toponym interlinking can be formalized as the problem of learning a decision function that decides whether a candidate toponym pair contains two toponyms that correspond to the same real world spatio-textual entity2. One can identify two generic methodologies for solving the above problem.",
+            "cite_spans": [],
+            "section": "Problem Formulation ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "Similarity comparison methods apply, on every candidate pair of toponyms, a string similarity function, in conjunction with a similarity threshold to compare the names of the two toponyms. If the similarity score, produced by the similarity function, surpasses or equals the defined threshold, then the pair of toponyms is marked as True, otherwise, it is marked as False. Depending on the similarity function, several parameters, such as thresholds and weights, need to be tuned either by learning them on a dedicated training set or by being empirically selected by domain experts via tuning/trial-and-error procedures.",
+            "cite_spans": [],
+            "section": "Problem Formulation ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "Classification methods train a binary classification algorithm that takes as input a candidate pair of toponyms and classifies it in either of the two available classes: {True, False}. In this case, a feature extraction process needs to be performed before the classification algorithm is deployed, in order to represent candidate pairs into an appropriate feature space, capturing meaningful toponym properties and relations with respect to the task at hand. After the above representations are defined, the classifier is trained on historical data, i.e. candidate toponym pairs for which we already know their class. The trained classifier is then able to decide whether a new pair of toponyms is True or False.",
+            "cite_spans": [],
+            "section": "Problem Formulation ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "The literature on toponym interlinking includes methods adopting both presented methodologies. A detailed comparison of most of the proposed methods is performed in [14], as well as in our evaluation, which follows a similar experimental setting. The goal of this paper is to establish the value of learning/elaborate domain specific similarities for toponym interlinking. Given that most of the aforementioned methodologies are either based or can benefit from similarity measures and/or respective training features, the contribution of our methods touches and can potentially improve a wide range of interlinking methods.",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 168,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "Problem Formulation ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "For our analysis, it is useful to first discuss the concept of core name and core term, also similarly defined, but differently handled in [4]. Core name consists in the subset of terms from the toponym name that are the most important in distinguishing the toponym from other ones, and, respectively, identifying same toponyms. A core term is a single term contained in the core name. The concept of core name cannot be strictly/formally defined, since it largely depends on human understanding on toponyms and domain knowledge. However, we believe that approximating the identification of core terms and handling them differently within a meta-similarity function may yield increased interlinking accuracy.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 141,
+                    "mention": "4",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Concepts and Intuitions ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "One of the major specificities of toponyms, compared to namings of other entities, is the fact that different terms within their name might largely vary with respect to their significance in deciding whether two toponyms are the same. This variability might also take several forms, such as: (i) The existence of a frequent term that provides categorical information of the toponym, like \u201ccommunity\u201d or \u201csquare\u201d. Such terms do not comprise a part of the core name of the toponym, and need to be handled differently; (ii) Terms that comprise part of the core name of a toponym might be of different significance and, thus, some of them might be omitted from its name in one data source, while maintained in the name in another source. An indicative example would be the toponym: \u201cSt. Paul\u2019s German Lutheran Church\u201d. In this case, \u201cChurch\u201d could be considered a non-core term, however, it is expected to be a frequent term. Also, \u201cSt. Paul\u2019s\u201d potentially has higher significance than \u201cGerman Lutheran\u201d in distinguishing/interlinking the toponym from/with another one.",
+            "cite_spans": [],
+            "section": "Concepts and Intuitions ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "Additionally, toponyms are inherently characterized by large variability in the terms that actually comprise their core name. That is, the same term might be spelled in different ways, or be expressed in abbreviated, or generally altered, forms. This fact complicates the identification of proper matchings between name terms within a toponym. The aforementioned variability extends to punctuation and accentuation too. A representative example is the following matching pair \u201cSolovejcev Kljuch - Soloveytsev Klyuch\u201d.",
+            "cite_spans": [],
+            "section": "Concepts and Intuitions ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "Another issue lies in the order of the toponym terms. Two variations of the same toponym might contain the same terms in different order; term ordering becomes even more cumbersome in case some of these terms are missing in one of the names. In this case, it is uncertain whether sorting the terms of each toponym aphanumerically, before comparing them, will facilitate or hinder their similarity comparison process. A representative example is the pair: \u201cLake Thompson - Thompson Lake Reservoir\u201d. Not only the two toponyms contain core terms in different order but also only one of them contains the term \u201cReservoir\u201d.",
+            "cite_spans": [],
+            "section": "Concepts and Intuitions ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "We note that all the presented examples are drawn from Geonames, a large toponym dataset on which we perform our analysis and which contains hundreds of thousands of such cases and specificities. The LGM-Sim meta-similarity function, proposed next, comprises several string processing steps that take into account and handle the aforementioned toponym specificities.",
+            "cite_spans": [],
+            "section": "Concepts and Intuitions ::: Background and Domain Knowledge",
+            "ref_spans": []
+        },
+        {
+            "text": "A high level description of the LGM-Sim meta-similarity is provided in Algorithm 1. LGM-Sim takes as input two toponym strings, while it has a set of parameters regarding comparison thresholds and individual score weighting. Additionally, it considers a set of frequent terms that can be automatically gathered by the corpus of toponyms that are to be interlinked. All the parameters of LGM-Sim can be automatically learned by evaluating the effectiveness of different parameterizations on a small training dataset, and selecting the parameters that yield the highest accuracy. We show in our experiments that it is sufficient to train LGM-Sim in a much smaller train dataset than the deployment dataset.",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "LGM-Sim aims at properly splitting the compared toponym strings into discrete lists of terms, with each list containing terms of different semantics. First, LGM-Sim initializes a list of punctuation marks and two initially empty lists of terms for the two toponyms, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mathcal {S}_1,\\mathcal {S}_2$$\\end{document} respectively (lines 6\u20137). Next, an initial pre-processing step on the two strings is performed by TransformNames, including lowercasing, transliteration and punctuation/accentuation alignment (line 8).\n",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "Then, the terms within the two toponym strings are sorted alphanumerically and stored to the initialized lists (line 9). The first step of SortTerms is to concatenate all the (unsorted) terms in the initial strings and then compare the two concatenated strings with a loose threshold \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta _{sort}$$\\end{document}. If the two concatenated strings are similar enough, then the function returns the two lists of terms unsorted. The rationale is that, if the initial, unsorted strings are similar enough, then sorting their terms might reduce their similarity, e.g. by re-ordering small terms that are not common in both strings or that start with different alphabet letter. On the other hand, if the two initial strings are not similar enough, the function returns two alphanumerically sorted lists of their terms, since, in this case, it is quite probable that sorting will increase their similarity.",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "Then, the first step of splitting the two toponym strings into separate lists is performed (line 10). ExtractFrequentTerms identifies frequent terms within \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mathcal {S}_1,\\mathcal {S}_2$$\\end{document}, removes them and adds them in two new lists, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mathcal {S}_1^{freq},\\mathcal {S}_2^{freq}$$\\end{document}. The remaining lists are now called \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mathcal {S}_1^{base},\\mathcal {S}_2^{base}$$\\end{document} and contain terms more probable to be core ones.",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "Thereafter, the second step of splitting the toponyms into separate lists is performed (line 11). Specifically, CompareCoreTerms further splits each of the base toponym lists into the new lists, containing matching and non-matching terms, as follows. First, four empty lists are initialized, so as to be filled with the matching and non-matching terms of each toponym. Then, the two input lists of base terms of the two toponyms are parsed simultaneously, term by term. At each step, if the two considered terms from the two lists (loosely) match, then they are permanently stored as base terms. If the two terms do not match, the parsing proceeds only in the list with the alphanumerically lowest term, while the specific term is stored in the respective mismatch list. Finally, the remaining, mismatched terms are added to the respective mismatch lists, and the function returns the four new lists \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mathcal {S}_1^{base},\\mathcal {S}_2^{base},\\mathcal {S}_1^{mis},\\mathcal {S}_2^{mis}$$\\end{document}, containing matching base terms and mismatching terms from the two toponym strings.",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "At this stage, the two initial toponym strings have been split in three lists of terms each: (i) Two base lists containing potential core terms of the toponyms that are identified to match between the two toponyms; (ii) Two mismatch lists containing potential core terms, that, however, have not been matched between the two toponyms; (iii) Two frequent\nterms lists that contain terms from the toponym that are frequently found in the corpus, and thus might not belong to the core names of the toponyms, functioning auxiliary to them.",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "Next, CompareCoreTerms calculates three similarity scores, comparing individually the three different types of lists, and properly weights the three individual similarity scores in order to produce the final similarity score for the toponyms (line 12). For this, three individual weights are utilized, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_b$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_m$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_f$$\\end{document}, which represent the significance of the similarity scores calculated on the three term lists that are individually compared for each pair of toponyms. Each comparison process first examines whether the input lists are empty, so as to re-adjust the corresponding weights for the individual similarity scores. For example, if for a pair of toponyms no frequent terms have been identified, then the score weight \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_f$$\\end{document} is set to null and the rest weights \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_b$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_m$$\\end{document} are proportionately increased according to the lengths of the respective term lists. Next, the significance weights \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_b$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_m$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$w_f$$\\end{document} are re-calculated, taking into account the lengths of the corresponding lists they refer to. This process is performed in order to compensate for large discrepancies between the lengths of lists (measured in total number of characters) of different types. Finally, the individual scores are summed and the final similarity score is returned by the function (line 13).",
+            "cite_spans": [],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": []
+        },
+        {
+            "text": "In the last step (line 13), LGM-Sim compares the final score calculated with a similarity comparison threshold \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta _{sim}$$\\end{document}. Depending on the result of the comparison, the value True or False is returned denoting whether the two toponyms are the same or not. LGM-Sim is a meta-similarity function, thus it can be applied on top of any generic similarity measure. Following the evaluation paradigm of [14], we consider a large set of similarity measures, presented in Table 1. Presenting the specifics of these similarity measures is out of the scope of this paper. However, these measures are well studied in the literature and the reader can refer to [14] for a short presentation of each of them.\n",
+            "cite_spans": [
+                {
+                    "start": 687,
+                    "end": 689,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 939,
+                    "end": 941,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": [
+                {
+                    "start": 759,
+                    "end": 760,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "We note that the last line of Table 1 presents two similarity measures that are not presented in [14] or [6], rather than comprise a variation of the respective Jaro-Winkler measures, that we propose in the current work, taking into account the characteristics of toponyms that we have studied in Geonames. In particular, it adds the notion of skip-grams into the Jaro-Winkler metric and, especially, the Winkler part, that gives higher scores to strings that match from the beginning up to a given prefix length. Thus, we allow for a gap of one character in the matching of the prefixes between two strings. The same applies to its reverse variation by considering the endings of the strings.",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 100,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 106,
+                    "end": 107,
+                    "mention": "6",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "section": "LGM-Sim Meta-Similarity for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 37,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "The generic process of training classifiers for toponym interlinking is described in Sect. 3.1. Here, we discuss the training features we introduce, for better capturing and exploiting the domain knowledge of toponyms. One of the major merits of training a classifier is the combinatorial exploitation of several features within a model. While in the generic similarity comparison based setting, only one similarity function at a time can be examined/deployed, in the classification based setting, several similarity functions can be encoded as training features of the model. Past approaches, as well as the study presented in [14], have used combinations of the similarity measures presented in Table 1 as training features.",
+            "cite_spans": [
+                {
+                    "start": 629,
+                    "end": 631,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "LGM-Sim Based Classifiers for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": [
+                {
+                    "start": 703,
+                    "end": 704,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "In this work, we adopt the aforementioned set of training features, however, we enrich it with a corresponding set of features generated by applying the LGM-Sim on all the similarity measures presented in Table 1. Further, we consider an \u201cintermediate\u201d set of training features, corresponding again to the similarity measures of Table 1, however, having performed only the sorting function of LGM-Sim, before comparing the toponym strings. Additionally, we consider the three individual similarity scores calculated on the three individual lists that LGM-Sim splits the two toponym names. That is, we consider \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$score_b$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$score_m$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$score_f$$\\end{document}, derived by individually comparing \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$(\\mathcal {S}_1^{base},\\mathcal {S}_2^{base})$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$(\\mathcal {S}_1^{mis},\\mathcal {S}_2^{mis})$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$(\\mathcal {S}_1^{freq},\\mathcal {S}_2^{freq})$$\\end{document}, as separate features, allowing the model to learn the significance of the similarity of each of these individual parts of the toponym names, along with the significance of their total similarity.\n",
+            "cite_spans": [],
+            "section": "LGM-Sim Based Classifiers for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": [
+                {
+                    "start": 211,
+                    "end": 212,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 335,
+                    "end": 336,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "Further, we define a set of non-similarity based features, that concern statistical aspects of the compared toponyms. Specifically, for each pair of toponyms, the number of terms contained in each forms two integer features; the existence of a frequent term in each forms two boolean features, while the existence of one or more of the 20 more frequent terms in the whole dataset in each toponym forms 40 additional boolean features. Eventually, we consider five groups of training features (Table 2): (i) the basic similarity features as presented in [14]; (ii) the sorted similarity features; (iii) the LGM-Sim similarity features; (iv) the individual scores on the split toponyms produced by applying LGM-Sim based Damerau-Levenshtein similarity; and (v) the statistical features on toponyms.",
+            "cite_spans": [
+                {
+                    "start": 553,
+                    "end": 555,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "LGM-Sim Based Classifiers for Toponym Interlinking ::: Models for Toponym Interlinking",
+            "ref_spans": [
+                {
+                    "start": 498,
+                    "end": 499,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "We denote as Basic all baseline models as presented in [14], while as LGM/LGM-Sim all our proposed models. Moreover, we mark with bold the best reported value, per evaluation measure, and per compared approach (Basic vs. LGM-Sim). We note that we exclude from our experiments the Permuted Jaro-Winkler similarity measure, since it is reported in [14] that it is orders of magnitude slower than the rest similarity measures, without any substantial gains in interlinking effectiveness. Also, we do not report values for the LGM-Sim version of the Jaro-Winkler Sorted similarity, since it would conflict with the fact that LGM-Sim incorporates its own mechanism for deciding whether to sort or not two toponym strings.",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 58,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 347,
+                    "end": 349,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "Evaluation Results ::: Evaluation",
+            "ref_spans": []
+        },
+        {
+            "text": "Examining the effectiveness of the compared methods in the test set6, Table 3 demonstrates that LGM-Sim improves the Accuracy of all baseline models by 8\u2013\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$15\\%$$\\end{document}. Specifically, in the similarity-based setting, the best LGM-Sim model increases the Accuracy of the best Basic model by \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$14.9\\%$$\\end{document}; in the classification setting, the respective increase is \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$8.1\\%$$\\end{document}. Similar observations stand for the rest of the evaluation measures where both Precision and Recall of the models increase, noting that LGM-Sim meta-similarity seems to give a large boost to Recall, whereas Precision is the one significantly boosted on the LGM-Sim derived features within classifiers. Another observation is that the LGM-Sim meta-similarity methods close the gap between similarity comparison and classification based methods, making the former an acceptable solution in scenarios where the more heavy-weight classification models are not an option. A third observation is that the introduced Tuned Jaro-Winkler Reversed similarity marginally increases the effectiveness of the Jaro-Winkler Reverse in the similarity based setting (\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$79.8\\%$$\\end{document} vs. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$79.6\\%$$\\end{document}), comprising a seemingly insignificant boost in Accuracy.\n",
+            "cite_spans": [],
+            "section": "Evaluation Results ::: Evaluation",
+            "ref_spans": [
+                {
+                    "start": 76,
+                    "end": 77,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                }
+            ]
+        },
+        {
+            "text": "Finally, we examine the most informative training features utilized by the best classifier on our problem, in terms of higher Accuracy, i.e. the Gradient Boosted Trees. Table 4 presents the top-10 features from higher to lower order of importance. A first observation is that the majority (7/10) of the top-10 training features are introduced in this work. This is consistent with the findings from Table 3. Another observation is that variations of our proposed Tuned Jaro-Winkler measure comprise 3/10 most informative features, demonstrating that the proposed modification, despite its marginal effect in the similarity-based setting, it is rather useful in the classification based setting. Further, it becomes evident that appropriate sorting of toponym strings, following the processing of SortTerms, is of high importance, since 5/10 features incorporate this processing (either plain Sorted or LGM-Sim features). Finally, although the introduced statistical features seem promising, it is evident that they require more elaboration, since they occupy only the last two positions in the list.\n",
+            "cite_spans": [],
+            "section": "Evaluation Results ::: Evaluation",
+            "ref_spans": [
+                {
+                    "start": 175,
+                    "end": 176,
+                    "mention": "4",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 405,
+                    "end": 406,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                }
+            ]
+        },
+        {
+            "text": "Regarding computation times, we present some indicative runtimes to showcase that the LGM-Sim methods do not introduce prohibitive overheads. Indicatively, for 5M toponym pairs, JW Reversed similarity runs in 10 s, while its LGM-Sim version in 114 s; both times are marginal considering the magnitude of the dataset. Respectively, Gradient Boosted Trees with the baseline features runs in 113 min., while its LGM-Sim version in 135 min., introducing less that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$20\\%$$\\end{document} overhead, which is negligible considering the Accuracy gains presented above.",
+            "cite_spans": [],
+            "section": "Evaluation Results ::: Evaluation",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper, we presented domain specific models that can be applied for toponym interlinking. We demonstrated that the proposed meta-similarity, LGM-Sim and the training features derived from it consistently, and to a large extent, improve the interlinking effectiveness of widely used baseline models. As future work, further examining and refining non-similarity based training features (e.g. structural, statistical), as well as combining traditional features and methods with Deep Learning/embedding-based methods comprise promising directions.",
+            "cite_spans": [],
+            "section": "Conclusion",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1.: Considered similarity measures\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2.: Considered training features\n",
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Table 3.: Evaluation results on test dataset (5M)\n",
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Table 4.: Evaluation of top-10 most important training features for the best classifier\n",
+            "type": "table"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "Schema-agnostic vs schema-based configurations for blocking methods on homogeneous data",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Papadakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Alexiou",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Papastefanatos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Koutrika",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "PVLDB",
+            "volume": "9",
+            "issn": "4",
+            "pages": "312-323",
+            "other_ids": {
+                "DOI": [
+                    "10.14778/2856318.2856326"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "Toponym matching through deep neural networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Murrieta-Flores",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Calado",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Int. J. Geogr. Inf. Sci.",
+            "volume": "32",
+            "issn": "",
+            "pages": "1-25",
+            "other_ids": {
+                "DOI": [
+                    "10.1080/13658816.2017.1390119"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "title": "Learning to combine multiple string similarity metrics for effective toponym matching",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Murrieta-Flores",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Int. J. Digit. Earth",
+            "volume": "11",
+            "issn": "",
+            "pages": "1-26",
+            "other_ids": {
+                "DOI": [
+                    "10.1080/17538947.2017.1371253"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF13": {
+            "title": "Magellan: toward building entity matching management systems",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Konda",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "PVLDB",
+            "volume": "9",
+            "issn": "",
+            "pages": "1197-1208",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "An accurate toponym-matching measure based on approximate string matching",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kilin\u00e7S",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Inf. Sci.",
+            "volume": "42",
+            "issn": "2",
+            "pages": "138-149",
+            "other_ids": {
+                "DOI": [
+                    "10.1177/0165551515590097"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "title": "A supervised machine learning approach for duplicate detection over gazetteer records",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Martins",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "GeoSpatial Semantics",
+            "volume": "",
+            "issn": "",
+            "pages": "34-51",
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}

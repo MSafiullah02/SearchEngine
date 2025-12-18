@@ -1,0 +1,1437 @@
+{
+    "paper_id": "PMC7148226",
+    "metadata": {
+        "title": "Diagnosing BERT with Retrieval Heuristics",
+        "authors": [
+            {
+                "first": "Joemon",
+                "middle": [
+                    "M."
+                ],
+                "last": "Jose",
+                "suffix": "",
+                "email": "joemon.jose@glasgow.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Emine",
+                "middle": [],
+                "last": "Yilmaz",
+                "suffix": "",
+                "email": "emine.yilmaz@ucl.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Jo\u00e3o",
+                "middle": [],
+                "last": "Magalh\u00e3es",
+                "suffix": "",
+                "email": "jm.magalhaes@fct.unl.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Pablo",
+                "middle": [],
+                "last": "Castells",
+                "suffix": "",
+                "email": "pablo.castells@uam.es",
+                "affiliation": {}
+            },
+            {
+                "first": "Nicola",
+                "middle": [],
+                "last": "Ferro",
+                "suffix": "",
+                "email": "ferro@dei.unipd.it",
+                "affiliation": {}
+            },
+            {
+                "first": "M\u00e1rio",
+                "middle": [
+                    "J."
+                ],
+                "last": "Silva",
+                "suffix": "",
+                "email": "mjs@inesc-id.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Fl\u00e1vio",
+                "middle": [],
+                "last": "Martins",
+                "suffix": "",
+                "email": "flaviomartins@acm.org",
+                "affiliation": {}
+            },
+            {
+                "first": "Arthur",
+                "middle": [],
+                "last": "C\u00e2mara",
+                "suffix": "",
+                "email": "a.barbosacamara@tudelft.nl",
+                "affiliation": {}
+            },
+            {
+                "first": "Claudia",
+                "middle": [],
+                "last": "Hauff",
+                "suffix": "",
+                "email": "c.hauff@tudelft.nl",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Over the course of the past few years, IR has seen the introduction of a large number of successful deep learning approaches for solving all kinds of tasks previously tackled with hand-crafted features (within the learning to rank framework) or traditional retrieval models such BM25.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In 2017, with the introduction of the transformer architecture [33], a second wave of neural architectures for NLP has emerged. Approaches (and respective models) like BERT [7], XLNet [41] and GPT-2 [24] have shown that it is indeed possible for one general architecture to achieve state-of-the-art performance across very different NLP tasks (some of which are also related to IR tasks, such as question answering, reading comprehension, etc.).",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 66,
+                    "mention": "33",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 174,
+                    "end": 175,
+                    "mention": "7",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 185,
+                    "end": 187,
+                    "mention": "41",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 200,
+                    "end": 202,
+                    "mention": "24",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Ad-hoc retrieval, the task of ranking a set of documents given a single query, has long resisted the success of neural approaches, especially when employed across standard IR test collections such as Robust041, which come with hundreds of topics (and thus relatively little training data). Often, the proposed neural approaches require a very careful design of their architecture. Also, the training regime and the input data transformations have to be just right [17] in order to beat or come close to well-tuned traditional IR baselines such as RM3 [2, 16]2. With the introduction of BERT in late 2018, this has finally changed. Recently, a range of BERT-inspired approaches have been shown to clearly surpass all strong IR baselines on Robust04 [6, 40] and other IR corpora.",
+            "cite_spans": [
+                {
+                    "start": 465,
+                    "end": 467,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 552,
+                    "end": 553,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 555,
+                    "end": 557,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 749,
+                    "end": 750,
+                    "mention": "6",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 752,
+                    "end": 754,
+                    "mention": "40",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "It is still an open question though what exactly makes BERT and similar approaches perform so well on IR tasks. While recent works try to understand what BERT learns most often by analysing attention values, e.g., [4, 12, 21, 32], analysing BERT under the IR light requires a different set of tools. While most NLP tasks optimise for precision, recall or other objective metrics, the goal of ad-hoc retrieval is to optimise for relevance, a complex multidimensional and somewhat subjective concept [3].",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 216,
+                    "mention": "4",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 218,
+                    "end": 220,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 222,
+                    "end": 224,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 226,
+                    "end": 228,
+                    "mention": "32",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 499,
+                    "end": 500,
+                    "mention": "3",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper, we set out to explore BERT under the IR lens, employing the concept of diagnostic datasets, an IR model analysis approach (inspired by similar NLP and computer vision approaches) proposed last year by Rennings et al. [25]. The idea behind these datasets is simple: each dataset is designed to fulfil one retrieval axiom [9], i.e., a heuristic that a good retrieval function should fulfil3. Each dataset contains query-documents instances (most often, a query and two documents) that the investigated model should rank in the correct order as determined by the heuristic. The extent to which a model correctly ranks those instances is allowing us to gain insights into what type of information the retrieval model pays attention to (or not) when ranking documents. While traditional retrieval models such as BM25 [26] can be analysed analytically, neural nets with their millions or even billions of learnt weights can only be analysed in such an empirical manner.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 235,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 336,
+                    "end": 337,
+                    "mention": "9",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 828,
+                    "end": 830,
+                    "mention": "26",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "More concretely, we attempt to analyse a version of BERT, DistilBERT (that was shown to attain 97% of \u201cvanilla\u201d BERT performance [28]), fine-tuned on the TREC 2019 Deep Learning track dataset4. We extend previous work [25] by incorporating additional axioms (moving from term matching to semantic axioms). We find that DistilBERT to outperform the traditional query likelihood (QL) model by 40%. In contrast to our expectations however, we find that BERT does not adhere to any of the axioms we incorporate in our work. This implies that the currently existing axioms are not sufficient and not applicable to capture the heuristics that a strong supervised model learns (at least for the corpus and model we explore); it is not yet clear to what extent those results generalise beyond our model and corpus combination but it opens up a number of questions about the axiomatic approach to IR.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 132,
+                    "mention": "28",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 219,
+                    "end": 221,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Axiomatic Information Retrieval. The use of axioms (or \u201cretrieval heuristics\u201d) as a means to improve and understand information retrieval techniques is well established. It is an analytic technique to explore retrieval models and how best to improve them. In their seminal work, Fang et al. [9, 10] introduced a number of term-matching based heuristics that models should follow in order to be successful in retrieval tasks. Subsequently, Fang et al. [11] proposed a set of axioms based on semantic matching and thus allowing non-exact matches to be accounted for in axiomatic retrieval. We apply these axioms in our work\u2014albeit in a slightly adapted manner. Other applications for axioms in IR include document re-ranking based on a Learning to Rank scenario [13] and query expansion [8] by exploring similar axioms. It should be noted, that\u2014while sensible\u2014it cannot be assumed that these axioms are a good fit for all kinds of corpora; they represent a general notion of how a good retrieval function should behave. Recently, Rennings et al. [25] introduced diagnostic datasets extracted from actual corpora that each fulfil one axiom. In contrast to the axiomatic approach, which requires an analytical evaluation of the retrieval functions under investigation, a diagnostic corpus enables us to analyse models\u2019 axiomatic performance that are too large to be analysed analytically (such as neural models with millions or even billions of parameters5). Our work continues in that direction with a larger number of axioms (9 vs. 4) and the analysis of the current neural state-of-the-art (i.e., BERT).",
+            "cite_spans": [
+                {
+                    "start": 292,
+                    "end": 293,
+                    "mention": "9",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 295,
+                    "end": 297,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 452,
+                    "end": 454,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 761,
+                    "end": 763,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 786,
+                    "end": 787,
+                    "mention": "8",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 1045,
+                    "end": 1047,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Neural IR Models. Neural IR models, i.e., deep learning based approaches that tackle IR problems, have seen a massive rise in popularity in the last few years, with considerable success [20]. Models like DRMM [19], ARCII [14] and aNMM [39] have been shown to be suitable for a range of IR tasks when sufficient training data is available; it remains at best unclear at smaller data scale whether the reported successes are not just an artefact of weak baselines [17].",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 189,
+                    "mention": "20",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 210,
+                    "end": 212,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 222,
+                    "end": 224,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 236,
+                    "end": 238,
+                    "mention": "39",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 463,
+                    "end": 465,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Recently, a new wave of approaches, based on the transformer architecture [33] has shown that, finally, neural models can significantly outperform traditional and well-tuned retrieval methods such as RM3 [2]. Yang et al. [40] have shown that BERT, fine-tuned on the available TREC microblog datasets, and combined with a traditional retrieval approach such as query likelihood significantly outperforms well-tuned baselines, even on Robust04 which has shown to be a notoriously difficult dataset for neural models to do well on. With similar success, Dai and Callan [6] have recently employed another BERT variant on Robust04 and ClueWeb09. Lastly we point out, that works are now also beginning to appear, e.g., [18], that use the contextual word embeddings produced by BERT in combination with another strong neural model, again with strong improvements over the existing baselines.",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 77,
+                    "mention": "33",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 205,
+                    "end": 206,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 222,
+                    "end": 224,
+                    "mention": "40",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 567,
+                    "end": 568,
+                    "mention": "6",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 714,
+                    "end": 716,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Analysing Neural IR Models. As we aim to analyse BERT, we also consider how others have tackled this problem. Analysing neural models\u2014whether for IR, NLP or another research domain\u2014is not a trivial task. By now a great number of works have tried to light up the black box of the neural learning models [1], with varying degrees of success. Within IR, Pang et al. [22] have aimed to paint a complete and high-level picture of the neural IR area, comparing the behaviour of different approaches, and showing that interaction and representation-based models focus on different characteristics of queries and documents. While insightful, such work does not enable us to gain deep insights into a single model. Closer to our work, Rosset et al. [27] employ axioms to generate artificial documents for the training of neural models and the regularization of the loss function. In contrast, we employ axioms to analyze retrieval models.",
+            "cite_spans": [
+                {
+                    "start": 303,
+                    "end": 304,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 364,
+                    "end": 366,
+                    "mention": "22",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 741,
+                    "end": 743,
+                    "mention": "27",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Another direction of research has been the development of interpretation tools such as DeepSHAP [12] and LIRME [34] that aim to generate local explanations for neural IR models. Recently, in particular BERT (due to its successes across a wide range of tasks and domains) has become the focus of analysis\u2014not within IR though. While approaches like [4] explore the attention values generated by the model\u2019s attention layers, Tenney et al. [32] argue that BERT is re-discovering classical NLP pipeline approaches in its layers, \u201cin an interpretable and localizable way\u201d, essentially repeating traditional NLP steps in a similar order as an expert would do, with steps like POS tagging, parsing, NER and coreference resolution happening within its layers in the expected order. Finally, Niven et al. [21] raise some critical points about BERT, arguing that it only \u201cexploits spurious statistical cues in the dataset\u201d; they showcase this by creating adversarial datasets that can significantly harm its performance.",
+            "cite_spans": [
+                {
+                    "start": 97,
+                    "end": 99,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 112,
+                    "end": 114,
+                    "mention": "34",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 349,
+                    "end": 350,
+                    "mention": "4",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 439,
+                    "end": 441,
+                    "mention": "32",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 798,
+                    "end": 800,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "The usage of diagnostic datasets as a means to analyse neural models is common in NLP, e.g. [15, 36, 37] as there are a large number of fine-grained linguistic tasks (anaphora resolution, entailment, negation, etc.) that datasets can be created for with relative ease. In contrast, in IR the central notion is relevance and although we know that it can be decomposed into various types (topical, situational, etc.) of relevance [29], we have no easy way of creating datasets for each of these\u2014it remains a time-intensive and expensive task. This also explains why corpora such as Robust04 remain useful and in use for such a long time. Instead, like Rennings et al. [25] we turn to the axiomatic approach to IR and create diagnostic datasets\u2014one for each of our chosen retrieval heuristics. It has been shown that, generally, retrieval functions that fulfil these heuristics achieve a greater effectiveness than those that do not. In contrast to [25] which restricted itself to four term matching axioms, we explore a wider range of axioms, covering term frequency, document length, lower-bounding term frequency, semantic term matching and term proximity constraints. In total, we explore 9 axioms, all of which are listed in Table 1 with a short informal description of their main assumption of what a sensible retrieval function should fulfil. We note that this covers most of the term-matching and semantic-matching axioms that have been proposed. We have eliminated a small number from our work as we do not consider them relevant to BERT (e.g., those designed for pseudo-relevance feedback [5]).",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 95,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 97,
+                    "end": 99,
+                    "mention": "36",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 101,
+                    "end": 103,
+                    "mention": "37",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 429,
+                    "end": 431,
+                    "mention": "29",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 667,
+                    "end": 669,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 947,
+                    "end": 949,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1597,
+                    "end": 1598,
+                    "mention": "5",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "section": "Diagnostic Datasets",
+            "ref_spans": [
+                {
+                    "start": 1233,
+                    "end": 1234,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "As the axiomatic approach to IR has been designed to analytically analyse retrieval functions, in their original version they assume very specific artificial query and document setups. As a concrete example, let us consider axiom STMC1 [11]. It is defined as follows: given a single-term query \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q\\}$$\\end{document}\nand two single-term documents \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1=\\{d_1\\}$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2=\\{d_2\\}$$\\end{document}\nwhere \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$d_1\\ne d_2 \\ne q$$\\end{document}, the retrieval score of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document}\nshould be higher than \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document}\nif the semantic similarity between q\nand \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$d_1$$\\end{document}\nis higher than that between q\nand \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$d_2$$\\end{document}. This description is sufficient to mathematically analyse classic retrieval functions, but not suitable for models with more than a handful of parameters. We thus turn to the creation of datasets that exclusively contain instances of query/documents (for STMC1 an instance is a triple, consisting of one query and two documents) that satisfy a particular axiom. As single-term queries and documents offer no realistic test bed, we extend (moving beyond single-term queries and documents) and relax (moving beyond strict requirements such as equal document length) the axioms in order to extract instances from existing datasets that fulfil the requirements of the extended and relaxed axiom. Importantly, this process requires no relevance judgements\u2014we can simply scan all possible triples in the corpus (consisting of queries and documents) and add those to our diagnostic dataset that fulfil our requirements. We then score each query/document pair with our BERT model6 and determine whether the score order of the documents is in line with the axiom. If it is, we consider our model to have classified this instance correctly.",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 239,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "While Table 1 provides an informal overview of each heuristic, we now formally describe each one in more detail. Due to the space limitations, we focus on a mathematical notation which is rather brief. For completeness, we first state the original axiom and then outline how we extend and relax it in order to create a diagnostic dataset from it. For axioms TFC1, TFC2, LNC2 and M-TDC we follow the process described in [25]. We make use of the following notation: Q is a query and consists of terms \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q_1, q_2, ...$$\\end{document}; \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_i$$\\end{document} is a document of length \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_i|$$\\end{document} containing terms \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$d_{i_1}, d_{i_2}, ...$$\\end{document}; the count of term w in document D is c(w, D); lastly, S(Q, D) is the retrieval score the model assigns to D for a given Q. Apart from the proximity heuristic TP, the remaining heuristics are based on the bag-of-word assumption, i.e., the order of terms in the query and documents do not matter.",
+            "cite_spans": [
+                {
+                    "start": 421,
+                    "end": 423,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Diagnostic Datasets",
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 13,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "\u2014Original. Assume \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|=|D_2|$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q,D_1)>c(q,D_2)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q,D_1)>S(Q,D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. In order to extract query/document/document triples from actual corpora, we need to consider multi-term queries and document pairs of approximately the same length. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q_1,q_2,..,q_{|Q|}\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|-|D_2|\\le \\textit{abs}(\\delta )$$\\end{document}. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q,D_1)>S(Q,D_2)$$\\end{document} holds, when \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} has at least the same query term count as \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} for all but one query term (and for this term \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document}\u2019s count is higher), i.e., \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_i,D_1)\\ge c(q_i,D_2)\\ \\forall q_i \\in Q$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sum _{q_i \\in Q} c(q_i,D_1) > \\sum _{q_i \\in Q}c(q_i,D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Assume \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|=|D_2|=|D_3|$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q, D_1)>0$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q, D_2)-c(q, D_1)=1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q, D_3)-c(q, D_2)=1$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_2)-S(Q,D_1) > S(Q,D_3)-S(Q,D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. Analogous to TFC1, queries can contain multiple terms and documents only have to have approximately the same length. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q_1,q_2,..,q_{|Q|}\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$max_{D_i,D_j\\in \\{D_1, D_2, D_3\\}}(|D_i|-|D_j|\\le \\textit{abs}(\\delta ))$$\\end{document}. If every document contains at least one query term, and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_3$$\\end{document} has more query terms than \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} has more query terms than \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document}, and the difference of query terms count between \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} should be the same as between \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_3$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document}, for all query terms, i.e. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sum _{q\\in Q}c(q, D_3)>\\sum _{q\\in Q}c(q, D_2)>\\sum _{q\\in Q}c(q, D_1)>0$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q, D_2)-c(q,D_1)=c(q, D_3)-c(q,D_2) \\forall q \\in Q$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_2)-S(Q,D_1) > S(Q,D_3)-S(Q,D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q_1, q_2\\}$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|=|D_2|$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_1, D_1)=c(q_2, D_2)$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_2, D_1)=c(q_1, D_2)$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$idf(q_1)\\ge idf(q_2)$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_1, D_1) > c(q_1, D_2)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1)\\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. Again, Let Q contain multiple terms and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|-|D_2|\\le \\textit{abs}(\\delta )$$\\end{document}. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1, D_2$$\\end{document} also differ in at least one query term count (\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\exists q_i \\in Q, \\text { such that } c(q_i, D_1)\\ne c(q_i, D_2)$$\\end{document}). If, for all query term pairs the conditions hold that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_i, D_1)\\ne c(q_j, D_j)$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$idf(q_i) \\ge idf(q_j)$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_i, D_1) = c(q_j, D_2)$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_j, D_1)=c(q_i, D_2)$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_i, D_1)>c(q_i, D_2)$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_i, Q) \\ge c(q_j, Q)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) \\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let Q be a query and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1, D_2$$\\end{document} be two documents. If for some \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q'\\notin Q$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q', D_2)=c(q', D_1)+1$$\\end{document} and for any \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q\\in Q$$\\end{document}\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q,D_2)=c(q, D_1)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1)\\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. The axiom can be used with no adaptation.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let Q be a query. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\forall k >1$$\\end{document}, if \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} are two documents such that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|=k\\cdot {}|D_2|$$\\end{document}, and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\forall q \\in Q, c(q, D_1) = k\\cdot {}c(q, D_2)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1)\\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. The axiom can be used with no adaptation.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q_1, q_2, ... q_{|Q|}\\}$$\\end{document} be a query and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D'$$\\end{document} a document generated by switching the position of query terms in D. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (Q, D)$$\\end{document} be a function that measures the distance of query terms \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q_i \\in Q$$\\end{document} inside a document D. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (Q, D) > \\sigma (Q, D')$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D) < S(Q, D')$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\Gamma (D, Q) = min_{(q_1,q_2\\in Q\\cap D,q_1\\ne q_2)} {Dis(q_1, q_2; D)}$$\\end{document} be a function that computes the minimum distance between every pair of query terms in D. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\Gamma (D_1, Q) < \\Gamma (D_2, Q)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) > S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "For the following semantic axioms, let us define the function \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (t_1, t_2)$$\\end{document} as the cosine distance between the embeddings of terms \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$t_1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$t_2$$\\end{document}. We also define \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '(T_1, T_2)$$\\end{document}, where T can be either a document D or a query Q, as an extension to \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma $$\\end{document}, defined by \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '(T_1, T_2) = cos(\\frac{\\sum _{i\\in T_1}t_i}{|T_1|}, \\frac{\\sum _{i\\in T_2}t_i}{|T_2|})$$\\end{document}, the cosine distance between the average term embeddings for each document.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q\\}$$\\end{document} be a one-term query, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1=\\{d_{1_1}\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2=\\{d_{2_1}\\}$$\\end{document} be two single term documents, such that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$d_{1_1}\\ne d_{2_1}$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q\\ne d{1_1}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$q\\ne d_{2_1}$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (q, d_{1_1}) > \\sigma (q, d_{2_1})$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) > S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. We allow \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} to be arbitrarily long, covering the same number of query terms (i.e. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1\\bigcap Q| = |D_2\\bigcap Q|$$\\end{document}). Assume \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{D_i\\}-\\{Q\\}$$\\end{document} be the document \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_i$$\\end{document} without query terms, If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '(\\{D_1\\}-\\{Q\\}, Q) > \\sigma '(\\{D_2\\}-\\{Q\\}, Q)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) > S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q\\}$$\\end{document} be a one-term query and d a non-query term such that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (d, q)>0$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1=\\{q\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_2|=k, (k\\ge 1)$$\\end{document}, composed entirely of d\u2019s (i.e.v\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(d, D_2)=k$$\\end{document}), then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) \\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. We allow Q to be a multiple query term, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} to contain non-query terms and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} to contain query terms. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sum _{t_i, t_i \\notin Q} c(t_i, D_2)>\\sum _{q_i \\in Q}c(q_1, D_1)>0$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '(\\{D_1\\}-\\{Q\\}, \\{D_2\\}-\\{Q\\}) > \\delta $$\\end{document} then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) \\ge S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Original. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Q=\\{q_1, q_2\\}$$\\end{document} be a two-term query and d a non-query term such that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (d, q_2)>0$$\\end{document}. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|=|D_2|>1$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q_1, D_1)=|D_1|$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(q1, D_2) = |D_2|-1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$c(d, D_2)=1$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1) \\le S(Q, D_2)$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "\u2014Adapted. Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_1$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_2$$\\end{document} be two arbitrary long documents that covers the same number of query terms (i.e. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1\\bigcap Q| = |D_2\\bigcap Q|$$\\end{document}). If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$|D_1|-|D_2| \\le \\textit{abs}(\\delta )$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sum _{q_i \\in Q} c(q_i,D_1) > \\sum _{q_i \\in Q}c(q_i,D_2)$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '(\\{D_2\\}-\\{Q\\}, Q)>\\sigma '(\\{D_1\\}-\\{Q\\}, Q)$$\\end{document}, then \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$S(Q, D_1)>S(Q, D_2)$$\\end{document}.\n",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets",
+            "ref_spans": []
+        },
+        {
+            "text": "In order to extract diagnostic datasets, we used the corpus and queries for the Document Ranking Task from the TREC 2019 Deep Learning track7. This is the only publicly available ad-hoc retrieval dataset that was built specifically for the training of deep neural models, with 3,213,835 web documents and 372,206 queries (367,013 queries in the training set and 5,193 in the development set). The queries and documents, while stripped of HTML elements, are not necessarily well-formed as seen in the following examples from the training set:what is a flail chesta constitution is best described as a(n) __________. ) what was the immediate impact of the success of the manhattan project?\n",
+            "cite_spans": [],
+            "section": "TREC 2019 Deep Learning Track ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "The queries consist on average of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$5.89(\\pm 2.51)$$\\end{document} words while documents consist on average of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$1084.88(\\pm 2324.22)$$\\end{document} words.",
+            "cite_spans": [],
+            "section": "TREC 2019 Deep Learning Track ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "Most often, one relevant document exists per query (1.04 relevant documents on average). These relevance judgements were made by human judges on a passage-level: if a passage within a document is relevant, the document is considered relevant. Unlike other TREC datasets, like Robust04, there is no topic description or topic narrative.",
+            "cite_spans": [],
+            "section": "TREC 2019 Deep Learning Track ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "At the time of this writing, the relevance judgements for the test queries were not available. Therefore, we split the development queries further, in a new dev and test dataset, in a 70%\u201330% fashion. In the rest of this paper, when we refer to the test or dev dataset, we are referring to this split. The train split remains the same as the original dataset.",
+            "cite_spans": [],
+            "section": "TREC 2019 Deep Learning Track ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "We begin by indexing the document collection using the Indri toolkit8, and retrieve the top-100 results using a traditional retrieval model with just one hyperparameter, namely, QL, with Indri\u2019s default setting (Dirichlet smoothing [42] and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\mu =2500$$\\end{document}). Finally, for BERT, we employ Hugging Face\u2019s library9 of DistilBERT [28], a distilled version of the original BERT model, with fewer parameters (66 million instead of 340 million), and thus more efficient to train, but with very similar results.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 235,
+                    "mention": "42",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 606,
+                    "end": 608,
+                    "mention": "28",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "section": "Retrieval and Ranking ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "We fine-tuned our BERT10 model with 10 negative samples for each positive sample from the training dataset, randomly picked from the top-100 retrieved from QL. We set the maximum input length to 512 tokens. For fine-tuning we used the sequence classification model. It is implemented by adding a fully-connected layer on top of the [CLS] token embedding, which is the specific output token of the BERT model that our fine-tuning is based upon.",
+            "cite_spans": [],
+            "section": "Retrieval and Ranking ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "Given the limitation of BERT regarding the maximum number of tokens, we limited the document length to its first 512 tokens, though we note that alternative approaches exist (e.g., in [40] the BERT scores across a document\u2019s passages/sentences are aggregated). In Table 3, we report the retrieval effectiveness in terms of nDCG and MRR for the documents limited to 512 tokens. We rerank the top-100 retrieved documents based on its first 512 tokens. It is clear that BERT is vastly superior to QL with a 40% improvement in nDCG and 25% improvement in MRR.\n",
+            "cite_spans": [
+                {
+                    "start": 185,
+                    "end": 187,
+                    "mention": "40",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "section": "Retrieval and Ranking ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 270,
+                    "end": 271,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                }
+            ]
+        },
+        {
+            "text": "Given the adapted axioms defined in Sect. 3, we now proceed on describing how to extract actual datasets from our corpus.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": " We add tuples of queries and documents \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{q, d_i, d_j\\}$$\\end{document} (or \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{q, d_i, d_j, d_k\\}$$\\end{document} for TFC2) for every possible pair of documents \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{d_i, d_j\\}$$\\end{document} in the top 100 retrieved by QL that follow the assumptions from Sect. 3, with \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\delta =10$$\\end{document}. We also compute IDF for M-TDC on the complete corpus of documents, tokenized by WordPiece [38].",
+            "cite_spans": [
+                {
+                    "start": 1462,
+                    "end": 1464,
+                    "mention": "38",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "section": "Diagnostic Datasets ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": " We create a new dataset, appending the document to itself \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$k\\in \\mathbb {Z}$$\\end{document} times until we reach up to 512 tokens11. In contrast to Rennings et al. [25] we only perform this document duplication for our test set, i.e., BERT does not \u201csee\u201d this type of duplication during its training phase. On average, the documents were multiplied \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$k=2.6408\\pm 1.603$$\\end{document} times, with a median of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$k=2$$\\end{document}.",
+            "cite_spans": [
+                {
+                    "start": 434,
+                    "end": 436,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Diagnostic Datasets ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": " We simply add to our dataset every pair of documents \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{q, d_i, d_j\\}$$\\end{document} in the top 100 retrieved documents by QL for a given topic that follow the stated TP assumptions.",
+            "cite_spans": [],
+            "section": "Diagnostic Datasets ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": " We define \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma $$\\end{document} as the cosine distance between the embeddings of the terms and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma '$$\\end{document} as the cosine distance between the average embeddings. We trained the embeddings using GLoVe [23] on the entire corpus. For STMC3, we set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\delta =0.2$$\\end{document}.",
+            "cite_spans": [
+                {
+                    "start": 755,
+                    "end": 757,
+                    "mention": "23",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Diagnostic Datasets ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "In Table 2 we list the number of diagnostic instances we created for each diagnostic dataset. In addition, we also performed a sanity check on the extent to which the document order determined by each axiom corresponds to the relevance judgements. Although only a small set of instances from each diagnostic dataset contains a document with a relevant document (row II in Table 2) we already see a trend: apart from TFC1 and M-TDC where 91% and 82% of the diagnostic instances have an agreement between axiomatic ordering and relevance ordering, the remaining axioms are actually not in line with the relevance ordering for most of the instances. This is a first indication that we have to consider an alternative set of axioms, better fit for such a corpus, in future work.",
+            "cite_spans": [],
+            "section": "Results ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 9,
+                    "end": 10,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 378,
+                    "end": 379,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "In Table 3 we report the fraction of instances both QL and BERT fulfil for each diagnostic dataset. As expected, QL correctly (as per the axiom) ranks the document pairs or triples most of the time, with the only outlier being TP, where QL performs essentially random\u2014again, not a surprise given that QL is a bag-of-words model. In contrast\u2014with the exception of LNC2, where BERT\u2019s ranking is essentially the opposite of what the LNC2 axiom considers correct (with only 6% of the instances ranked correctly)\u2014BERT has not learnt anything that is related to the axioms as the fraction of correctly ranked instances hovers around 50% (which is essentially randomly picking a document order). Despite this lack of axiomatic fulfilment, BERT clearly outperforms QL, indicating that the existing axioms are not suitable to analyse BERT.",
+            "cite_spans": [],
+            "section": "Results ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 9,
+                    "end": 10,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                }
+            ]
+        },
+        {
+            "text": "The reverse ranking BERT proposes for nearly all of the LNC2 instances can be explained by the way the axiom is phrased. It is designed to avoid over penalising documents, and thus a duplicated document should always have a retrieval score that is not lower than the original document. The opposite argument though could be made too (and BERT ranks accordingly), that a duplicated document should not yield a higher score than the original document as it does not contain novel/additional information. As we did not provide LNC2 instances in the training set, BERT is not able to rank according to the axiom, in line with the findings of other neural approaches as shown by Rennings et al. [25].",
+            "cite_spans": [
+                {
+                    "start": 691,
+                    "end": 693,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Results ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "Finally, we observe that, counter-intuitively, BERT does not show a performance better than QL for semantic term matching constraints. For instance, one may expect that BERT would fare quite well on STMC1, given its semantic nature. However, our results indicate that BERT is actually considers term matching as one of its key features. In order to further explore this tension between semantic and syntactic term matching, we split the queries in our test set by their term overlap between the query and the relevant document (if several relevant documents exist for a query, we randomly picked one of them). If a query/document has no (or little) term overlap, we consider this as a semantic match.\n",
+            "cite_spans": [],
+            "section": "Results ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "The results of this query split can be found in Fig. 1. We split the query set roughly into three equally sized parts based on the fraction of query terms appearing in the relevant document (as an example, if a query/document pair has a fraction of 0.5, half of all query terms appear in the document). We report results for all queries (Fig. 1 (left)), as well as only those where the relevant document appears in the top-100 QL ranking (Fig. 1 (right)). We find that BERT outperforms QL across all three splits, indicating that BERT is indeed able to pick up the importance of syntactic term matching. At the same time, as expected, BERT is performing significantly better than QL for queries that require a large amount of semantic matching. That brings into question on why, then, the axiomatic performance across our semantic axiomatic datasets does not reflect that. One hypothesis is that the semantic similarity we measure (based on context-free word embeddings) is different to the semantic similarity measured via contextual word embeddings. This in itself is an interesting avenue for future work, since it brings a new question on what that semantic relationship is, and how to accurately measure it.\n",
+            "cite_spans": [],
+            "section": "Results ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 53,
+                    "end": 54,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 343,
+                    "end": 344,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 444,
+                    "end": 445,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "In this paper, we set out to analyze BERT with the help of the recently proposed diagnostic datasets for IR based on retrieval heuristics approach [25]. We expected BERT to perform better at fulfilling some of the proposed semantic axioms. Instead, we have shown that BERT, while significantly better than traditional models for ad-hoc retrieval, does not fulfil most retrieval heuristics, created by IR experts, that are supposed to produce better results for ad-hoc retrieval models. We argue that based on these results, the axioms are not suitable to analyse BERT and it is an open question what type of axioms would be able to capture some performance aspects of BERT and related models. In fact, how to arrive at those additional axioms, based on the knowledge we have now gained about BERT is in itself an open question.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 150,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Discussion and Conclusion",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1.: Overview of retrieval heuristics employed in our work. The diagnostic datasets for heuristics marked with a\n\nwere first discussed in [25]. The naming of the heuristics is largely taken from the papers proposing them.\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2.: Overview of the number of instances in each diagnostic dataset (row I), the number of instances within each diagnostic dataset that contain a relevant document (row II) and the fraction of instances among all of row II where the order of the documents according to the axiom is in line with the relevance judgments. LNC2 is based on new documents, thus, it does not have a fraction of agreement\n",
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Table 3.: Overview of the retrieval effectiveness (nDCG columns) and the fraction of diagnostic dataset instances each model ranks correctly.\n",
+            "type": "table"
+        },
+        "FIGREF0": {
+            "text": "Fig. 1.: The test queries are split into three sets, depending on the fraction of term overlap between the query and its corresponding relevant document. On the left, we plot all queries, on the right only those queries for which the relevant document appears in the top-100 ranked documents of the QL ranking.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "The neural hype and comparisons against weak baselines",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SIGIR Forum",
+            "volume": "52",
+            "issn": "2",
+            "pages": "40-51",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3308774.3308781"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "An introduction to neural information retrieval",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "13",
+            "issn": "1",
+            "pages": "1-126",
+            "other_ids": {
+                "DOI": [
+                    "10.1561/1500000061"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "An axiomatic approach to diagnosing neural IR models",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rennings",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Moraes",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "489-503",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF18": {
+            "title": "The probabilistic relevance framework: BM25 and beyond",
+            "authors": [
+                {
+                    "first": "SE",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "3",
+            "issn": "4",
+            "pages": "333-389",
+            "other_ids": {
+                "DOI": [
+                    "10.1561/1500000019"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF21": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF22": {
+            "title": "The concept of relevance in IR",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Borlund",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "J. Am. Soc. Inf. Sci. Technol.",
+            "volume": "54",
+            "issn": "10",
+            "pages": "913-925",
+            "other_ids": {
+                "DOI": [
+                    "10.1002/asi.10286"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF24": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF25": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF26": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF27": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF28": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF29": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF30": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF31": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF32": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF33": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF34": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF35": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF36": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF37": {
+            "title": "Is document frequency important for PRF?",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gaussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Advances in Information Retrieval Theory",
+            "volume": "",
+            "issn": "",
+            "pages": "89-100",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF38": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF39": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF40": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF41": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}

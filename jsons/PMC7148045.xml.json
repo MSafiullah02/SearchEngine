@@ -1,0 +1,751 @@
+{
+    "paper_id": "PMC7148045",
+    "metadata": {
+        "title": "From MAXSCORE to Block-Max Wand: The Story of How Lucene Significantly Improved Query Evaluation Performance",
+        "authors": [
+            {
+                "first": "Joemon",
+                "middle": [
+                    "M."
+                ],
+                "last": "Jose",
+                "suffix": "",
+                "email": "joemon.jose@glasgow.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Emine",
+                "middle": [],
+                "last": "Yilmaz",
+                "suffix": "",
+                "email": "emine.yilmaz@ucl.ac.uk",
+                "affiliation": {}
+            },
+            {
+                "first": "Jo\u00e3o",
+                "middle": [],
+                "last": "Magalh\u00e3es",
+                "suffix": "",
+                "email": "jm.magalhaes@fct.unl.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Pablo",
+                "middle": [],
+                "last": "Castells",
+                "suffix": "",
+                "email": "pablo.castells@uam.es",
+                "affiliation": {}
+            },
+            {
+                "first": "Nicola",
+                "middle": [],
+                "last": "Ferro",
+                "suffix": "",
+                "email": "ferro@dei.unipd.it",
+                "affiliation": {}
+            },
+            {
+                "first": "M\u00e1rio",
+                "middle": [
+                    "J."
+                ],
+                "last": "Silva",
+                "suffix": "",
+                "email": "mjs@inesc-id.pt",
+                "affiliation": {}
+            },
+            {
+                "first": "Fl\u00e1vio",
+                "middle": [],
+                "last": "Martins",
+                "suffix": "",
+                "email": "flaviomartins@acm.org",
+                "affiliation": {}
+            },
+            {
+                "first": "Adrien",
+                "middle": [],
+                "last": "Grand",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Robert",
+                "middle": [],
+                "last": "Muir",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Jim",
+                "middle": [],
+                "last": "Ferenczi",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Jimmy",
+                "middle": [],
+                "last": "Lin",
+                "suffix": "",
+                "email": "jimmylin@uwaterloo.ca",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "We share the story of how an innovation that originated from academia\u2014block-max indexes and the corresponding block-max Wand query evaluation algorithm of Ding and Suel [6]\u2014made its way into the open-source Lucene search library. This represents not only a case study in widespread reproducibility, since every recent deployment of Lucene has access to these features and thus their performance benefits can be easily measured, but also of academic research achieving significant impact. How did these innovations make their way from the \u201civory tower\u201d into the \u201creal world\u201d? We recount the sequence of events, including false starts, that finally led to the inclusion of block-max Wand in the latest major version of Lucene (version 8), released in March 2019.",
+            "cite_spans": [
+                {
+                    "start": 170,
+                    "end": 171,
+                    "mention": "6",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "We see this paper as having two main contributions beyond providing a narrative of events: First, we report results of experiments that attempt to match the original conditions of Ding and Suel [6] and present additional results on a number of standard academic IR test collections. These experiments characterize the performance of Lucene\u2019s implementation and show the extent to which performance improvements are retained when moving from a research prototype to a production codebase. Second, we offer a number of observations about the adoption of academic innovations, perhaps providing some insight into how academics might achieve greater real-world impact with their work.",
+            "cite_spans": [
+                {
+                    "start": 195,
+                    "end": 196,
+                    "mention": "6",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "From its very beginnings in 1999, Lucene has mostly existed in a \u201cparallel universe\u201d from academic IR researchers. Part of this can be attributed to its \u201ctarget audience\u201d: developers who wish to build real-world search applications, as opposed to researchers who wish to write papers. Academic IR researchers have a long history of building and sharing search engines, dating back to the mid 1980s with Cornell\u2019s SMART system [4]. The tradition continues to this day, with Lemur/Indri [12, 13] and Terrier [8, 14] being the most successful examples of open-source academic search engines, still popular with many researchers today. Until recently, there has been little exchange between Lucene and these systems, other than a few academic workshops [16, 21].",
+            "cite_spans": [
+                {
+                    "start": 427,
+                    "end": 428,
+                    "mention": "4",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 486,
+                    "end": 488,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 490,
+                    "end": 492,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 507,
+                    "end": 508,
+                    "mention": "8",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 510,
+                    "end": 512,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 750,
+                    "end": 752,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 754,
+                    "end": 756,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "Setting the Stage",
+            "ref_spans": []
+        },
+        {
+            "text": "Lucene has, for the longest time, been somewhat maligned in the academic IR community. For much of its existence, its default ranking model was a variant of TF-IDF that was not only ad hoc, but demonstrably less effective than ranking models that were widely available in academic systems [18]. Okapi BM25 was not added to Lucene until 2011,1 more than a decade after it gained widespread adoption in the research community; the consensus had long emerged that it was more effective than TF-IDF variants. This lag has contributed to the broad perception by researchers that Lucene produces poor search results and is ill-suited for information retrieval research.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 292,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "section": "Setting the Stage",
+            "ref_spans": []
+        },
+        {
+            "text": "This negative perception of Lucene, however, began to change a few years ago. In 2015, an evaluation exercise known as the \u201copen-source reproducibility challenge\u201d [7] benchmarked seven open-source search engines and demonstrated that Lucene was quite competitive in terms of both effectiveness and efficiency. It was the fourth fastest system (of seven) in terms of query evaluation, beating all the systems that were better than it in terms of effectiveness.",
+            "cite_spans": [
+                {
+                    "start": 164,
+                    "end": 165,
+                    "mention": "7",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "section": "Setting the Stage",
+            "ref_spans": []
+        },
+        {
+            "text": "Since then, there has been a resurgence of interest in adopting Lucene for information retrieval research, including a number of workshops that brought together like-minded researchers over the past few years [1, 2]. Anserini [19, 20] is an open-source toolkit built on Lucene that was specifically designed to support replicable information retrieval research by providing many research-oriented features missing from Lucene, such as out-of-the-box support for a variety of common test collections. The project aims to better align IR researchers and practitioners, as Lucene has become the de facto platform used in industry to build production search solutions (typically via systems such as Elasticsearch and Solr). The experiments in this paper were conducted with Anserini.",
+            "cite_spans": [
+                {
+                    "start": 210,
+                    "end": 211,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 213,
+                    "end": 214,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 227,
+                    "end": 229,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 231,
+                    "end": 233,
+                    "mention": "20",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "section": "Setting the Stage",
+            "ref_spans": []
+        },
+        {
+            "text": "At Berlin Buzzwords in 2012, Stefan Pohl gave a presentation about MaxScore [17] to raise awareness about efficient retrieval techniques in the Lucene community [15]. The presentation was accompanied by a working prototype.2 This contribution was exciting but also challenging to integrate as it conflicted with some of the flexibility that Lucene provides, requiring an index rewrite. There were ideas on how to address these issues, but they entailed a lot of effort, and so the issue remained stalled for about five years.",
+            "cite_spans": [
+                {
+                    "start": 77,
+                    "end": 79,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 162,
+                    "end": 164,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "Five years is a long time and many changes occurred meanwhile. The switch from TF-IDF to BM25 as Lucene\u2019s default scoring function in 2015 created a natural upper bound on scores due to BM25\u2019s saturation effect, which made it possible to implement retrieval algorithms that reasoned about maximum scores without changes to Lucene\u2019s index format. This led to an effort to implement a general-purpose Wand [3], based on a previous implementation for BooleanQuery. Lucene received support for Wand at the end of 2017 (although it wasn\u2019t released until version 8.0 with block-max indexes).",
+            "cite_spans": [
+                {
+                    "start": 405,
+                    "end": 406,
+                    "mention": "3",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "Implementing Wand introduced two new issues. First, the total hit count would no longer be accurate, since not all matches are visited. Common analytics use cases depend on this count, and many search engines display this value in their interfaces (see additional discussion in Sect. 5). Second, the fact that some Lucene queries could produce negative scores became problematic, so Lucene now requires positive scores.3\n",
+            "cite_spans": [],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "Support for block-max indexes was the final feature that was implemented, based on the developers\u2019 reading of the paper by Ding and Suel [6], which required invasive changes to Lucene\u2019s index format. Note that the paper describes directly storing the maximum impact score per block, which fixes the scoring function at indexing time. To provide flexibility in being able to swap in different scoring functions, the Lucene implementation stores all tf (term frequency) and dl (document length) pairs that might yield the maximum score. If we have one such pair (tf\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_i$$\\end{document}, dl\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_i$$\\end{document}) then we can remove all other pairs (tf\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_j$$\\end{document}, dl\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_j$$\\end{document}) where tf\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_j$$\\end{document}\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\le $$\\end{document} tf\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_i$$\\end{document}\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\wedge $$\\end{document} dl\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_j$$\\end{document}\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\ge $$\\end{document} dl\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$_l$$\\end{document}, since they are guaranteed to yield lower (or equal) scores\u2014based on the assumption that scores increase monotonically with increasing tf and decreasing dl. This is implemented by accumulating all such pairs in a tree-like structure during the indexing process. These pairs are stored in skip lists, so the information is available to groups of 8, 64, 512, 4096, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\ldots $$\\end{document} blocks, allowing query evaluation to skip over more than one block at a time.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 139,
+                    "mention": "6",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "An interesting coda to this story is that academic researchers were exploring alternatives to per-block impact scores circa 2017, for exactly the same reason (to allow the scoring model to be defined at search time). For example, Macdonald and Tonellotto [10] showed how to derive tight approximate upper bounds for block-max Wand, based on work that dates back to 2011 [9]. Similarly, the recently-released PISA research system stores flexible block-level metadata [11]. Unfortunately, the Lucene developers were not aware of these developments during their implementation.",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 258,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 371,
+                    "end": 372,
+                    "mention": "9",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 467,
+                    "end": 469,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "The journey from MaxScore to block-max Wand concluded in March 2019, with the rollout of all these features in the version 8.0 release of Lucene. They are now the out-of-the-box defaults in the world\u2019s most popular search library.",
+            "cite_spans": [],
+            "section": "From MAXSCORE to Block-Max WAND",
+            "ref_spans": []
+        },
+        {
+            "text": "During the implementation of block-max Wand, performance improvements were quantified in terms of Lucene\u2019s internal benchmark suite, which showed a 3\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document} to 7\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document} improvement in query evaluation performance. As part of a formal reproducibility effort, we present experiments that attempt to match, to the extent practical, the original conditions described by Ding and Suel [6].",
+            "cite_spans": [
+                {
+                    "start": 951,
+                    "end": 952,
+                    "mention": "6",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Experimental Evaluation",
+            "ref_spans": []
+        },
+        {
+            "text": "According to the paper, experiments were conducted on the Gov2 web collection, on a randomly-selected subset of 1000 queries from the TREC 2005 and 2006 Efficiency Tracks, which we were able to obtain from the authors. For their experiments, the inverted index was completely loaded into main memory and query evaluation latency was measured to retrieval depth ten.",
+            "cite_spans": [],
+            "section": "Experimental Evaluation",
+            "ref_spans": []
+        },
+        {
+            "text": "Our experiments were conducted with the Anserini IR toolkit,4 comparing v0.5.1, which depends on Lucene 7.6 and uses an optimized exhaustive Or query evaluation strategy [5] with v0.6.0, which depends on Lucene 8.0 and uses block-max Wand. We used Anserini\u2019s standard regression test settings on the different collections, as described on its homepage. Results represent averages over three trials on a warm cache. While the indexes were not explicitly loaded into memory, Lucene benefits from caching at the OS level.\n",
+            "cite_spans": [
+                {
+                    "start": 171,
+                    "end": 172,
+                    "mention": "5",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "section": "Experimental Evaluation",
+            "ref_spans": []
+        },
+        {
+            "text": "All experiments were conducted using a single thread on an otherwise idle server with dual Intel Xeon E5-2699 v4 processors and 1TB RAM running RHEL (release 7.7). Results are shown in Table 1, where figures in the top three rows are copied from Table 1 in the original paper. It is interesting that Ding and Suel report a much larger increase in performance comparing exhaustive Or to Bmw (18\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document} on TREC 2005 and 8\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document} on TREC 2006) than the comparable conditions in Lucene (a more modest improvement of around 3\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document}). This is due to a more optimized implementation of exhaustive Or in Lucene, which, for example, implements block processing [5]. Interestingly, Ding and Suel report faster query evaluation in absolute terms, even on hardware that is much older: among the differences include C++ vs. Java, as well as the simplicity of a research prototype vs. the realities of a fully-featured search library. Beyond implementation differences, Lucene must additionally compute the upper bound scores per block from the stored (tf, dl) pairs on the fly.\n\n",
+            "cite_spans": [
+                {
+                    "start": 1509,
+                    "end": 1510,
+                    "mention": "5",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "section": "Experimental Evaluation",
+            "ref_spans": [
+                {
+                    "start": 191,
+                    "end": 192,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "We also report performance evaluations on two other standard test collections frequently used in academic information retrieval: ClueWeb09b and ClueWeb12-B13, with the same sets of queries. These results are shown in Table 2, where we report figures for different values of retrieval depth k, also averaged over three trials. These numbers are consistent with Fig. 7 in Ding and Suel\u2019s paper: performance of exhaustive Or drops modestly as depth k increases, but Bmw performance degrades much more quickly. This is exactly as expected.",
+            "cite_spans": [],
+            "section": "Experimental Evaluation",
+            "ref_spans": [
+                {
+                    "start": 223,
+                    "end": 224,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "Finally, we quantify the modest increase in indexing time due to the need to maintain (tf, dl) pairs in the inverted indexes, shown in Table 3 (averaged over three trials, using 44 threads in all cases). These experiments used Anserini\u2019s default regression settings on the respective collections, which builds full positional indexes and also stores the raw documents.",
+            "cite_spans": [],
+            "section": "Experimental Evaluation",
+            "ref_spans": [
+                {
+                    "start": 141,
+                    "end": 142,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                }
+            ]
+        },
+        {
+            "text": "The story of block-max Wand in Lucene provides a case study of how an innovation that originated in academia made its way into the world\u2019s most widely-used search library and achieved significant impact in the \u201creal world\u201d through hundreds of production deployments worldwide (if we consider the broader Lucene ecosystem, which includes systems such as Elasticsearch and Solr). As there are very few such successful case studies (the other prominent one being the incorporation of BM25 in Lucene), it is difficult to generalize these narratives into \u201clessons learned\u201d. However, here we attempt to offer a few observations about how academic research might achieve greater real-world impact.",
+            "cite_spans": [],
+            "section": "Discussion",
+            "ref_spans": []
+        },
+        {
+            "text": "In short, block-max Wand is in Lucene because the developers learned about Ding and Suel and decided to reimplement it. This is somewhat stating the obvious, but this fateful decision highlights the idiosyncratic nature of technology adoption. We could imagine alternatives where the Lucene developers had not come across the paper and developed a comparable solution in isolation, or they might have known about the paper and elected to take a different approach. In either case, the Lucene solution would likely differ from block-max Wand. This would be akin to convergent evolution in evolutionary biology, whereby different organisms independently evolve similar traits because they occupy similar environments. In such an \u201calternate reality\u201d, this paper would be comparing and contrasting different solutions to handling score outliers, not describing a reproducibility effort. To bring researchers and practitioners closer together, we recommend that the former be more proactive to \u201cevangelize\u201d their innovations, and the latter be more diligent in consulting the literature.",
+            "cite_spans": [],
+            "section": "Discussion",
+            "ref_spans": []
+        },
+        {
+            "text": "Eight years passed from the publication of the original paper (2011) until the release of Lucene that included block-max Wand (2019). The entire course of innovation was actually much longer if we trace the origins back to MaxScore (1995) and Wand (2003). One obvious question is: Why did it take so long?",
+            "cite_spans": [],
+            "section": "Discussion",
+            "ref_spans": []
+        },
+        {
+            "text": "There are many explanations, the most salient of which is the difference between a research prototype and a fully-featured search library that is already widely deployed. This decomposes into two related issues, the technical and the social. From a technical perspective, supporting Bmw required invasive changes to Lucene\u2019s index format and a host of related changes in scoring functions\u2014for example, scores could no longer be negative, and implementations could no longer access arbitrary fields (which was an API change). These had to be staged incrementally. Concomitant with technical changes and backwards-compatibility constraints were a host of \u201csocial\u201d changes, which required changing users\u2019 expectations about the behavior of the software. In short, Bmw was not simply a drop-in replacement. For example, as discussed in Sect. 3, the hit count was no longer accurate, which required workarounds for applications that depended on the value. Because such major changes can be somewhat painful, they need to be justified by the potential benefits. This means that only dramatic improvements really have any hope of adoption: multiple-fold, not marginal, performance gains. An interesting side effect is that entire generations of techniques might be skipped, in the case of Lucene, directly from exhaustive Or to Bmw, leapfrogging intermediate innovations such as MaxScore and Wand.",
+            "cite_spans": [],
+            "section": "Discussion",
+            "ref_spans": []
+        },
+        {
+            "text": "Aiming to achieve real-world impact with academic research is a worthy goal, and we believe that this case study represents an endorsement of efforts to better align research prototypes with production systems, as exemplified by Lucene-based projects like Anserini. If academic researchers are able to look ahead \u201cdown the road\u201d to see how their innovations might benefit end applications, the path from the \u201civory tower\u201d to the \u201creal world\u201d might become more smoothly paved.",
+            "cite_spans": [],
+            "section": "Conclusions",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1.: Per-query latency (ms), comparing Ding and Suel [6] with Lucene under similar experimental conditions, but on different hardware (\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$k=10$$\\end{document}).\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2.: Per-query latency (ms) for different queries, collections, and retrieval depths.\n",
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Table 3.: Indexing time in seconds.\n",
+            "type": "table"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "Combining the language model and inference network approaches to retrieval",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "WB",
+                    "middle": [],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Inf. Process. Manag.",
+            "volume": "40",
+            "issn": "5",
+            "pages": "735-750",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.ipm.2004.05.001"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "Query evaluation: strategies and optimizations",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Turtle",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Flood",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Inf. Process. Manag.",
+            "volume": "31",
+            "issn": "6",
+            "pages": "831-850",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/0306-4573(95)00020-H"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF18": {
+            "title": "Toward reproducible baselines: the open-source IR reproducibility challenge",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "408-420",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF19": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "Upper-bound approximations for dynamic pruning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tonellotto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ACM Trans. Inf. Syst.",
+            "volume": "29",
+            "issn": "4",
+            "pages": "171-1728",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2037661.2037662"
+                ]
+            }
+        }
+    }
+}

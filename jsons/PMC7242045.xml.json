@@ -1,0 +1,1635 @@
+{
+    "paper_id": "PMC7242045",
+    "metadata": {
+        "title": "Analysing ProB\u2019s Constraint Solving Backends",
+        "authors": [
+            {
+                "first": "Alexander",
+                "middle": [],
+                "last": "Raschke",
+                "suffix": "",
+                "email": "alexander.raschke@uni-ulm.de",
+                "affiliation": {}
+            },
+            {
+                "first": "Dominique",
+                "middle": [],
+                "last": "M\u00e9ry",
+                "suffix": "",
+                "email": "dominique.mery@loria.fr",
+                "affiliation": {}
+            },
+            {
+                "first": "Frank",
+                "middle": [],
+                "last": "Houdek",
+                "suffix": "",
+                "email": "frank.houdek@daimler.com",
+                "affiliation": {}
+            },
+            {
+                "first": "Jannik",
+                "middle": [],
+                "last": "Dunkelau",
+                "suffix": "",
+                "email": "jannik.dunkelau@hhu.de",
+                "affiliation": {}
+            },
+            {
+                "first": "Joshua",
+                "middle": [],
+                "last": "Schmidt",
+                "suffix": "",
+                "email": "joshua.schmidt@hhu.de",
+                "affiliation": {}
+            },
+            {
+                "first": "Michael",
+                "middle": [],
+                "last": "Leuschel",
+                "suffix": "",
+                "email": "michael.leuschel@hhu.de",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Besides its native CLP(FD)-based backend, the validation tool ProB [30] offers various backends for solving constraints, e.g. encountered during symbolic verification. In previous work [18, 19], we trained neural networks to decide for a given constraint which backend should be used. We compared two approaches: one based on feature vectors derived from domain knowledge, and one based on encoding constraints as images. While we achieved promising results with the image-based approach, it was not possible to extract a comprehensible explanation about how the predictions were made. In follow-up work [34] the experiment was replicated with decision trees [5] using the same feature sets as before. This was motivated by the fact that decision trees are a transparent machine learning algorithm allowing to extract and interpret the learned decision rules and thus the acquired knowledge.",
+            "cite_spans": [
+                {
+                    "start": 68,
+                    "end": 70,
+                    "mention": "30",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 186,
+                    "end": 188,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 190,
+                    "end": 192,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 605,
+                    "end": 607,
+                    "mention": "34",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 660,
+                    "end": 661,
+                    "mention": "5",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper we will expand on the decision tree approach and further analyse the relative importances of the features used for deciding whether the different backends of ProB will be successful or not. Moreover, we will compare these results with our a priori assumptions about the subdomains in which each backend should work well. While we will display achievable classification performances for our predictors, we do not aim for a good performance, but instead for an analysis over the whole dataset. In particular, we are not interested in replacing the decision function in ProB with a predictor presented in this paper. The goal is to find subsets of the B language in which a backend performs better than others to strengthen our knowledge of the different tools at hand. With the gathered information we may be able to improve the ProB constraint solver and to obtain more suitable features sets for related machine learning tasks for B in the future.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "ProB\u2019s kernel [29] is implemented in SICStus Prolog [11] using features such as co-routines for delayed constraint propagation, or mutable variables for its constraint store. The CLP(FD) finite domain library [10] is used for integers and enumerated set elements. The library has a limited precision of 59 bits. ProB handles overflows by custom implementations and also supports unbounded domains as well as symbolic representations for infinite or large sets. Some specific features of the ProB constraint solver are that it computes all solutions to a constraint using backtracking. This is important as constraints are often used within set comprehensions. It is also important for model checking to ensure that the entire state space is constructed. ProB can deal with higher-order sets, relations and functions.",
+            "cite_spans": [
+                {
+                    "start": 15,
+                    "end": 17,
+                    "mention": "29",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 53,
+                    "end": 55,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 210,
+                    "end": 212,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "section": "The Native CLP(FD) Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "Subdomains in Which CLP(FD) Presumably Performs Better. First and foremost, the CLP(FD) backend of ProB is the only backend supporting all constructs available in B. It is thus the default backend. It performs best for constraints arising in animation, where usually a small number of variables (operation parameters) have to be enumerated. In this context, it can deal well with large data values.",
+            "cite_spans": [],
+            "section": "The Native CLP(FD) Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "Generally speaking, ProB performs well on constraints using enumerated sets, booleans and/or bounded integers as base types. It performs reasonably well on unbounded intervals if interval reasoning can be applied. While ProB is very good at model finding, it can only detect unsatisfiability by exhaustively enumerating all values remaining after deterministic propagation. In case of unbounded data structures, ProB cannot exhaustively enumerate all cases and is much less powerful. While CLP(FD) cannot natively handle unbounded domains or quantifiers, ProB\u2019s backend contains several custom extensions to do so. A key limitation of the CLP(FD) backend is that it has no features such as backjumping, conflict-driven clause learning, or random restarts. In consequence, the backend can get stuck in the search space repeatedly enumerating invalid values which SAT or SMT solvers would rule out by learning.",
+            "cite_spans": [],
+            "section": "The Native CLP(FD) Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "An alternative backend [35] for ProB makes use of Alloy\u2019s Kodkod library [38] to translate constraints to propositional logic, which are then solved by a SAT solver. For instance, sets are translated as bit vectors. In particular, a subset x of the interval 0..2 would be translated into three propositional logic variables \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$x_0, x_1, x_2$$\\end{document} where \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$x_i$$\\end{document} is true if \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$i\\in x$$\\end{document} holds. The constraint \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\{1,2\\} \\subseteq x$$\\end{document} can then be translated to the propositional logic formula \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$x_1 \\wedge x_2$$\\end{document}. As Kodkod does not allow higher-order values, any such constraint is not passed to Kodkod and is instead dealt with by ProB\u2019s default CLP(FD) backend after Kodkod has found a solution for the other constraints.",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 26,
+                    "mention": "35",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 74,
+                    "end": 76,
+                    "mention": "38",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "section": "The Kodkod Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "When using this backend, ProB will first perform an interval analysis and determine which variables have a finite scope and a first-order type. The constraint is then partitioned into a part sent to Kodkod and a part solved by ProB. During solving, the SAT solver is called first. For every solution obtained by the SAT solver, ProB\u2019s CLP(FD) backend solves the remaining constraints. By default, Kodkod\u2019s Sat4j [28] SAT solver is selected.",
+            "cite_spans": [
+                {
+                    "start": 413,
+                    "end": 415,
+                    "mention": "28",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "section": "The Kodkod Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "Subdomains in Which Kodkod Presumably Performs Better. The strengths and weaknesses of the backend based on Kodkod stem from its internal reliance on SAT solving. While modern SAT solvers are very fast when it comes to solving very large boolean formulae, encoding B into propositional logic underlies certain restrictions. SAT encodings can only be used for data types known to be finite. In particular, one has to assign an upper and lower bound for integers and set sizes. Thus, integer overflows might occur and it is hard to ensure soundness and completeness. Furthermore, arithmetic operations have to be encoded in propositional logic as well such as binary adders. This leads to additional overhead when generating a conjunctive normal form, especially for large bit widths. The designers of Alloy argue [25] that lack of integers is not disadvantageous in general, as integer constraints are often of secondary nature. In B models, this is not the case. In summary, this backend is not good for arithmetic, large relations, infinite domains, higher-order constraints, or data structures.",
+            "cite_spans": [
+                {
+                    "start": 813,
+                    "end": 815,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "The Kodkod Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "In contrast, SAT solving is ideal for problems involving relations as those can be expressed in a way suitable for Kodkod\u2019s backends [35]. Furthermore, given that Kodkod is originally used as a backend for analysing Alloy it has been tuned towards constraints involving operations on relations. For instance, the relational image or transitive closure operations of B are handled efficiently by the translation to SAT using Kodkod.",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 136,
+                    "mention": "35",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "section": "The Kodkod Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "The third backend of ProB translates B constraints to SMT-LIB formulae and targets the SMT solvers Z3 [13] and CVC4 [3]. Here we focus on the Z3 binding [27] only. The translation works by rewriting the B constraints into a normal form using a core subset of the B operators which can be mapped to SMT-LIB. Additional variables, set comprehensions, and quantifiers are introduced for those operators which have no counterpart in SMT-LIB or Z3, e.g. cardinality, or minimum and maximum of an integer set. Functions and relations are translated to the Array theory of SMT-LIB. The DPLL(T) [21] algorithm underlying SMT solvers is fundamentally different from CLP(FD). Just like for the SAT translation, SMT solvers can perform backjumping and conflict-driven clause learning.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 105,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 117,
+                    "end": 118,
+                    "mention": "3",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 154,
+                    "end": 156,
+                    "mention": "27",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 588,
+                    "end": 590,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "The Z3 Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "Subdomains in Which Z3 Presumably Performs Better. SMT solvers such as Z3 are very good at proof for B and Event-B (cf. [14, 15]). Our experience in the context of model finding is that Z3 is good at detecting inconsistencies, in particular on infinite domains. For example, Z3 is able to detect that the constraint \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$x< y \\wedge y < x$$\\end{document} is unsatisfiable. The other two backends are unable to detect this using their default settings. Note that ProB is able to detect this inconsistency if one enables an additional set of propagation rules based on CHR.",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 123,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 125,
+                    "end": 127,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "section": "The Z3 Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "On the downside, Z3 often has difficulties to deal with quantifiers. Moreover, the translation from B to SMT-LIB does not yet support various operators such as general union or general sum nor does it support iteration and closure operators. Constraints using one of these operators are not translated to SMT-LIB at all and the backend returns unknown. In summary, the Z3 backend is good at detecting inconsistencies and reasoning over infinite domains, but for constraints involving quantifiers, larger data values or cardinality computations it often answers unknown.",
+            "cite_spans": [],
+            "section": "The Z3 Backend ::: Primer on ProB and its Backends",
+            "ref_spans": []
+        },
+        {
+            "text": "Random forests [7] are a bagging approach [6] to decision trees, i.e. instead of only training a single decision tree, a set of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$k$$\\end{document} decision trees \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$(T_i)_{1\\le i \\le k}$$\\end{document} is trained. Each tree is trained on a random subset of the training samples as well as a random subset of features. This randomisation ensures most trees in the set to be distinct from each other. For example, the impurity decrease of common features will vary between the training samples, leading to different choices of splitting. Due to bagging, the relatively unstable nature of decision trees is countered and the technique is less prone to overfitting.",
+            "cite_spans": [
+                {
+                    "start": 16,
+                    "end": 17,
+                    "mention": "7",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 43,
+                    "end": 44,
+                    "mention": "6",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "section": "Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "A measure for the relative importances of each feature in a random forest is the mean decrease importance [7]. The mean decrease importance of a feature averages the impurity decrease per feature over each decision tree in the forest. Hence, it is a measure of the average impurity decrease the feature offers [2, 37].",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 108,
+                    "mention": "7",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 311,
+                    "end": 312,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 314,
+                    "end": 316,
+                    "mention": "37",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "section": "Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "While we had multiple classification algorithms to choose from, we finally settled on random forests. This choice was motivated by our need for a strong and interpretable classifier.",
+            "cite_spans": [],
+            "section": "Rationale for Using Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "In previous work [19] we used convolutional neural networks, but we were unable to extract the knowledge accumulated by the classifciation due to the black box nature of the neural networks. Hence, we started to use decision trees, as one can easily extract classification rules after the training phase. These rules are comprehensible and can be interpreted by non-experts as well. Decision trees also offer insights about the relevancy of features: the closer to the root a split over a specific feature is done, the more impact it has for the decision process.",
+            "cite_spans": [
+                {
+                    "start": 18,
+                    "end": 20,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Rationale for Using Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "Alternate machine learning approaches are linear regression and clustering approaches. For linear regression the relevance of features could be extracted by examining the relative differences in their coefficients. However, this would not yield direct rules describing why a particular prediction was made. As we are particularly interested in extractable knowledge from trained classifiers and reasoning for the given predictions, we favoured decision trees over linear regression. On a similar note, we decided against clustering. However, a clustering approach for grouping similar constraints together presents an interesting alternative approach to be studied in future work.",
+            "cite_spans": [],
+            "section": "Rationale for Using Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "In the end, we decided to utilise random forests for the present article. Although they are again blackbox algorithms, they consist of interpretable pieces, which can be analysed for more general rules [16, 23].",
+            "cite_spans": [
+                {
+                    "start": 203,
+                    "end": 205,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 207,
+                    "end": 209,
+                    "mention": "23",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Rationale for Using Random Forests ::: Primer on Decision Trees and Random Forests",
+            "ref_spans": []
+        },
+        {
+            "text": "The related work in the field is split into two categories: machine learning powered algorithm portfolios for SMT solving, and knowledge extraction from tree ensemble learners such as random forests. To the best of our knowledge, no intersection of both categories exists yet in literature, as we do in this article.",
+            "cite_spans": [],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Healy et al. [24] conducted a solver portfolio for the Why3 platform [4]. The solver selection was done via decision trees which predicted the anticipated runtime of a proof obligation for each solver, and choosing the fastest one. James P. Bridge [8] used support vector machines for automating the heuristic selection for the E theorem solver [36]. While he was able to improve the already implemented auto-mode in E, he also investigated picking a minimal feature set which ultimately consisted of only two to three features.",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 16,
+                    "mention": "24",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 70,
+                    "end": 71,
+                    "mention": "4",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 249,
+                    "end": 250,
+                    "mention": "8",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 346,
+                    "end": 348,
+                    "mention": "36",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Yang et al. [39] analysed decision trees to extract minimal feature subsets which need to be flipped to achieve a more favourable outcome. Their application area was customer relationship management with focus on increasing the amount of loyal customers, i.e. detect what needs to be done to turn a regular customer into a loyal customer. Similarly, Cui et al. [12] proposed an integer linear program on random forests for finding the minimal subset of features to change for obtaining a different classification. Deng [16] proposed interpretable trees (inTrees) for interpreting tree ensembles. In their paper, they propose a set of metrics to extract learned knowledge from a tree ensemble such as a random forest. This includes the actual rules learned in an ensemble as well as frequent variable interactions. Narayanan et al. [32] extracted the most common patterns for failing solid state drives in datacenters using inTrees. In their work, they found that these extracted patterns match with previously made observations.",
+            "cite_spans": [
+                {
+                    "start": 13,
+                    "end": 15,
+                    "mention": "39",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 362,
+                    "end": 364,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 520,
+                    "end": 522,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 832,
+                    "end": 834,
+                    "mention": "32",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "For acquiring the constraints for the training data, we extracted B predicates from the public ProB examples repository1 and constructed more complex constraints inspired by ProB\u2019s enabling analysis [17] or discharging proof obligations [26]. Each backend was given a timeout of 25 s to decide whether the constraint has a solution or is a contradiction. Constraints for which a definite answer was found build up the positive class for a solver. The negative class is made up of the other outcomes: timeouts, errors, or the answer unknown. Overall, the class distribution was imbalanced, as for instance only about 35% of samples belonged to the negative class for the CLP(FD) backend. Yet, we do not deem this as a problem because the decision trees are trained with respect to a weighted training set.",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 202,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 238,
+                    "end": 240,
+                    "mention": "26",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "section": "The Training Data ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "The choice of the 25 s timeout was arbitrary. However, we evaluated how much more constraints are assigned to the positive class compared to using ProB\u2019s default timeout of 2.5 s. The CLP(FD) backend is able to solve 65.47% of the constraints using a timeout of 2.5 s, while the Kodkod and Z3 backends solve 64.65% and 21.52% respectively. When increasing the timeout by factor 10 to 25 s, these percentages increase to 65.48% for CLP(FD) (+0.01%), 64.67% for Kodkod (+0.02%), and 21.53% for Z3 (+0.01%). As the percentage of solvable constraints for each backend only increased by a rather insignificant amount, we deemed the unsolvable constraints as complex enough for our analysis approach. We did not test with higher timeouts.",
+            "cite_spans": [],
+            "section": "The Training Data ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "For each backend\u2019s analysis we had around 170,000 unique samples.",
+            "cite_spans": [],
+            "section": "The Training Data ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "For training the decision trees, we created a manually selected set of 109 features (further referred to as F109) which mainly consists of characteristics such as the amount of arithmetic operations per top level conjunct, or the ratio of intersections of all used set operators. Further features consist of maximum and mean nesting depths for certain language constructs such as negations and powersets, or the amount of unique identifiers per top level conjunct and number of interactions between them. Additionally, identifiers are grouped into unbounded, semi-bounded (only upper or lower bound), and fully bounded (both, upper and lower bound) identifiers. This grouping is sensitive to whether the boundaries are explicitly set (e.g.\n\n) or only bounded by another identifier (\n\n).",
+            "cite_spans": [],
+            "section": "The Feature Set ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "As we are interested in the knowledge gathered by the random forests over the whole corpus of B constraints at our disposal, we will not split the dataset into sets for training and testing for our final analysis as is common for classification tasks aiming for a good predictor. However, as a sanity check that the selected features are indeed discriminatory enough to actually learn weaknesses and strengths of each backend, we still analysed the predictive performances of a random forest for each backend on a classical split into datasets for training and testing. For measuring performance, we utilised the metrics accuracy, balanced accuracy [9], and the \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\text {F}_1$$\\end{document}-score [22].",
+            "cite_spans": [
+                {
+                    "start": 650,
+                    "end": 651,
+                    "mention": "9",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 966,
+                    "end": 968,
+                    "mention": "22",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "section": "The Feature Set ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "Each prediction of a classifier can either be a true positive (tp), true negative (tn), false positive (fp) or false negative (fn), i.e. the prediction can be either correct or false corresponding to either the positive or negative classes 1 and 0. The utilised performance metrics are defined as follows:\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\begin{aligned} accuracy&= \\frac{\\text {tp}+\\text {tn}}{ \\text {tp}+\\text {tn} + \\text {fp}+\\text {fn}}\\text {,} \\\\ balanced~acc.&= \\frac{1}{2} \\left[ \\frac{\\text {tp}}{\\text {tp}+\\text {fn}} +\\frac{\\text {tn}}{\\text {tn}+\\text {fp}} \\right] \\text {.} \\end{aligned}$$\\end{document}Accuracy describes the percentage of the test data which were classified correctly. Balanced accuracy is most suitable for an unbalanced dataset in which the distribution of classes is not equal. It averages the percentage of correctly predicted samples per class. The \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\text {F}_1$$\\end{document}-score is defined as the harmonic mean over the notions precision and recall [22]:\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$ precision = \\frac{\\text {tp}}{\\text {tp}+\\text {fp}}\\text {,} \\quad recall = \\frac{\\text {tp}}{\\text {tp}+\\text {fn}} $$\\end{document}\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$ \\text {F}_1 = 2*\\frac{\\textit{precision}*\\textit{recall}}{\\textit{precision}+\\textit{recall}} \\ \\text {.} $$\\end{document}Precision describes the probability of a positive prediction to be correct. Recall describes the probability for samples of the positive class to be classified as such.",
+            "cite_spans": [
+                {
+                    "start": 1498,
+                    "end": 1500,
+                    "mention": "22",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "section": "The Feature Set ::: Experimental Setup",
+            "ref_spans": []
+        },
+        {
+            "text": "Table 1 shows the results of this sanity check. We used 80% of the data for training, whereas the performance measures were taken on the remaining 20%. Each classification task was concerned with whether a backend would return a definitive answer for a given constraint (satisfiable or unsatisfiable) or would yield unknown. As the performance scores are all higher than 0.9, we deem the feature set F109 to be suitable for our purposes.\n",
+            "cite_spans": [],
+            "section": "The Feature Set ::: Experimental Setup",
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 7,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "In order to gain a deeper insight in the feature set we compute the Gini importance which is the mean decrease importance of a feature within a random forest using the Gini impurity as the splitting criterion.\n",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Table 2 shows the top ten features that are necessary to classify the data at hand for each backend. The common features of the three subsets are highlighted. These indicate a particularly high importance as they are used for each of the three backends\u2019 decisions.",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 7,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "The CLP(FD) backend and the Kodkod backend have the most features in common. The most important feature for both backends is the presence of function applications. Indeed, a function application is a complex operation for a constraint solver since it entails for example the well-definedness condition that the applied value is an element of the function\u2019s domain. Both backends\u2019 classifiers favour the presence of nested logic formulae with further possibly nested conjunctions, disjunctions, and implications, indicating more involved constraint as well. The initial assumption that the Kodkod backend is better suited to solve constraints over relations is strengthened by the high ranking of the ratio of relational compositions and overrides in the top 10 features. Of course, the overall higher similarity of the top ranked features for the CLP(FD) and Kodkod backend is influenced by the fact that constraints that cannot be translated to SAT are solved by ProB.",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "The gathered feature set for the classifier of the Z3 backend favours the presence of relational operations, in particular, the presence of domain operations. As initially expected, the feature representing the presence of unbounded domains has a high importance as well.",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "While this analysis allows for selection of features for the sole purpose of classification, it does not yet give us info as of why a feature ranks high. For instance, it remains uncertain whether the presence of relational operators correlates to Z3\u2019s positive or negative class. This will be analysed in Sect. 6.2.",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Classifying on Reduced Feature Sets. While we are mostly interested in analysing which language subsets are hard for a backend to solve, we can evaluate the significance of the most relevant features (determined via Gini relevance as done above) by conducting a regular classification over only these relevant features. When using the ranked feature sets to find a minimal set of features, we have to consider that at least one feature exists for each B data type or group of operations, e.g. relational operators, as the dataset might be biased to specific operations. For instance, the fact that the presence of arithmetic operations is not ranked high does not mean there should be no such feature at all in general.\n",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "We created two features sets containing the top 10 and 50 ranked features for each backend, referred to as F10 and F50 respectively. The results presented in Table 3 show that the minimised subsets of 50 features capture the problem domain as well as the larger set containing 109 features presented in Table 1. The smaller subset containing 10 features already shows good performance but does not perform as well as the one using 50 features, indicating that the problem at hand is complicated at least.",
+            "cite_spans": [],
+            "section": "Feature Importances ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 164,
+                    "end": 165,
+                    "mention": "3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 309,
+                    "end": 310,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "Our main goal is to determine how the backends perform on different subsets of the B language. For this we performed an association rule analysis using the inTrees framework [16], thereby identifying frequent feature interactions as well as determining those syntax elements which increase the chance of unsolvability for each backend. For the analysis, we interpret paths from the root to the leaves of each decision tree in the forest as a single rule. Each node in these trees corresponds to a feature along with a threshold value for deciding which path to follow. An example based on the decision tree from Fig. 1 is given in Fig. 2.\n",
+            "cite_spans": [
+                {
+                    "start": 175,
+                    "end": 177,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 617,
+                    "end": 618,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 636,
+                    "end": 637,
+                    "mention": "2",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "Different paths might be identical up to the respective threshold values. In our analysis, we discard the threshold values and only consider the tendency (below or above threshold) for each rule. This way we can compare rules without having to worry about mismatching threshold values while still accounting for the feature\u2019s tendency. Table 4 displays several rules that were collected from the random forest trained for each backend.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 342,
+                    "end": 343,
+                    "mention": "4",
+                    "ref_id": "TABREF3"
+                }
+            ]
+        },
+        {
+            "text": "Deng [16] uses two metrics for the association rules, support and confidence. Given two rules \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a = \\{C_a \\Rightarrow Y_a\\}$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b = \\{C_b \\Rightarrow Y_b\\}$$\\end{document} where \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$C_a, C_b$$\\end{document} are the respective conditions and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$Y_a,Y_b$$\\end{document} the respective outcomes. Rule \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b$$\\end{document} is said to be in the support of rule \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a$$\\end{document} iff \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$C_a \\subseteq C_b$$\\end{document}. That is, each feature used in \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$C_a$$\\end{document} is also used in \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$C_b$$\\end{document} (with equal threshold tendency). Let \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\sigma (a) = \\{r \\mid r\\text { is in the support of }a\\}$$\\end{document} denote the support set of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a$$\\end{document}. The confidence of an association rule \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a$$\\end{document} is then defined as \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$ c(a) = |\\{\\{C_r \\Rightarrow Y_r\\}\\in \\sigma (a) \\mid Y_r = Y_a\\}|/ |\\sigma (a)|$$\\end{document}, i.e. the ratio of rules in the support of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a$$\\end{document} with the same outcome as \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$a$$\\end{document}.",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 8,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "For a deeper analysis of the subproblems\u2019 performances for each backend, we calculated the support and confidence of the respectively 250,000 shortest rules of the corresponding random forests.\n",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Analysis for CLP(FD). For ProB\u2019s native backend, most rules with high support only had a confidence of 50%, rendering them insignificant for our analysis. While higher confidence rules had less support such as the one presented in Table 4, they allowed for a look on certain subareas in the problem domain in which the backend struggles to find an answer for.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 237,
+                    "end": 238,
+                    "mention": "4",
+                    "ref_id": "TABREF3"
+                }
+            ]
+        },
+        {
+            "text": "Main concern for the backend appears to be function applications because they are the most relevant feature for deciding whether the CLP(FD) backend is able to satisfy or reject a constraint according to the analysis in Sect. 6.1.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "The implementation of function applications in ProB consists of many special cases such as different treatment for partial or total functions. Moreover, function applications entail a well-definedness condition leading to more involved constraints and possibly weaker propagation. In particular, the constraint solver has to deduce that the values applied to a function are part of its domain which increases complexity drastically if domains are (semi-)unbounded. The multitude of such cases might emphasise the overall complexity for constraint solving and be the reason for function applications leading to negative predictions. This finding suggests the need for a more involved statical analysis of constraints with function types by means of discarding well-definedness constraints early to allow for a more aggressive propagation of function applications. Thus the solver would not need to wait for verification of whether an element actually resides in a function\u2019s domain or not.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Further findings show that the use of implications, equivalences, nested powersets as well as operations on powersets contribute to the probability for the backend to answer unknown for a given constraint, as do operations concerning multiple variables representing functions and unbounded domains.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Comparing this to our initial presumptions made in Sect. 2.1, the particular difficulty associated with function application was mostly unexpected. Furthermore, while we did not anticipate implications or equivalences to have such significance, their role for unsolvability might be caused by a lot of backtracking inside the constraint solver for satisfying these constraints. The analysis did not bring up further results mismatching our assumptions from Sect. 2.1.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Analysis for Kodkod. The Kodkod backend struggles with arithmetic and powersets, which was to be expected. As already observed with the native backend, we also found an increase in logical operators to increase the constraint complexity significantly. An increase in logical operators naturally increases the nesting depth of the top-level conjuncts, leading to much more involved constraints. The use of functions only appears to be a problem for Kodkod if these are not manipulated by relational operators, rendering Kodkod as a more suitable choice over CLP(FD) in these cases. We generally found our expectations from Sect. 2.2 met regarding Kodkod\u2019s handling of relations.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Most positive rules favouring relational operators only showed a small support but had high confidence values and mostly differed in a single feature describing a different relational operator. If one was to generalise these rules into a singular one which is independent of the particular relational operator, these rules should be able to support each other while maintaining their high confidence. This suggests the use of relational operators for the Kodkod backend.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Note again that the Kodkod backend has a fallback to the CLP(FD) backend for non-translated structures, hence both backends perform similar overall.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "Analysis for Z3. Contrary to the two backends presented above, the Z3 backend\u2019s association rule analysis delivered many high-support/high-confidence rules for the positive class. Table 4 shows one such rule with high support and confidence. Since the analysis did not provide rules with high support and confidence for the negative class, we compared absence of syntax elements in the positive rules to their existence in low-support negative rules for analysis of areas where Z3 does not perform well.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": [
+                {
+                    "start": 186,
+                    "end": 187,
+                    "mention": "4",
+                    "ref_id": "TABREF3"
+                }
+            ]
+        },
+        {
+            "text": "The results suggest that Z3 handles unbounded domains well and favours integer variables and inequality constraints. This is in line with our expectations from Sect. 2.3. However, we observed good performance for relational operators as well which goes against initial presumptions, although this is correlated to the amount of domain restrictions in use. Otherwise, Z3 lacks performance with quantifiers, set comprehensions, powersets, or set operations (as was expected).",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "The main issues for the Z3 backend are the non-translated operators as well as highly involved translations as outlined in Sect. 2.3. Revisiting these translations and comparing their implementations to those of well-performing syntax elements might allow to increase the backend\u2019s performance on further language subsets significantly. For instance, the translation of relational operators might inspire the translation of certain set operators.",
+            "cite_spans": [],
+            "section": "Association Rule Analysis ::: Analysis and Results",
+            "ref_spans": []
+        },
+        {
+            "text": "In this article, we identified subproblems of the B language for which the individual ProB constraint solving backends performed better or worse respectively.",
+            "cite_spans": [],
+            "section": "Conclusion",
+            "ref_spans": []
+        },
+        {
+            "text": "While our findings generally matched our expections stated in Sects. 2.1, 2.2 and 2.3, we found certain results which we did not explicitly expect. For instance, our evidence suggests a difficulty for dealing with function applications as well as implications and equivalences. Involved constraints containing many nested conjunctions and disjunctions also increased the chance for the backends to return unknown. Surprisingly, the Z3 backend performed much better on relational operators as expected. As a consequence, our analysis identified the need for a more sophisticated handling of function application and nested logic operators.",
+            "cite_spans": [],
+            "section": "Conclusion",
+            "ref_spans": []
+        },
+        {
+            "text": "As by-product of this work, we were also able to train well-performing classifiers for each backend, which can be used for automated backend selection.",
+            "cite_spans": [],
+            "section": "Conclusion",
+            "ref_spans": []
+        },
+        {
+            "text": "The experimental data as well as corresponding Jupyter notebooks are available on GitHub:https://github.com/jdnklau/prob-backend-analysis.\n",
+            "cite_spans": [],
+            "section": "Conclusion",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1.: Random Forest classification performances over the set of 109 features.\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2.: Top ten features for each backend ranked by the Gini importance.\n",
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Table 3.: Random forest classification performances for minimised feature sets.\n",
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Table 4.: Exemplary association rules with their corresponding support and confidence values (Supp. and Conf. respectively). The operators\n\nand\n\nindicate whether the feature value is above or below the learned threshold.\n",
+            "type": "table"
+        },
+        "FIGREF0": {
+            "text": "Fig. 1.: Decision tree classifier over a set of iris flowers [20]. The species iris setosa, iris versicolor, or iris virginica is classified based on petal length and width.",
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2.: Association rules extracted from the decision tree in Fig. 1.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "JR",
+                    "middle": [],
+                    "last": "Abrial",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "The B-Book: Assigning Programs to Meanings",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "An open-ended finite domain constraint solver",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Carlsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ottosson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Carlson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Programming Languages: Implementations, Logics, and Programs",
+            "volume": "",
+            "issn": "",
+            "pages": "191-206",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Carlsson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1988,
+            "venue": "SICStus Prolog User\u2019s Manual",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "Z3: An efficient SMT solver",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "de Moura",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Bj\u00f8rner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Tools and Algorithms for the Construction and Analysis of Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "337-340",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "SMT solvers for Rodin",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "D\u00e9harbe",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fontaine",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guyot",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Voisin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Abstract State Machines, Alloy, B, VDM, and Z",
+            "volume": "",
+            "issn": "",
+            "pages": "194-207",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "Integrating SMT solvers in Rodin",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "D\u00e9harbe",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fontaine",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guyot",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Voisin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Sci. Comput. Program.",
+            "volume": "94",
+            "issn": "",
+            "pages": "130-143",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.scico.2014.04.012"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "title": "Interpreting tree ensembles with intrees",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Int. J. Data Sci. Anal.",
+            "volume": "7",
+            "issn": "4",
+            "pages": "277-287",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s41060-018-0144-8"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "title": "Enabling analysis for Event-B",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Dobrikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Sci. Comput. Program.",
+            "volume": "158",
+            "issn": "",
+            "pages": "81-99",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.scico.2017.08.004"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "Automated backend selection for ProB using deep learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dunkelau",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krings",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "NASA Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "130-147",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "Empirical characterization of random forest variable importance measures",
+            "authors": [
+                {
+                    "first": "KJ",
+                    "middle": [],
+                    "last": "Archer",
+                    "suffix": ""
+                },
+                {
+                    "first": "RV",
+                    "middle": [],
+                    "last": "Kimes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Comput. Stat. Data Anal.",
+            "volume": "52",
+            "issn": "4",
+            "pages": "2249-2260",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.csda.2007.08.015"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "title": "The use of multiple measurements in taxonomic problems",
+            "authors": [
+                {
+                    "first": "RA",
+                    "middle": [],
+                    "last": "Fisher",
+                    "suffix": ""
+                }
+            ],
+            "year": 1936,
+            "venue": "Ann. Eugen.",
+            "volume": "7",
+            "issn": "2",
+            "pages": "179-188",
+            "other_ids": {
+                "DOI": [
+                    "10.1111/j.1469-1809.1936.tb02137.x"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "title": "DPLL(T): fast decision procedures",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ganzinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hagen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nieuwenhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Oliveras",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tinelli",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Computer Aided Verification",
+            "volume": "",
+            "issn": "",
+            "pages": "175-188",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "A probabilistic interpretation of precision, recall and F-score, with implication for evaluation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Goutte",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gaussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Advances in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "345-359",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "Alloy: a lightweight object modelling notation",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Jackson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Trans. Softw. Eng. Methodol.",
+            "volume": "11",
+            "issn": "2",
+            "pages": "256-290",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/505145.505149"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "title": "From failure to proof: the ProB disprover for B and Event-B",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krings",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bendisposto",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Software Engineering and Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "199-214",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF19": {
+            "title": "SMT solvers for validation of B and Event-B models",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krings",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Integrated Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "361-375",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "The Sat4J library, release 2.2",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Le Berre",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Parrain",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Satisf. Boolean Model. Comput.",
+            "volume": "7",
+            "issn": "",
+            "pages": "59-64",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF21": {
+            "title": "From animation to data validation: the ProB constraint solver 10 years on",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bendisposto",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Dobrikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krings",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Plagge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Formal Methods Applied to Complex Systems: Implementation of the B Method",
+            "volume": "",
+            "issn": "",
+            "pages": "427-446",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF22": {
+            "title": "CVC4",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Barrett",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Computer Aided Verification",
+            "volume": "",
+            "issn": "",
+            "pages": "171-177",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF23": {
+            "title": "ProB: a model checker for B",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Butler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "FME 2003: Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "855-874",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF24": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF25": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF26": {
+            "title": "Scikit-learn: machine learning in Python",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Pedregosa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Mach. Learn. Res.",
+            "volume": "12",
+            "issn": "",
+            "pages": "2825-2830",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF27": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF28": {
+            "title": "Validating B,Z and TLA\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$^{+}$$\\end{document} Using ProB and Kodkod",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Plagge",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leuschel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "FM 2012: Formal Methods",
+            "volume": "",
+            "issn": "",
+            "pages": "372-386",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF29": {
+            "title": "E-a brainiac theorem prover",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schulz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Ai Commun.",
+            "volume": "15",
+            "issn": "2,3",
+            "pages": "111-126",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF30": {
+            "title": "Bias in random forest variable importance measures: Illustrations, sources and a solution",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Strobl",
+                    "suffix": ""
+                },
+                {
+                    "first": "AL",
+                    "middle": [],
+                    "last": "Boulesteix",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zeileis",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hothorn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "BMC Bioinf.",
+            "volume": "8",
+            "issn": "1",
+            "pages": null,
+            "other_ids": {
+                "DOI": [
+                    "10.1186/1471-2105-8-25"
+                ]
+            }
+        },
+        "BIBREF31": {
+            "title": "Kodkod: a relational model finder",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Torlak",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Jackson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Tools and Algorithms for the Construction and Analysis of Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "632-647",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF32": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF33": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF34": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Olshen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Stone",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "Classification and Regression Trees",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF35": {
+            "title": "Bagging predictors",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Mach. Learn.",
+            "volume": "24",
+            "issn": "2",
+            "pages": "123-140",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/BF00058655"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "title": "Random forests",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Breiman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Mach. Learn.",
+            "volume": "45",
+            "issn": "1",
+            "pages": "5-32",
+            "other_ids": {
+                "DOI": [
+                    "10.1023/A:1010933404324"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF38": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}

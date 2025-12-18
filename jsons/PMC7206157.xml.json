@@ -1,0 +1,932 @@
+{
+    "paper_id": "PMC7206157",
+    "metadata": {
+        "title": "Accelerating Hyperparameter Optimization of Deep Neural Network via Progressive Multi-Fidelity Evaluation",
+        "authors": [
+            {
+                "first": "Hady",
+                "middle": [
+                    "W."
+                ],
+                "last": "Lauw",
+                "suffix": "",
+                "email": "hadywlauw@smu.edu.sg",
+                "affiliation": {}
+            },
+            {
+                "first": "Raymond",
+                "middle": [
+                    "Chi-Wing"
+                ],
+                "last": "Wong",
+                "suffix": "",
+                "email": "raywong@cse.ust.hk",
+                "affiliation": {}
+            },
+            {
+                "first": "Alexandros",
+                "middle": [],
+                "last": "Ntoulas",
+                "suffix": "",
+                "email": "antoulas@di.uoa.gr",
+                "affiliation": {}
+            },
+            {
+                "first": "Ee-Peng",
+                "middle": [],
+                "last": "Lim",
+                "suffix": "",
+                "email": "eplim@smu.edu.sg",
+                "affiliation": {}
+            },
+            {
+                "first": "See-Kiong",
+                "middle": [],
+                "last": "Ng",
+                "suffix": "",
+                "email": "seekiong@nus.edu.sg",
+                "affiliation": {}
+            },
+            {
+                "first": "Sinno",
+                "middle": [
+                    "Jialin"
+                ],
+                "last": "Pan",
+                "suffix": "",
+                "email": "sinnopan@ntu.edu.sg",
+                "affiliation": {}
+            },
+            {
+                "first": "Guanghui",
+                "middle": [],
+                "last": "Zhu",
+                "suffix": "",
+                "email": "guanghui.zhu@smail.nju.edu.cn",
+                "affiliation": {}
+            },
+            {
+                "first": "Ruancheng",
+                "middle": [],
+                "last": "Zhu",
+                "suffix": "",
+                "email": "zrc@smail.nju.edu.cn",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "In recent years, deep learning has achieved great success on a variety of machine learning problems such as computer vision and natural language processing. However, deep neural networks (DNNs) are with too many hyperparameters and the learning performance depends seriously on the careful tuning of them [8]. The correct setting of hyperparameters for DNNs often needs a tedious endeavor, and typically requires considerable expert knowledge and experience. As a result, both researchers and practitioners desire to set hyperparameters automatically without any human intervention.",
+            "cite_spans": [
+                {
+                    "start": 306,
+                    "end": 307,
+                    "mention": "8",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Unlike traditional machine learning models, hyperparameter optimization for DNNs is more challenging. Since the architecture of DNNs is getting more and more complex, training large DNNs is more computationally expensive. For example, state-of-the-art neural networks often require days or even weeks to train. Thus, the well-known Bayesian optimization [1, 2, 10, 18, 20] methods that view the performance as a black-box function suffer low computational efficiency due to the expensive evaluation of hyperparameters. On the other hand, most practical problems usually require a good hyperparameter configuration within a limited time budget. Besides the strong final performance given a larger budget, practical hyperparameter optimization methods should also achieve strong anytime performance in the case of a small budget.",
+            "cite_spans": [
+                {
+                    "start": 355,
+                    "end": 356,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 358,
+                    "end": 359,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 361,
+                    "end": 363,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 365,
+                    "end": 367,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 369,
+                    "end": 371,
+                    "mention": "20",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "To speed up the hyperparameter optimization of DNNs, Hyperband [15] uses the successive halving (SH) technique [11] to stop poorly-performed configurations as early as possible and dynamically allocate more resources (i.e., the number of iterations) to well-performed configurations. Another popular method is the multi-fidelity optimization [9, 12, 13, 19]. Generally, the fidelity indicates the sampling ratio of the full dataset. Multi-fidelity optimization uses many cheap low-fidelity evaluations instead of expensive high-fidelity evaluations to extrapolate the performance of hyperparameter configurations on the full dataset.",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 66,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 112,
+                    "end": 114,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 343,
+                    "end": 344,
+                    "mention": "9",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 346,
+                    "end": 348,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 350,
+                    "end": 352,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 354,
+                    "end": 356,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper, we propose a novel hyperparameter optimization method FastHO to further accelerate the hyperparameter optimization of DNNs, while achieving good anytime performance and final performance. FastHO combines the progressive multi-fidelity technique with successive halving under a multi-armed bandit framework. Each hyperparameter configuration is viewed as an arm. At first, we aggressively evaluate each arm with fewer resources (i.e., small iteration budget and low fidelity). The poorly-performed arms are discarded and more resources are dynamically allocated to the promising configurations. The process is repeated until the maximum iteration budget and the highest fidelity are reached. Furthermore, we employ Bayesian optimization to guide the selection of initial configurations. Additionally, an efficient warmup method based on data subsampling is proposed to initialize the surrogate model of Bayesian optimization. Extensive empirical evaluation on different neural networks and datasets shows that FastHO outperforms the existing hyperparameter optimization methods. FastHO is not only effective to speed up hyperparameter optimization but also can achieve robust and better final performance.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Given a machine learning algorithm A having hyperparameters \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\lambda _1; \\ldots ; \\lambda _n$$\\end{document} with respective domains \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\delta _1; \\ldots ; \\delta _n$$\\end{document}, we define its hyperparameter space as \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\delta =\\delta _1\\times \\ldots \\times \\delta _n$$\\end{document}. For each hyperparameter setting \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\lambda $$\\end{document}, we use \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$A_\\lambda $$\\end{document} to denote the learning algorithm A using this configuration. We further use \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$l(\\lambda ) = L(A_\\lambda ; D_{train}; D_{valid})$$\\end{document} to denote the validation loss (e.g., error rate) that \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$A_\\lambda $$\\end{document} achieves on data \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_{valid}$$\\end{document} when trained on \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_{train}$$\\end{document}. The hyperparameter optimization problem is then to find \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\lambda $$\\end{document} minimizing \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$l(\\lambda )$$\\end{document}.",
+            "cite_spans": [],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Bayesian optimization (BO) is the most popular hyperparameter optimization method [2, 18, 20]. BO models the conditional probability \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$p(y|\\lambda )$$\\end{document} of a configuration\u2019s performance on an evaluation metric y, given a set of hyperparameters \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\lambda $$\\end{document}. The commonly-used probabilistic model in BO is Gaussian process (GP), but GP does not typically scale well to high dimensions and exhibits cubic complexity in the number of data points. Another model-based Bayesian optimization method is SMAC [10], which uses random forest as the surrogate model. SMAC can perform well in high-dimensional categorical spaces. TPE [1] is a non-standard Bayesian optimization algorithm based on tree-structured Parzen density estimators. Due to the nature of kernel density estimators, TPE easily supports mixed continuous and discrete spaces. The above three BO methods are well-established and successful, but they are inefficient for the hyperparameter optimization of DNNs due to the huge evaluation cost.",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 84,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 86,
+                    "end": 88,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 90,
+                    "end": 92,
+                    "mention": "20",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1062,
+                    "end": 1064,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1183,
+                    "end": 1184,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Unlike the model-based Bayesian optimization, the bandit-based strategy Hyperband [15] formulates hyperparameter optimization as a pure-exploration problem by addressing how to allocate resources among randomly-sampled hyperparameter configurations. Besides, it uses successive halving to early stop the poorly-performed configurations. Compared to Bayesian optimization, Hyperband shows strong anytime performance, but it may lead to poor final performance because the initial hyperparameter configurations are selected randomly. BOHB [4] takes advantage of both Bayesian optimization and Hyperband and thus achieves the state-of-the-art anytime performance and final performance.",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 85,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 537,
+                    "end": 538,
+                    "mention": "4",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Another efficient method for the tuning of hyperparameters is multi-fidelity optimization, which uses cheap approximations to the function of interest to speed up the overall optimization process. Generally, the fidelity can be represented by the sampling ratio of the full dataset. Multi-fidelity Bayesian optimization that ranges from a finite number of approximations to continuous approximations has been well studied [12, 13, 19]. Furthermore, a general multi-fidelity framework based on the black-box optimization methods was proposed [9].",
+            "cite_spans": [
+                {
+                    "start": 423,
+                    "end": 425,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 427,
+                    "end": 429,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 431,
+                    "end": 433,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 542,
+                    "end": 543,
+                    "mention": "9",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "However, due to the huge training cost of DNNs, the existing hyperparameter optimization methods are inefficient and time-consuming for DNNs. Even for the state-of-the-art method BOHB, it still requires 33 GPU days for optimizing the hyperparameters of a medium-sized residual network [4]. In this paper, we combine the successive halving technique with multi-fidelity optimization to accelerate the hyperparameter optimization of DNNs.",
+            "cite_spans": [
+                {
+                    "start": 286,
+                    "end": 287,
+                    "mention": "4",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Related Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Multi-fidelity optimization uses many cheap low-fidelity approximations instead of the expensive high-fidelity evaluations to speed up the overall optimization process. The lower the fidelity is, the cheaper the evaluation will be. However, it is intuitive that the evaluation on a part of the dataset is badly biased because it provides less accurate information about the target function. The experimental results of multi-fidelity optimization on LightGBM [14] show that the hyperparameter configurations chosen by low-fidelity evaluations usually perform poorly on the test dataset. We have tried to apply BOHB to find the best hyperparameter configuration of a convolutional neural network LeNet (with two convolutional layers, a full-connection layer, and a softmax layer) on the MNIST and CIFAR-10 datasets. We evaluated the hyperparameter configurations chosen on the data subset (i.e., 10%) and the whole dataset, and then compared the test error rate. The results are shown in Table 1.",
+            "cite_spans": [
+                {
+                    "start": 460,
+                    "end": 462,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "Low-Fidelity Evaluation Bias ::: Method",
+            "ref_spans": [
+                {
+                    "start": 993,
+                    "end": 994,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "It turns out as expected that the configuration chosen by high-fidelity evaluations is superior to those selected by low-fidelity evaluations. Additionally, we note that the main difference between the hyperparameter configurations chosen by the high-fidelity and low-fidelity evaluations is the regularization hyperparameters such as weight decay and dropout rate. It makes sense because the neural networks trained on the data subset usually require more regularization to deal with overfitting.\n",
+            "cite_spans": [],
+            "section": "Low-Fidelity Evaluation Bias ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "As shown in Table 1, the evaluation performance on the data subset is biased in different cases. Therefore, it is necessary to develop a new method to balance the low-fidelity and high-fidelity evaluations. To address this issue, we propose a progressive multi-fidelity evaluation technique. We further combine this technique with the existing successive halving optimization. The configurations are first evaluated with a small number of epochs and low fidelity. After filtering the poorly-performed configurations as early as possible, we dynamically increase the number of epochs and fidelity simultaneously for the remaining configurations. The process is repeated until the maximum number of epochs and the maximum fidelity (i.e., the full dataset) are used. We call this procedure IF-SH (Iteration-and-Fidelity Based Successive Halving).",
+            "cite_spans": [],
+            "section": "Low-Fidelity Evaluation Bias ::: Method",
+            "ref_spans": [
+                {
+                    "start": 18,
+                    "end": 19,
+                    "mention": "1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "Multi-armed bandit based methods such as Hyperband and BOHB view each hyperparameter configuration as an arm and dynamically allocate resources to different arms. The existing successive halving method can ensure that the poorly-performed configurations are discarded as early as possible and those promising hyperparameter configurations will get more resources overtime automatically. For the hyperparameter optimization of DNNs, the resource means the number of iterations (i.e., epochs). Since using evaluation on fewer iterations as criteria in HyperBand is feasible, it is worth a try that we use evaluation on both fewer iterations and lower fidelity to judge a hyperparameter configuration, which will remarkably reduce the overall time cost.",
+            "cite_spans": [],
+            "section": "Progressive Multi-Fidelity Evaluation ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "Thus, we propose a progressive multi-fidelity evaluation method IF-SH and dynamically allocate multiple resources including iteration budget and fidelity. Specifically, IF-SH usually begins with a small iteration budget on data subsets instead of the whole dataset. Then, IF-SH ranks the configurations by the validation performance and select the top \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\eta ^{-1}$$\\end{document} to continue running with an iteration budget \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\eta $$\\end{document} times larger and a fidelity \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} times larger. This process is repeated until it runs with the largest iteration budget on the whole dataset.",
+            "cite_spans": [],
+            "section": "Progressive Multi-Fidelity Evaluation ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "Another problem of the multi-armed bandit based hyperparameter optimization is how to set the number of initial configurations n. Similar to Hyperband, we consider several possible values of n to balance exploration and exploitation. Associated with each value of n is a minimum iteration budget \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min}$$\\end{document} that is allocated to all configurations. A larger value of n corresponds to a smaller \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min}$$\\end{document} and hence means more aggressive early stopping.\n",
+            "cite_spans": [],
+            "section": "Progressive Multi-Fidelity Evaluation ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "Algorithm 1 shows the process of IF-SH, which requires the following inputs: (1) \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$[b_{min},b_{max}]$$\\end{document} that determines the iteration budget space (2) \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\eta $$\\end{document}, an input that controls the proportion of configurations discarded and the number of iterations in each round of SH. Also, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\eta $$\\end{document} determines the minimum number of iterations of the next round (3) \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document}, an input that controls the size of fidelity in each round of SH. \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} also determines the minimum fidelity of the next round.",
+            "cite_spans": [],
+            "section": "Progressive Multi-Fidelity Evaluation ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "This algorithm balances between very aggressive evaluations with many configurations on the minimum resource, and very conservative runs that are directly evaluated on the maximum resource. Table 2 displays the resources allocated within each round of SH in IF-SH. The size of data subsampling is controlled by \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document}. In practice, the difference caused by various \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} settings is not so notable. We will discuss it in Sect. 4.1.\n",
+            "cite_spans": [],
+            "section": "Progressive Multi-Fidelity Evaluation ::: Method",
+            "ref_spans": [
+                {
+                    "start": 196,
+                    "end": 197,
+                    "mention": "2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "Hyperparameter configurations within each round of SH is selected by Bayesian optimization (Line 4 in Algorithm 1). It is well known that all model-based optimization methods including Bayesian optimization need initial observations to build the surrogate model. The most commonly-used startup is to choose random hyperparameter configurations, which is not efficient and robust. When the randomly-sampled configurations perform poorly, the surrogate model will be slow to work, causing a negative influence on anytime performance. A lot of previous work [5, 16, 21] focuses on meta-learning to handle this issue, but they require historical data or pre-trained models.",
+            "cite_spans": [
+                {
+                    "start": 556,
+                    "end": 557,
+                    "mention": "5",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 559,
+                    "end": 561,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 563,
+                    "end": 565,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "Surrogate Model Warmup ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "Obviously, the data subset contains part information of the whole dataset. As discussed in Sect. 3.1, the difference between configurations chosen by the data subset and the whole dataset is not too remarkable. Thus, using the sampling data to warm start the surrogate model is a feasible way. The configurations chosen by low-fidelity evaluations probably exceed the randomly-sampled configurations, although their final performance may not be so satisfying. To improve the efficiency of the warmup phase, we just run one round of SH. We first sample data from the training dataset with the sampling percent r. Then, we run SH on the sampling data \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$D_r$$\\end{document} and select the top-k configurations to warm up the surrogate model. In Sect. 4.1, we will evaluate the effect of r, subsampling percent of the warmup phase. In fact, by selecting more promising hyperparameters rather than random selection, the warmup phase is helpful for improving the final performance of hyperparameter optimization.",
+            "cite_spans": [],
+            "section": "Surrogate Model Warmup ::: Method",
+            "ref_spans": []
+        },
+        {
+            "text": "We first evaluated FastHO on a CNN with two convolutional layers, a full-connection layer, and a softmax output layer. We optimized the hyperparameters including learning rate, momentum, weight decay, dropout rate, batch size, the number of full-connection units, kernel size, and weight initialization mode. For this network, we set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min} = 2$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{max} = 60$$\\end{document} for successive halving. The budget indicates the number of epochs. The IF-SH process contains 4 rounds of successive halving, resulting in 240 epochs in total.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "CIFAR-10: The CIFAR-10 dataset contains 50000 training and 10000 test RGB images with 32 \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\times $$\\end{document} 32 pixels. The standard data augmentation techniques (i.e., random crop and horizontal flip) are used. To perform hyperparameter optimization, we split off 10000 training images as a validation set. Figure 1 shows the average test error of FastHO with and without the warmup phase. We also compared FastHO with TPE, Hyperband, and BOHB. The total iteration budget is 16 resource units and each resource unit represents 240 epochs. As a result, the complete FastHO process includes 16 runs of IF-SH.\n",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 588,
+                    "end": 589,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "From Fig. 1, we can see that the traditional Bayesian optimization method TPE does not work well and has the worst anytime performance. HB improves the efficiency of hyperparameter optimization with successive halving and thus achieves better anytime performance than TPE. However, its convergence to the global optimal value is limited by its reliance on randomly-drawn configurations. Thus, the final performance of HB is not very strong. BOHB performs well with limited resources and at the same time can achieve better final performance.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 10,
+                    "end": 11,
+                    "mention": "1",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "In contrast, FastHO outperforms BOHB on anytime performance by combining the progressive multi-fidelity optimization with SH. Furthermore, the warmup technique can improve both anytime performance and final performance, while its time cost is negligible compared to the following hyperparameter optimization phase. More importantly, it can help FastHO to reach the best performance with much fewer resources. For instance, FastHO gets the best test error rate within 8 units of resources (8*240 epochs in total), about half of the resources consumed by other methods. Additionally, for the wall clock time, BOHB takes 31 h for hyperparameter optimization within 16 resource units. In contrast, FastHO takes only 19 h which is 63% faster than BOHB.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "Evaluation of the\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\varvec{\\theta }$$\\end{document}\nand\n\\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\varvec{r}$$\\end{document}\nSetting. We also evaluated two key parameters of FastHO: the proportion of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} that controls the size of fidelity in each round of successive halving, and the subsampling percent r in the warmup phase.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "Intuitively, setting \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} to a smaller value leads to a larger fidelity. If \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} is set to 1, we will evaluate all configurations on the entire dataset. However, this disobeys our purpose to accelerate the evaluation procedure. In contrast, it should not be set to a very large value, because we aim to differentiate between configurations even when they are evaluated on the smallest data subset. Therefore, we set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} to be 2, 3 (default) and 4, and then compared their performance in Fig. 2(a).\n",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 1357,
+                    "end": 1358,
+                    "mention": "2",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "As shown in Fig. 2(a), the difference caused by various \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} settings is not so notable. The reason is that the three values are all appropriate ones that guarantee the discrimination of configurations on the smallest data subset. Besides, even if the evaluation bias exists on the low fidelity, the final evaluation is performed on the full dataset, which weakens this bias to some extent. Thus, FastHO is insensitive to the \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} setting.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 17,
+                    "end": 18,
+                    "mention": "2",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "Next, we discuss the setting of r in the warmup phase. If r is set to a larger value, the data subset contains more information, leading to good hyperparameter configurations to warm start the Bayesian surrogate model. Nevertheless, the time cost of the warmup procedure will become larger. We chose 0.05, 0.1, and 0.2 for r, and then compared their performance in Fig. 2(b). Note that the warmup technique can improve the performance of FastHO no matter which value to choose. Meanwhile, none of these values is remarkably superior to other ones. The performance difference is acceptable due to the randomness in the data subsampling and hyperparameter optimization phases. Thus, we can infer that r makes little difference.",
+            "cite_spans": [],
+            "section": "Convolutional Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 370,
+                    "end": 371,
+                    "mention": "2",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "\n\n",
+            "cite_spans": [],
+            "section": "Fully-Connected Neural Network ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "We optimized 6 hyperparameters that control the training procedure (learning rate, batch size, dropout rate, and weight decay). We also optimized the architecture hyperparameters (number of layers, number of units per layer, weight initialization mode, and activation function) of a full-connected neural network. We selected two datasets: Adult and Letter, and set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min} = 3, b_{max} = 30$$\\end{document}. Since BOHB outperforms TPE and HB in most cases, we compared FastHO only with BOHB in the following experiments. In both Fig. 3(a) and Fig. 3(b), FastHO outperforms BOHB with not only the better anytime performance but also the better final performance. Moreover, the warmup technique is helpful for converging to optimum faster.",
+            "cite_spans": [],
+            "section": "Fully-Connected Neural Network ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 804,
+                    "end": 805,
+                    "mention": "3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 818,
+                    "end": 819,
+                    "mention": "3",
+                    "ref_id": "FIGREF2"
+                }
+            ]
+        },
+        {
+            "text": "Next, we optimized the hyperparameters of large and widely-used neural networks including ResNet18 [7] and ResNet with Shake-Shake [6] and Cutout [3] regularization on the CIFAR-10 and CIFAR-100 datasets. We used standard data augmentation techniques (i.e., random crop and horizontal flip) and Nesterov momentum SGD optimizer with a cosine learning decay [17].",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 101,
+                    "mention": "7",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 132,
+                    "end": 133,
+                    "mention": "6",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 147,
+                    "end": 148,
+                    "mention": "3",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 357,
+                    "end": 359,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "section": "Large Convolutional Neural Network: ResNet ::: Experiments",
+            "ref_spans": []
+        },
+        {
+            "text": "ResNet18: We tuned 4 hyperparameters including learning rate, momentum, weight decay, and batch size on the CIFAR-10 and CIFAR-100 datasets. CIFAR-100 shares similar input images to CIFAR-10. The only difference is that CIFAR-100 has 100 classes. We split the training dataset into 80% training data and 20% validation data. We set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min} = 7$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{max} = 200$$\\end{document}. As shown in Fig. 4, the performance improvement of FastHO is more significant, which indicates that FastHO is more effective for the hyperparameter optimization of larger neural networks. Moreover, FastHO is 67% faster than BOHB in terms of the total evaluation time cost.\n",
+            "cite_spans": [],
+            "section": "Large Convolutional Neural Network: ResNet ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 950,
+                    "end": 951,
+                    "mention": "4",
+                    "ref_id": "FIGREF3"
+                }
+            ]
+        },
+        {
+            "text": "ResNet with Shake-Shake and Cutout Regularization: Next, we used the ResNet with Shake-Shake and Cutout regularization. For this network, we set \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{min} = 22$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{max} = 600$$\\end{document} and optimized learning rate, momentum, weight decay, and batch size. In this case, we just trained and evaluated the network with the best configuration after the complete hyperparameter optimization process (i.e., 16 runs of IF-SH). We ran the complete process 3 times and get a test error of 2.81% \u00b1 0.07%, which is slightly larger than that reported in [4] (2.78% \u00b1 0.09%). However, regardless of the differences in training details or the search space setting, FastHO requires only 19 GPU days, while BOHB needs 33 GPU days. Moreover, as shown in Fig. 4, FastHO outperforms BOHB with much better anytime performance.",
+            "cite_spans": [
+                {
+                    "start": 1103,
+                    "end": 1104,
+                    "mention": "4",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "section": "Large Convolutional Neural Network: ResNet ::: Experiments",
+            "ref_spans": [
+                {
+                    "start": 1302,
+                    "end": 1303,
+                    "mention": "4",
+                    "ref_id": "FIGREF3"
+                }
+            ]
+        },
+        {
+            "text": "In this paper, we presented a novel method to accelerate the hyperparameter optimization of DNNs by combining the progressive multi-fidelity technique with successive halving under a multi-armed bandit framework. Also, we proposed an efficient warmup method for the surrogate model of Bayesian optimization. Extensive empirical evaluation on a broad range of neural networks and datasets shows that FastHO is not only effective to speed up hyperparameter optimization but also can achieve better anytime performance and final performance than other state-of-the-art methods.",
+            "cite_spans": [],
+            "section": "Conclusion and Future Work",
+            "ref_spans": []
+        },
+        {
+            "text": "Future work includes taking feature subsampling into account to further accelerate hyperparameter optimization.",
+            "cite_spans": [],
+            "section": "Conclusion and Future Work",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1.: Test error rate (%) of LeNet on MNIST and CIFAR-10, using hyperparameter configurations chosen by BOHB with different fidelity evaluations. CIFAR-10+ means CIFAR-10 with standard data augmentation. Results are the average over 5 runs.\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2.: The values of \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$n_i$$\\end{document}, \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_i$$\\end{document} and \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$f_i$$\\end{document} in IF-SH corresponding to various values of s, when \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$b_{\\min }=1, b_{\\max }=27, \\eta =3, \\theta = 3$$\\end{document}\n",
+            "type": "table"
+        },
+        "FIGREF0": {
+            "text": "Fig. 1.: Average test error of the best-observed configuration of CNN on CIFAR-10. One resource unit represents 240 epochs.",
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2.: Average test error of the best-observed configuration of CNN on CIFAR-10 with different \\documentclass[12pt]{minimal}\n\t\t\t\t\\usepackage{amsmath}\n\t\t\t\t\\usepackage{wasysym} \n\t\t\t\t\\usepackage{amsfonts} \n\t\t\t\t\\usepackage{amssymb} \n\t\t\t\t\\usepackage{amsbsy}\n\t\t\t\t\\usepackage{mathrsfs}\n\t\t\t\t\\usepackage{upgreek}\n\t\t\t\t\\setlength{\\oddsidemargin}{-69pt}\n\t\t\t\t\\begin{document}$$\\theta $$\\end{document} and r settings. One resource unit represents 240 epochs.",
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fig. 3.: Average test error of the best-observed configuration of FC network on Adult and Letter. One resource unit represents 90 epochs.",
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Fig. 4.: Average test error of the best-observed configuration of ResNet18 on CIFAR-10 and CIFAR-100. One resource unit represents 800 epochs.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "Sequential model-based optimization for general algorithm configuration",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hutter",
+                    "suffix": ""
+                },
+                {
+                    "first": "HH",
+                    "middle": [],
+                    "last": "Hoos",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Leyton-Brown",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Learning and Intelligent Optimization",
+            "volume": "",
+            "issn": "",
+            "pages": "507-523",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "Hyperband: bandit-based configuration evaluation for hyperparameter optimization",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Jamieson",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "DeSalvo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rostamizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Talwalkar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "J. Mach. Learn. Res.",
+            "volume": "18",
+            "issn": "1",
+            "pages": "6765-6816",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF18": {
+            "title": "Identity mappings in deep residual networks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Computer Vision \u2013 ECCV 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "630-645",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF19": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}

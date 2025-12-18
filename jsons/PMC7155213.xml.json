@@ -1,0 +1,1696 @@
+{
+    "paper_id": "PMC7155213",
+    "metadata": {
+        "title": "An adaptive parareal algorithm\u2606",
+        "authors": [
+            {
+                "first": "Y.",
+                "middle": [],
+                "last": "Maday",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "O.",
+                "middle": [],
+                "last": "Mula",
+                "suffix": "",
+                "email": "mula@ceremade.dauphine.fr",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Solving complex models with high accuracy and within a reasonable computing time has motivated the search for numerical schemes that exploit efficiently parallel computing architectures. In this paper, the model consists of a Partial Differential Equation (PDE) set on a domain D. In this context, one of the main ideas to parallelize a simulation is to break the problem into subproblems defined over subdomains of a partition of D. The domain can potentially have high dimensionality and be composed of different variables like space, time, velocity or even more specific variables for some problems. While there exist algorithms with very good scalability properties for the decomposition of the spatial variable in elliptic and saddle-point problems (see [1] or [2] for an overview), the same cannot be said for the decomposition of time of even simple systems of ODEs. This is despite the fact that research on time domain decomposition is currently very active and has by now a history of at least 50 years (back to at least [3]) during which several algorithms have been explored (see [4] for an overview). As a consequence, time domain decomposition is to date only a secondary option when it comes to deciding what algorithm/method distributes the tasks in a parallel cluster.",
+            "cite_spans": [
+                {
+                    "start": 759,
+                    "end": 762,
+                    "mention": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 766,
+                    "end": 769,
+                    "mention": "[2]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1031,
+                    "end": 1034,
+                    "mention": "[3]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1092,
+                    "end": 1095,
+                    "mention": "[4]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "The main goal of this work is to address this efficiency limitation in the framework of one particular scheme: the parareal in time algorithm. The method was first introduced in [5] and has been well accepted by the community because it is easily applicable to a relatively large spectrum of problems. (Some specific difficulties are nevertheless encountered on certain types of PDEs as reported in, e.g., [6], [7] for hyperbolic systems or [8], [9] for hamiltonian problems). Another ingredient for its success is that, even though its scalability properties are limited, they are in general competitive in comparison with other methods. Without entering into very specific details of the algorithm at this stage, we can summarize the procedure by saying that we build iteratively a sequence to approximate the exact solution of the problem by a predictor\u2013corrector algorithm. At every iteration, predictions are made by a solver which has to be as numerically inexpensive as possible since it is run on the full time interval. It usually involves coarse physics and/or coarse resolution. Corrections involve an expensive solver with high-fidelity physics and high resolution which is propagated in parallel over small time subdomains. In the classical version of parareal, the fine solver has a fixed high accuracy across all iterations. It is set to the one that we would use to solve the dynamics at the desired accuracy with a purely sequential solver. It is well-known that this point is the major obstacle to achieve better parallel efficiency. In this paper, we propose an adaptive variant where the accuracy of the fine solver is increased across the iterations. Our main goal is to show that this new point of view overcomes the obstacle of the cost of the fine solver and that the only remaining factors limiting high performance become the cost of the coarse solver and communication time. We refer to, e.g., [10] for contributions on the lowering of the cost of that coarse solver.",
+            "cite_spans": [
+                {
+                    "start": 178,
+                    "end": 181,
+                    "mention": "[5]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 406,
+                    "end": 409,
+                    "mention": "[6]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 411,
+                    "end": 414,
+                    "mention": "[7]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 441,
+                    "end": 444,
+                    "mention": "[8]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 446,
+                    "end": 449,
+                    "mention": "[9]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1921,
+                    "end": 1925,
+                    "mention": "[10]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "We present in Section 2 the new adaptive point of view. This requires to formulate an idealized version of the parareal algorithm in an infinite dimensional function space where the fine propagations are replaced by the exact ones (Section 2.2). Since this scheme is obviously not implementable in practice, we formulate a feasible \u201cperturbed\u201d version that involves approximations of the exact propagations at increasing accuracy across the iterations (Section 2.3). The accuracies are tightened in such a way that the feasible adaptive algorithm converges at the same rate as the ideal one and with a near-minimal numerical cost. The identified tolerances involve quantities that are difficult to estimate in practice. In addition, they may not be optimal because they are derived from a theoretical convergence analysis based on abstract conditions for the coarse and fine solvers. We bridge this gap between theory and actual implementation by proposing practical guidelines to set these tolerances. We next explain in Section 2.4 how the new formulation invites to use adaptive schemes not only in the time variable, but also in other variables that may be involved in the dynamics. The performance of the algorithm could also be enhanced by re-using informations from previous iterations in order to limit the cost of internal solvers. The techniques for this will strongly depend on the nature of the specific problem. We discuss common situations in Appendix. We close Section 2.5 by listing the main advantages of the new framework and how the classical parareal paradigm can be formulated with the optics of the new standpoint.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "The parallel performance of the adaptive scheme is difficult to predict a priori but in Section 3 we carry a discussion where we show that it will always be superior to the classical approach. In the idealized situation where the cost of the coarse solver and communication delays are negligible, we show that the algorithm would exhibit a very high parallel efficiency.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "We emphasize that our theory is general in the sense that it is applicable to ODEs and also to PDEs involving time, space and possibly other variables. We defer to a future work the presentation of a numerical PDE example since it requires the deployment of space\u2013time adaptive methods which is a challenging topic in itself and the techniques usually depend very specifically on the problem nature. Instead, we illustrate the performance of the algorithm on stiff ODEs in Section 4. They are a challenging family of problems because the only source of adaptivity is time and they do not allow to use a very inexpensive coarse solver. The tested ODEs are the Brusselator, the Van der Pol, the Oregonator equations, and an SEIR model which has very recently been proposed in [11] to model the spread of the COVID-19 virus in the Wuhan city area. The code to reproduce our results (and experiment with other ODEs) is available online.1\nOur first two examples are relatively stiff, while the other two are highly stiff, and serve to illustrate the limitations of the approach. We show that in the relatively stiff problems, the adaptive parareal algorithm performs between 2 to 3 times better than the classical one when the solution is approximated at high accuracy. In addition, we confirm in these two examples that the only remaining obstacles to achieve a very competitive performance are the cost of the coarse solver and communication time between processors. Due to the nature of the algorithm, it is not clear how to overcome these limitations, especially the one coming from the coarse solver. This issue will come at the forefront for future research since, as our two highly stiff examples illustrate, the cost of the coarse solver may even prevent from obtaining any speed-up at all. We show that if we could find an inexpensive coarse solver, perhaps based on empirical data or on good back-of the envelope calculations, our adaptive algorithm would yield interesting speeds-ups even in highly stiff cases.",
+            "cite_spans": [
+                {
+                    "start": 774,
+                    "end": 778,
+                    "mention": "[11]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "In addition to the improvement in parallel efficiency (except, of course, in the above discussed extreme cases), the adaptive version of parareal brings an important conceptual novelty to the field of time domain decomposition which is the one of error controlled computations. By this we mean that the deviation of the numerical result from the exact continuous solution is certifiably quantified and set to meet a given target accuracy with respect to a problem relevant norm. This requires the formulation of the algorithm at an infinite dimensional level as is done in this paper. This point of view is fundamentally different from the fully discrete setting in which the parareal algorithm has always been thought of in practice. That is, we first fix a discretization (often on a uniform grid) and then speed-up the computation of the discrete evolution with parareal. In this way, we do not have any rigorous control of the error with respect to the actual continuous solution and we do not have any systematic procedure to minimize the number of degrees of freedom.",
+            "cite_spans": [],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "We conclude this introduction by some bibliographical remarks. To the best of our knowledge, the current abstract and broad formulation of an adaptive version of parareal has never been proposed in the literature. However, previous works have instantiated in a variety of particular applications the idea of re-using information from previous parareal iterations, either with the purpose of improving the quality of the fine solver or to build an initial guess of internal iterative routines. Among the most relevant ones stand the coupling of the parareal algorithm with spatial domain decomposition (see[12], [13], [14]), the combination of the parareal algorithm with iterative high order methods in time like spectral deferred corrections (see [15], [16], [17]). Parareal has also been combined with multigrid iterative techniques which, in addition, involve a hierarchy of space\u2013time meshes (see [18], [19]). In a similar spirit, we can also cite applications of the parareal algorithm to solve optimal control problems where information from previous steps is used (see [12], [20]). In Appendix, we briefly explain in what sense the above strategies can be seen as particular instances of the current approach and how our viewpoint could help to give them more solid theoretical foundations. The idea of re-using information as a starting guess for internal iterative solvers is also discussed in the Appendix. It has been explored in several different works, e.g. [17], [18], and [21] provides a convergence analysis in simple situations (a more complete analysis will be proposed in a forthcoming work).",
+            "cite_spans": [
+                {
+                    "start": 605,
+                    "end": 609,
+                    "mention": "[12]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 611,
+                    "end": 615,
+                    "mention": "[13]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 617,
+                    "end": 621,
+                    "mention": "[14]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 748,
+                    "end": 752,
+                    "mention": "[15]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 754,
+                    "end": 758,
+                    "mention": "[16]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 760,
+                    "end": 764,
+                    "mention": "[17]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 901,
+                    "end": 905,
+                    "mention": "[18]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 907,
+                    "end": 911,
+                    "mention": "[19]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1076,
+                    "end": 1080,
+                    "mention": "[12]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1082,
+                    "end": 1086,
+                    "mention": "[20]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 1471,
+                    "end": 1475,
+                    "mention": "[17]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1477,
+                    "end": 1481,
+                    "mention": "[18]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1487,
+                    "end": 1491,
+                    "mention": "[21]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "section": "Introduction",
+            "ref_spans": []
+        },
+        {
+            "text": "Let U be a Banach space of functions defined over a domain \u03a9\u2282Rd\n(d\u22651), e.g. U=L2(\u03a9). Let E:[0,T]\u00d7[0,T]\u00d7U\u2192Ube a propagator, that is, an operator such that, for any given time t\u2208[0,T], s\u2208[0,T\u2212t] and any function w\u2208U, E(t,s,w) takes w as an initial value at time t and propagates it at time t+s. We assume that E satisfies the semi group property E(r,t\u2212r,w)=E(s,t\u2212s,E(r,s\u2212r,w)),\u2200w\u2208U,\u2200(r,s,t)\u2208[0,T]3,r<s<t.We further assume that E is implicitly defined through the solution u\u2208C1([0,T],U) of the time-dependent problem (1)u\u2032(t)+At,u(t)=0,t\u2208[0,T],where A is an operator from [0,T]\u00d7U into U with adequate regularity we shall detail latter. Then, given any w\u2208U, E(t,s,w) denotes the solution to (1) at time t+s with initial condition w at time t\u22650. In our problem of interest, we study the evolution given by (1) when the initial condition is u(0)\u2208U. Note that E could also be associated to a discretized version of the evolution equation or be defined through an operator that is not necessary related to an evolution equation (see [22]).",
+            "cite_spans": [
+                {
+                    "start": 1025,
+                    "end": 1029,
+                    "mention": "[22]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "section": "Setting and preliminary notations ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Since, in general, the problem does not have an explicit solution, we seek to approximate it at a given target accuracy. For any initial value w\u2208U, any t\u2208[0,T[, s\u2208[0,T\u2212t] and any \u03b6>0 we denote by [E(t,s,w);\u03b6] an element of U that approximates E(t,s,w) such that we have (2)\u2016E(t,s,w)\u2212[E(t,s,w);\u03b6]\u2016\u2264\u03b6s(1+\u2016w\u2016),where, here and in the following, \u2016\u22c5\u2016 denotes the norm in U. Any realization of [E(t,s,w);\u03b6] involves three main ingredients:",
+            "cite_spans": [],
+            "section": "Setting and preliminary notations ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\n(i)a numerical scheme to discretize the time dependent problem (1) (e.g. an Euler scheme in time),(ii)a certain expected error size associated with the choice of the discretization (e.g. error associated with the time step size of the Euler scheme),(iii)a numerical implementation to solve the resulting discrete systems (e.g. conjugate gradient, Newton method, SSOR, \u2026).\n",
+            "cite_spans": [],
+            "section": "Setting and preliminary notations ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "In the following, we will use the term solver to denote a particular choice for (i), (ii) and (iii). Given a solver S, we will use the same notation as for the exact propagator E to express that S(t,s,w) is an approximation of E(t,s,w) with a certain accuracy \u03b6. In other words, we can write S(t,s,w)=[E(t,s,w);\u03b6].",
+            "cite_spans": [],
+            "section": "Setting and preliminary notations ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "We introduce a decomposition of the time interval [0,T] into N_ subintervals [TN,TN+1], N=0,\u2026,N_\u22121. Without loss of generality, we will take them of uniform size \u0394T=T\u2215N_ which means that TN=N\u0394T for N=0,\u2026,N_. For a given target accuracy \u03b7>0, the primary goal of the parareal in time algorithm is to build an approximation u~(TN) of u(TN) such that (3)max1\u2264N\u2264N_\u2016u(TN)\u2212u~(TN)\u2016\u2264\u03b7.The classical way to achieve this is to set u~(TN)=Sseq(0,TN,u(0))=[E(0,TN,u(0));\u03b6],1\u2264N\u2264N_,where Sseq is some sequential solver in [0,T] with \u03b6=\u03b7\u2215(T(1+\u2016u(0)\u2016)) in (2). Since this comes at the cost of solving over the whole time interval [0,T], the main goal of the parareal in time algorithm is to speed up the computing time, while maintaining the same target accuracy \u03b7. This is made possible by first decomposing the computations over the time domain. Instead of solving over [0,T], we perform N_ parallel solves over each interval (TN,TN+1] of size \u0394T. We next introduce an idealized version of it which will not be feasible in practice but will be the starting point of subsequent implementable versions. The algorithm relies on the use of a solver G (known as the coarse solver) with the following properties involving the operator \u03b4G\u2254E\u2212G.\n",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\nHypotheses (H): There exists constants \u03b5G\u2217,Cc,Cd>0 such that for any function x,y\u2208U and for any t\u2208[0,T[ and s\u2208[0,T\u2212t], (4a)G(t,s,x)=[E(t,s,x),\u03b5G\u2217]\u21d4\u2016\u03b4G(t,s,x)\u2016\u2264s(1+\u2016x\u2016)\u03b5G\u2217(4b)\u2016G(t,s,x)\u2212G(t,s,y)\u2016\u2264(1+Ccs)\u2016x\u2212y\u2016,(4c)\u2016\u03b4G(t,s,x)\u2212\u03b4G(t,s,y)\u2016\u2264Cds\u03b5G\u2217\u2016x\u2212y\u2016\nNote that these hypothesis are the classical abstract formulations of the properties of numerical schemes related to stability and accuracy. Hypothesis (4b) is a Lipschitz condition and the quantity \u03b5G\u2217 is a small constant which, in the case of a Euler scheme, would be equal to the time step size.",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "The idealized version of the algorithm consists in building iteratively a series (ykN)k of approximations of u(TN) for 0\u2264N\u2264N_ following the recursive formula (5)y0N+1=G(TN,\u0394T,y0N),0\u2264N\u2264N_\u22121yk+1N+1=G(TN,\u0394T,yk+1N)+E(TN,\u0394T,ykN)\u2212G(TN,\u0394T,ykN),0\u2264N\u2264N_\u22121,k\u22650,y00=u(0).At this point, several comments are in order. The first one is that the computation of ykN only requires propagations with E over intervals of size \u0394T. As follows from (5), for a given iteration k, N_ propagations of this size are required, each of them over distinct intervals [TN,TN+1] of size \u0394T, each of them with independent initial conditions. Since they are independent from each other, they can be computed over N_ parallel processors and the original computation over [0,T] is decomposed into parallel computations over N_ subintervals of size \u0394T. The second observation is that the algorithm may not be implementable in practice because it involves the exact propagator E. Feasible instantiations consist of replacing E(TN,\u0394T,ykN) by some approximation [E(TN,\u0394T,ykN),\u03b6kN] with a certain accuracy \u03b6kN which has to be carefully chosen. We will come to this point in the next section. The third observation is to note that, in the current version of the algorithm, for all N=0,\u2026,N_, the exact solution u(TN) is obtained after exactly k=N parareal iterations. This number can be reduced when we only look for an approximate solution with accuracy \u03b7. Depending on the problem, the final number of iterations K(\u03b7) can actually be much smaller than N_. The convergence result of Theorem 2.1 and its proof are helpful to understand the main mechanisms driving the convergence of the algorithm and explaining its behavior. To present it, we introduce the shorthand notation for the error norm EkN\u2254\u2016u(TN)\u2212ykN\u2016,k\u22650,0\u2264N\u2264N_,and the quantities \u03bc=eCcTCdmax0\u2264N\u2264N_(1+\u2016u(TN)\u2016),and\u03c4\u2254CdTe\u2212Cc\u0394T\u03b5G.\n",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\nTheorem 2.1\nIf\nG\nand\n\u03b4G\nsatisfy Hypothesis\n(4)\n, then,\n(6)max0\u2264N\u2264N_\u2016u(TN)\u2212ykN\u2016\u2264\u03bc\u03c4k+1(k+1)!,\u2200k\u22650.\n\n",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\nProofThe proof is in the spirit of existing results from the literature (see [5], [23], [24], [25]) but it is instructive to give it for subsequent developments in the paper. We introduce the following quantities (7)\u03b1\u2254Cd\u03b5G\u2217\u0394T\u03b2\u22541+Cc\u0394T\u03b3\u2254\u0394T\u03b5G\u2217max0\u2264N\u2264N_(1+\u2016u(TN)\u2016)as shorthand notations for the proof.If k=0, using definition (5) for y0N, we have for 0\u2264N\u2264N_\u22121, E0N+1=\u2016y0N+1\u2212u(TN+1)\u2016=\u2016G(TN,\u0394T,y0N)\u2212E(TN,\u0394T,u(TN))\u2016\u2264\u2016G(TN,\u0394T,y0N)\u2212G(TN,\u0394T,u(TN))\u2016+\u2016G(TN,\u0394T,u(TN))\u2212E(TN,\u0394T,u(TN))\u2016\u2264(1+Cc\u0394T)E0N+\u0394T\u03b5G\u2217(1+\u2016u(TN)\u2016)\u2264\u03b2E0N+\u03b3, where we have used (4a), (4b) to derive the second to last inequality.For k\u22651, starting from (5), we have ykN+1\u2212u(TN+1)=G(TN,\u0394T,ykN)+E(TN,\u0394T,yk\u22121N)\u2212G(TN,\u0394T,yk\u22121N)\u2212E(TN,\u0394T,u(TN))=G(TN,\u0394T,ykN)\u2212G(TN,\u0394T,u(TN))+\u03b4G(TN,\u0394T,yk\u22121N)\u2212\u03b4G(TN,\u0394T,u(TN)). Taking norms and using (4b), (4c), we derive EkN+1\u2264\u03b2EkN+\u03b1Ek\u22121N,Following [25], we consider the sequence (ekN)N,k\u22650 defined recursively as follows. For k=0, (8)e0N=0,if N=0\u03b2e0N\u22121+\u03b3,if N\u22651and for k\u22651, (9)ekN=0,if N=0\u03b1ek\u22121N\u22121+\u03b2ekN\u22121,if N\u22651.Since EkN\u2264ekN for k\u22650 and N=0,\u2026,N_, we analyze the behavior of (ekN) to derive a bound for EkN. For this, we consider the generating function \u03c1k(\u03be)=\u2211N\u22650ekN\u03beN.From (8), (9) we get \u03c1k(\u03be)=\u03b1\u03be\u03c1k\u22121(\u03be)+\u03b2\u03be\u03c1k(\u03be),k\u22651\u03c10(\u03be)=\u03b3\u03be1\u2212\u03be+\u03b2\u03be\u03c10(\u03be),from which we derive \u03c1k(\u03be)=\u03b3\u03b1k\u03bek+1(1\u2212\u03be)1(1\u2212\u03b2\u03be)k+1,k\u22650.Since, \u03b2\u22651, we can bound the term (1\u2212\u03be) in the denominator by (1\u2212\u03b2\u03be). Next, using the binomial expansion (10)1(1\u2212\u03b2\u03be)k+2=\u2211j\u22650k+1+jj\u03b2j\u03bejand identifying the term in \u03beN in the expansion, we derive the bound ekN\u2264\u03b3\u03b1k\u03b2N\u2212k\u22121Nk+1.Hence, using definition (7) for \u03b1,\u03b2 and \u03b3, EkN\u2264ekN\u2264(1+Cc\u0394T)N\u2212k\u22121max0\u2264N\u2264N_(1+\u2016u(TN)\u2016)Cd(k+1)![Cd\u03b5Ge\u2212Cc\u0394TTN]k+1,which ends the proof of the theorem. \u25a1\n",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 81,
+                    "mention": "[5]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 83,
+                    "end": 87,
+                    "mention": "[23]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 89,
+                    "end": 93,
+                    "mention": "[24]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 95,
+                    "end": 99,
+                    "mention": "[25]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 821,
+                    "end": 825,
+                    "mention": "[25]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Note that at least one step is not sharp in the above proof: it is the step where 1\u2212\u03be is replaced by 1\u2212\u03b2\u03be. Note also that \u03c4 is the quantity driving convergence and its speed.",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Introducing the quantity \u03b5\u00afG\u2254eCc\u0394TCdT,we can write \u03c4=\u03b5G\u03b5\u00afGand we note that a sufficient condition to converge is that (11)\u03c4<1\u21d4\u03b5G\u2217<\u03b5\u00afG.In other words, \u03b5\u00afG is the minimal accuracy that the coarse solver has to satisfy in order to guarantee convergence of the ideal parareal algorithm. In the following, we will work under the assumption that \u03b5G\u2217 satisfies (11).",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "As we will see in the next section, \u03b5\u00afG plays also a critical role in certain convergence properties of the perturbed algorithm so we finish this section by discussing the behavior of \u03b5\u00afG depending on several scenarios. First, Cc and Cd are Lipschitz constants (fixed by the properties of the evolution problem) so they could be potentially large numbers. As a result, \u03b5\u00afG could be a large number and condition (11) would not be very stringent. The value of \u03b5\u00afG can be small for very long time simulations where T becomes large or if \u0394T becomes small compared to Cc (that is, if the number N_ of processors becomes large).",
+            "cite_spans": [],
+            "section": "An idealized version of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Feasible versions of algorithm (5) involve approximations of E(TN,\u0394T,ykN) with a certain accuracy \u03b6kN. This leads to consider algorithms of the form (12)y0N+1=G(TN,\u0394T,y0N),0\u2264N\u2264N_\u22121yk+1N+1=G(TN,\u0394T,yk+1N)+[E(TN,\u0394T,ykN);\u03b6kN]\u2212G(TN,\u0394T,ykN),0\u2264N\u2264N_\u22121,k\u22650,y00=u(0).Since no feasible version will converge at a better rate than (6), we analyze here what is the minimal accuracy \u03b6kN that preserves it. A result in this direction is given in the following theorem. It requires to introduce the quantity \u03bdp\u2254max0\u2264N\u2264N_(1+\u2016ypN\u2016)max0\u2264N\u2264N_(1+\u2016u(TN)\u2016),\u2200p\u22650.which tends to 1 as p\u2192\u221e.",
+            "cite_spans": [],
+            "section": "Feasible realizations of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\nTheorem 2.2\nLet\nG\nand\n\u03b4G\nsatisfy Hypothesis\n(4)\n. Let\nk\u22650\nbe any given positive integer. If for all\n0\u2264p<k\nand all\n0\u2264N<N_\n, the approximation\n[E(TN,\u0394T,\u03b6pN)]\nhas accuracy\n(13)\u03b6pN\u2264\u03b6p\u2254\u03b5Gp+2(p+1)!\u03bdp,\nthen the\n(ykN)N\nof the feasible parareal scheme\n(12)\nsatisfy\n(14)max0\u2264N\u2264N_\u2016u(TN)\u2212ykN\u2016\u2264\u03bc\u03c4~k+1(k+1)!,\nwith\n\u03c4~\u2254\u03c4+\u03b5G.\n\n",
+            "cite_spans": [],
+            "section": "Feasible realizations of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Let us make a couple of remarks before giving the proof of the theorem. First, the sufficient condition to converge is now (15)\u03c4~<1\u21d4\u03b5G\u2217<\u03b5\u00afG1+\u03b5\u00afGso the minimal accuracy required for the coarse solver is stronger than in (11) for the ideal case. Note however that when \u03b5\u00afG is small (roughly, \u03b5\u00afG\u22641), the condition on \u03b5G\u2217 is similar in the ideal and perturbed case.",
+            "cite_spans": [],
+            "section": "Feasible realizations of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Second, comparing (6), (14), the rate of convergence \u03c4~ of the feasible parareal algorithm deviates from \u03c4, the ideal one, by a factor \u03c4~\u03c4=\u03c4+\u03b5G\u03c4=1+eCc\u0394TCdT=1+\u03b5\u00afG.The parameter \u03b5\u00afG plays again a critical role in the convergence properties and determines whether convergence is close to the ideal rate \u03c4, or deviates from it by a potentially important factor.",
+            "cite_spans": [],
+            "section": "Feasible realizations of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\nProofThe proof follows the same lines as the one for Theorem 2.1 and EkN, \u03b1,\u03b2,\u03b3 are defined exactly as before. In addition, it will be useful to introduce the sequence gk=\u03b6k\u0394Tmax0\u2264N\u2264N_(1+\u2016ykN\u2016),\u2200k\u22650g\u22121=\u03b3We concentrate on the case k\u22651 since the case k=0 is identical as in Theorem 2.1. For k\u22651, using (12), we have ykN+1\u2212u(TN+1)=G(TN,\u0394T,ykN)\u2212G(TN,\u0394T,u(TN))\u2212G(TN,\u0394T,yk\u22121N)+G(TN,\u0394T,u(TN))+[E(TN,\u0394T,yk\u22121N);\u03b6k\u22121N]\u2212E(TN,\u0394T,u(TN))=G(TN,\u0394T,ykN)\u2212G(TN,\u0394T,u(TN))+\u03b4G(TN,\u0394T,yk\u22121N)\u2212\u03b4G(TN,\u0394T,u(TN))+[E(TN,\u0394T,yk\u22121N);\u03b6k\u22121N]\u2212E(TN,\u0394T,yk\u22121N). Taking norms, using (4b), (4c) and the definition (2) applied to [E(TN,\u0394T,yk\u22121N);\u03b6k\u22121N], we derive EkN+1\u2264[1+Cc\u0394T]EkN+Cd\u0394T\u03b5G\u2217Ek\u22121N+\u03b6k\u22121N\u0394Tmax0\u2264N\u2264N_(1+\u2016yk\u22121N\u2016)\u2264\u03b2EkN+\u03b1Ek\u22121N+gk\u22121. Similarly to Theorem 2.1, we introduce the sequence (e~kN)N,k\u22650 defined for k=0 as e~0N=e0N for all N\u22650 and for k\u22651, e~kN=0,if N=0\u03b1e~k\u22121N\u22121+\u03b2e~kN\u22121+gk\u22121,if N\u22651The associated generating function \u03c1~k satisfies \u03c1~k(\u03be)=\u03b1\u03be\u03c1~k\u22121(\u03be)+\u03b2\u03be\u03c1~k(\u03be)+gk\u22121\u03be1\u2212\u03be,\u2200k\u22651,\u03c1~0(\u03be)=\u03c10(\u03be)=\u03b3\u03be(1\u2212\u03be)(1\u2212\u03b2\u03be).Hence \u03c1~k(\u03be)=\u03b1\u03be1\u2212\u03b2\u03be\u03c1~k\u22121(\u03be)+\u03be(1\u2212\u03be)(1\u2212\u03b2\u03be)gk\u22121=\u03b1\u03be1\u2212\u03b2\u03bek\u03c1~0(\u03be)+\u03be(1\u2212\u03be)(1\u2212\u03b2\u03be)\u2211\u2113=0k\u22121\u03b1\u03be1\u2212\u03b2\u03be\u2113gk\u22121\u2212\u2113 By replacing again at the denominator the factor (1\u2212\u03be) by (1\u2212\u03b2\u03be) and using the binomial expansion (10), we derive the bound \u03c1~k(\u03be)\u2264\u03b3\u03b1k\u03bek+1\u2211j\u22650k+1+jj\u03b2j\u03bej+\u2211\u2113=0k\u22121\u03b1\u2113\u03be\u2113+1gk\u22121\u2212\u2113\u2211j\u22650\u2113+1+jj\u03b2j\u03bej,=\u2211j\u22650\u2211\u2113=0k\u03b1\u2113gk\u22121\u2212\u2113\u03b2j\u2113+1+jj\u03be\u2113+1+j\nwhere we have used that g\u22121=\u03b3. The coefficient associated to the term \u03beN above gives the inequality e~kN\u2264\u2211\u2113=0k\u03b1\u2113gk\u22121\u2212\u2113\u03b2N\u2212\u2113\u22121N\u2113+1,\u2200k\u22651,From the definition of \u03b6\u2113, we have that g\u2113\u2264\u0394T\u03b5G\u2113+2(\u2113+1)!max0\u2264N\u2264N_(1+\u2016u(TN)\u2016).Therefore, recalling the definition (7) of \u03b1,\u03b2 and \u03b3, we derive e~kN\u2264\u03b5Gk+1max0\u2264N\u2264N_(1+\u2016u(TN)\u2016)Cd\u2211\u2113=0k(Cd\u0394T)\u2113+1(1+Cc\u0394T)N\u2212\u2113\u22121(k\u2212\u2113)!N\u2113+1\u2264\u03b5Gk+1max0\u2264N\u2264N_(1+\u2016u(TN)\u2016)Cd\u2211\u2113=0kCdTe\u2212CC\u0394T\u2113+1eCCT(\u2113+1)!(k\u22121\u2212\u2113)!\u2264max0\u2264N\u2264N_(1+\u2016u(TN)\u2016)eCcTCd(k+1)!(1+CdTe\u2212Cc\u0394T)\u03b5Gk+1=\u03bc\u03c4~k+1(k+1)!, where we have used the definition of \u03bc and \u03c4~ in the last line. This inequality ends the proof since EkN\u2264e~kN for N=0,\u2026,N_. \u25a1\n",
+            "cite_spans": [],
+            "section": "Feasible realizations of the parareal algorithm ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "Since the accuracy \u03b6kN needs to improve with k, the most natural way to build the approximations [E(TN,\u0394T,ykN),\u03b6kN] is with adaptive techniques and with adaptive refinements at every step k. The implementation ultimately rests on the use of a posteriori error estimators. It opens the door to local time step adaptation in the parareal algorithm as well as spatial coarsening or refinement if the problem involves additional spatial variables.",
+            "cite_spans": [],
+            "section": "Practical realization of [E(TN,\u0394T,ykN),\u03b6kN] ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "In principle, as \u03b6kN decreases with k, the numerical cost increases in terms of degrees of freedom and also in terms of computing time. This actually reveals the key idea of this new approach which is that we would like that only the last fine solver is expensive and the cost of the previous ones is a small fraction of the cost of the last one (we refer to the next sub-section for a more precise statement). By re-using information from previous iterations, we can limit the cost of internal solvers required in [E(TN,\u0394T,ykN),\u03b6kN] and enhance the speed-up. This depends of course on the nature of the specific problem. We discuss several common situations in Appendix.",
+            "cite_spans": [],
+            "section": "Practical realization of [E(TN,\u0394T,ykN),\u03b6kN] ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "In the original version of the algorithm, E(TN,\u0394T,ykN) is approximated with an accuracy \u03b6kN=\u03b6F which is kept constant in N and across the parareal iterations k. This has usually been done by using a solver F defined in the same spirit as G, but satisfying Hypothesis (4) with a better accuracy \u03b5F<\u03b5G\u2217. We have in this case [E(TN,\u0394T,ykN);\u03b6F]=F(TN,\u0394T,ykN)and we recover the classical algorithm (see [26] and [27]) y0N+1=G(TN,\u0394T,y0N),0\u2264N\u2264N_\u22121yk+1N+1=G(TN,\u0394T,yk+1N)+F(TN,\u0394T,ykN)\u2212G(TN,\u0394T,ykN),0\u2264N\u2264N_\u22121,k\u22650,y00=u(0).Compared to this classical version of the parareal algorithm, the adaptive approach offers the following important advantages:",
+            "cite_spans": [
+                {
+                    "start": 397,
+                    "end": 401,
+                    "mention": "[26]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 406,
+                    "end": 410,
+                    "mention": "[27]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "section": "Connection to the classical formulation of the parareal algorithm and advantages of the current view-point ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "\n1.The algorithm converges to the exact solution\nu(TN) and not to the solution achieved by the fixed chosen fine solver F(0,TN,u(0)) (indeed, for any N, \u03b6kN\u27f60 as k\u27f6\u221e).2.For a final target accuracy \u03b7, the parallel efficiency will always be superior to the classical approach (see Section 3).3.We minimize the computational resources (degrees of freedom) because we identify the minimal required accuracies at each iteration (see Eq. (13)). Early iterations use a loose tolerance, thus avoiding unnecessary work due to oversolving, while later iterations use tighter tolerances to deliver accuracy.4.The dynamical refinements of the fine solver invite to incorporate adaptive solvers with a posteriori error estimators to the parareal scheme.\n",
+            "cite_spans": [],
+            "section": "Connection to the classical formulation of the parareal algorithm and advantages of the current view-point ::: An adaptive parareal algorithm",
+            "ref_spans": []
+        },
+        {
+            "text": "It is difficult to give accurate a priori estimations for the speed-up and efficiency of the method due to its adaptive nature so the actual performance can only be established through relevant examples. In Section 4, we give some results for the case of the Brusselator system. Despite this difficulty in estimation, we make some general remarks in this section, which aim primarily at highlighting the relevance of the cost of the coarse solver. The speed-up is defined as the ratio (16)speed \u2212 upAP\u2215seq(\u03b7,[0,T])\u2254costseq(\u03b7,[0,T])costAP(\u03b7,[0,T])between the cost to run a sequential fine solver achieving a target accuracy \u03b7 with the cost to run an adaptive parareal algorithm providing at the end the same target accuracy \u03b7. The parallel efficiency of the method is then defined as the ratio of the above speed up with the number of processor which gives a target of 1 to any parallel solver: effAP\u2215seq(\u03b7,[0,T])\u2254speed \u2212 upAP\u2215seq(\u03b7,[0,T])N_.\n",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "Assume that gkN and fkN are the numerical costs to realize G(TN,\u0394T,ykN) and [E(TN,\u0394T,ykN),\u03b6kN]. Since the tolerances \u03b6kN decrease with k, we have f0N<\u22ef<fK(\u03b7)N. Neglecting the communication delays, the cost of the adaptive solver is costAP(\u03b7,[0,T])=\u2211k=0K(\u03b7)\u2211N=0N_\u22121gkN+\u2211k=0K(\u03b7)\u22121\u2211N=0N_\u22121fkN.The classical parareal algorithm involves, at every iteration k\u2208{0,\u2026,K(\u03b7)} propagations at the highest accuracy \u03b6K(\u03b7)N. Thus its cost is costCP(\u03b7,[0,T])=\u2211k=0K(\u03b7)\u2211N=0N_\u22121gkN+K(\u03b7)\u2211N=0N_\u22121fK(\u03b7)N,from which it directly follows that (at least if, with obvious notation, KAP(\u03b7)=KCP(\u03b7)) effAP\u2215seq(\u03b7,[0,T])>effCP\u2215seq(\u03b7,[0,T]).Thus the parallel performance of the adaptive algorithm is at least the one of the classical version. Note that this holds even when communications are not negligible since there is the same amount of information exchange in both algorithms.",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "We next give a more quantitative statement on an admittedly idealized setting. Assume that the cost of the coarse solve is negligible, that there is no communication delay and that the cost to realize [E(TN,\u0394T,ykN),\u03b6kN] is (17)fkN=\u0394T(\u03b6kN)\u22121\u2215\u03b1.This assumption for the cost is, for instance, reasonable when we use an explicit time-stepping method of order \u03b1>0. It would also hold for an implicit method where a direct solver can be used. Note that \u03b1 could actually depend on k but we stick to this simple model for clarity of exposition.",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "\nProposition 3.1\nIf\nfkN=\u0394T(\u03b6kN)\u22121\u2215\u03b1\n, for some\n\u03b1>0\nand if the cost of the coarse solver is negligible with respect to\nfkN\nfor any\nk\u22650\n, then\neffAP\u2215seq(\u03b7,[0,T])=1\u2212\u03c41\u2215\u03b11\u2212\u03c4K(\u03b7)\u2215\u03b1\u223c1(1+\u03b5G1\u2215\u03b1).\nTherefore\nspeed \u2212 upAP\u2215seq(\u03b7,[0,T])\u223cN_1(1+\u03b5G1\u2215\u03b1).\n\n",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "\nProofThe cost of the scalable adaptive parareal scheme after K(\u03b7) iterations is (18)costAP(\u03b7,[0,T])=\u0394T\u2211k=0K(\u03b7)\u22121\u03b6k\u22121\u2215\u03b1\nSince we are in a range where the scheme converges, the quantity max0\u2264N\u2264N_\u2016ykN\u2016 is bounded and thus there exists 0<c_\u22641\u2264c\u00af such that c_\u2264\u03bdk\u2264c\u00af for all k\u22650. We will account for this with the notation \u03bdk\u223c1. Note that in fact c_ and c\u00af are close to one. Let us start with the simple case \u03b1=1 and denote K_=K(\u03b7)\u22121: costAP(\u03b7,[0,T])=\u0394T\u2211k=0K_\u03b6k\u22121=\u0394T\u03b6K(\u03b7)\u22121\u221211+\u03b5G\u2217K_+\u03b5G2K_(K_\u22121)+\u22ef+\u03b5GK_\u22121K_!we thus derive costAP(\u03b7,[0,T])\u2264\u0394T\u03b6K(\u03b7)\u22121\u22121(1+\u03b5G\u2217)In the general case (\u03b1>1), the same is true with costAP(\u03b7,[0,T])\u2264\u0394T\u03b6K(\u03b7)\u22121\u22121\u2215\u03b1(1+\u03b5G1\u2215\u03b1)Up to this last factor, the current conclusion is that the global cost of the parareal procedure is equal to the last fine solver on each sub-interval with size \u0394T (both the coarse and the previous fine propagations are negligible).Since the accuracy that is obtained at the end of the parareal procedure (see (14)) is of the same order as the accuracy provided with classical parareal solver (compare with (6)), it follows that if we now take the last target accuracy \u03b6K(\u03b7)\u22121\u22121\u2215\u03b1 of the adaptive algorithm as the accuracy of the fine scheme in the classical parareal algorithm, the cost would be costCP(\u03b7,[0,T])=K(\u03b7)\u0394T\u03b6K(\u03b7)\u22121\u22121\u2215\u03b1,Therefore, (19)costAP(\u03b7,[0,T])costCP(\u03b7,[0,T])\u223c1K(\u03b7)(1+\u03b5G1\u2215\u03b1).In addition, we know that when the cost of the coarse solver is negligible, (20)speed \u2212 upCP\u2215seq(\u03b7,[0,T])=costseq(\u03b7,[0,T])costCP(\u03b7,[0,T])=N_K(\u03b7),Dividing (20) by (19) yields speed \u2212 upAP\u2215seq(\u03b7,[0,T])\u223cN_1(1+\u03b5G1\u2215\u03b1)and effAP\u2215seq(\u03b7,[0,T])\u223c1(1+\u03b5G1\u2215\u03b1).\u25a1\n\n",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "In the ideal setting of Proposition 3.1:",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\u2022The parallel efficiency of the adaptive parareal algorithm does not depend on the final number of iterations. This is in contrast to the classical version whose efficiency decreases with the final number of iterations K(\u03b7) as 1\u2215K(\u03b7).\u2022The efficiency behaves like 1\u2212o(\u03b5G\u2217) in the adaptive version, and o(\u03b5G\u2217) rapidly goes to zero with \u03b5G\u2217. As soon as \u03b5G\u2217 becomes negligible with respect to 1, we will be in the range of full scalability.\n",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "We emphasize that, obviously, the above idealized setting will never hold in practice, but the result is interesting in its own right since it highlights that the cost of the fine solver is no longer the main obstacle for full scalability in the adaptive setting: the cost of the coarse solver becomes now the major obstruction towards full efficiency.",
+            "cite_spans": [],
+            "section": "Parallel efficiency",
+            "ref_spans": []
+        },
+        {
+            "text": "Formula (13) of the convergence analysis of Section 2.3 gives an estimate for \u03b6kN that one could in principle use for the implementation. However, these tolerances may not be optimal because they are derived from a theoretical convergence analysis based on abstract conditions for the coarse and fine solvers. This was confirmed during our numerical tests where we observed that using estimates (13) for \u03b6kN did not deliver satisfactory enough results. This is the reason why it is necessary to devise a practical rule to set \u03b6kN. We have explored the following choice: if \u03b7 is the final target accuracy, the classical parareal algorithm is usually run with a solver that delivers a slightly higher accuracy, say \u03b7\u22152. Assume that the classical algorithm converges in KCP(\u03b7)=K iterations. We propose to build the tolerances of \u03b6kN in such a way to target that KAP(\u03b7)=KCP(\u03b7) and such that the cost of the last fine propagation is of the order of the sum of the previous ones. This motivates to set \u03b6kN=\u03b5G1\u2212k+1K\u03b72k+1K,if k<K\u03b7\u22152,if k\u2265K.The numerical example of the next section uses these tolerances.",
+            "cite_spans": [],
+            "section": "Practical choice of \u03b6kN. ::: Guidelines for a practical implementation ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "For simplicity of exposition, the algorithm has so far been discussed for N_ subintervals of uniform size \u0394T. However, this decomposition may lead to a task imbalance because some time intervals may have more complex dynamics than others, requiring more degrees of freedom, thus more computational time. In order to balance tasks as efficiently as possible, we dynamically adapt the size of the N_ subintervals in a way to have the fine solver propagations as balanced as possible among processors.",
+            "cite_spans": [],
+            "section": "Load balancing. ::: Guidelines for a practical implementation ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "We consider the brusselator system x\u2032=A+x2y\u2212(B+1)xy\u2032=Bx\u2212x2y,with initial condition x(0)=0 and y(0)=1. This is a stiff ODE that models a chain of chemical reactions. It was already studied in a previous work on the parareal algorithm (see [25]). The system has a fixed point at x=A and y=B\u2215A which becomes unstable when B>1+A2 and leads to oscillations. We place ourselves in this oscillatory regime by setting A=1 and B=3. The dynamics present large velocity variations in some time subintervals, making the use of adaptive time-stepping schemes particularly desirable for an appropriate treatment of the transient.",
+            "cite_spans": [
+                {
+                    "start": 238,
+                    "end": 242,
+                    "mention": "[25]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "For the coarse solver, we set \u03b5G=0.1,and use an explicit Runge\u2013Kutta method of order 5 with an adaptive time-stepping (see [28]). For the fine solver, we use the implicit Runge\u2013Kutta method of the Radau IIA family of order 5 with adaptive time-stepping (see [29], [30]). Both integrators are available in the ODE integration library of Scipy2\nwhich we have used in our library.",
+            "cite_spans": [
+                {
+                    "start": 123,
+                    "end": 127,
+                    "mention": "[28]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 258,
+                    "end": 262,
+                    "mention": "[29]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 264,
+                    "end": 268,
+                    "mention": "[30]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "As already discussed, the target accuracies \u03b6kN should be ensured by rigorous a posteriori error estimators. However, these type of estimators are unfortunately not available in the Scipy library and we are not aware of any mainstream library with this capability. As a surrogate, we have used the above mentioned classical ODE integrators that only guarantee local accuracy between time-steps tn\u2192tn+1, but not global accuracy between macro intervals [TN,TN+1] (composed of several time-steps). The local accuracy can be specified in the library routine via the parameters atol and rtol of the function scipy.integrate.solve_ivp. To relate this local accuracy control to the global one, we have built a priori a \u201cchart\u201d mapping accuracies of the solver on macro-intervals against the tolerance parameters atol and rtol of the library. To simplify, these two parameters have been set to be equal (atol=rtol) and their value is fixed according to the chart. As an example, we provide a chart for T=20 for the scheme of the fine solver in Fig. 1. The dots are computed values: for a given value of the parameter atol, we examine the accuracy \u03b5 of the solver. We then interpolate the points with a cubic spline interpolation. This way, for a given intermediate accuracy \u03b6kN in the parareal algorithm, we can easily adapt the parameter value atol that is required.",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 1036,
+                    "end": 1042,
+                    "mention": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "We use formula (16) to compare the speed-up of the classical and adaptive parareal algorithm in terms of the number of operations involved in the numerical solution (communication delays have not been taken into account). For the costs gkN and fkN, we take into account:",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\u2022the number of time steps (which is adaptively increased as we tightened the accuracy),\u2022the number of right-hand side evaluations,\u2022for the fine solver, we additionally count the number of evaluations of the Jacobian matrix and of the number of linear system inversions.\n",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "In Fig. 2, we plot the obtained speed-up for different configurations:",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 9,
+                    "mention": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "\n\u2022the final time T varies from 100 to 900,\u2022the final target accuracy is \u03b7=10\u22126 or \u03b7=10\u22128,\u2022the number of processors N_ varies from 10 to 100.\n",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "\nAs anticipated in Section 3, the speed-up of the adaptive parareal is always superior to the one of the classical parareal. We observe that the gain is marginal for a moderate accuracy (\u03b7=10\u22126) but it is about 2.5 times larger for \u03b7=10\u22128. Note that sometimes the speed-up does not increase monotonically as the number of processors N_ increases. Also, the speed-up generally increases with N_ but the increase is rather moderate.",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "\nThe values significantly differ from the range of full scalability and we next explain why this is mainly due to the cost of the coarse solver. Since the problem is stiff and we consider relatively long time intervals, it has been necessary to use a sufficiently accurate coarse solver. This explains our choice of an explicit Runge\u2013Kutta scheme of order 5. To illustrate the impact of its cost, let us fix T=500, \u03b7=10\u22128 and N_=50 (other parameters would yield similar conclusions). We compare the speed-up and efficiency when we count or do not count the cost of the coarse solver in Table 1. Obviously, when we do not count the cost of the coarse solver, the performance of both algorithms improves but it is particularly increased in the case of the adaptive version. If the cost of G was negligible, it would deliver a very satisfactory efficiency of 75.52%. This is five times larger than what the classical parareal would yield. This analysis illustrates that the major obstacle to achieve competitive scalabilities is no longer the cost of the fine solver like in the classical version, but the cost of the coarse propagator.",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 586,
+                    "end": 593,
+                    "mention": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ]
+        },
+        {
+            "text": "We next give some insight on the differences in the convergence behavior of both algorithms. We fix T=20, \u03b7=10\u22128 and N_=20 and plot in Fig. 3 the convergence history of the parareal solution in terms of:",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 135,
+                    "end": 141,
+                    "mention": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ]
+        },
+        {
+            "text": "\n\u2022the errors of the fine solver at every fine time-step\u2022the maximum error of the parareal solution at the macro-intervals maxN\u2016u(TN)\u2212ykN\u2016\n\n",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "Note that the maximum error in the adaptive scheme steadily decreases to the desired accuracy whereas the error in the classical scheme degrades at iteration k=1 before converging. This type of behavior has been observed for all other configurations and we conjecture that an important difference in accuracy between the coarse and the fine solver at early stages of the algorithm may be the cause. Finally, an inspection of the error of the fine solver shows that the adaptive algorithm succeeds to reduce the error at every time t in a much more uniform way than the classical algorithm.",
+            "cite_spans": [],
+            "section": "The brusselator system ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "We next consider the Van der Pol oscillator x\u2032=yy\u2032=\u03bc(1\u2212x2)y\u2212x,with initial condition x(0)=2 and y(0)=0. When \u03bc=0, this equation is a simple nonstiff harmonic oscillator. When \u03bc>0, the system has a limit cycle and becomes stiffer and stiffer as its value is increased. For our tests, we set \u03bc=4 which is already a relatively stiff case.",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "Like in the example of the Brusselator system, we set \u03b5G=0.1 for the coarse solver and use an explicit Runge\u2013Kutta method of order 5 with an adaptive time-stepping (see [28]). For the fine solver, we use the implicit Runge\u2013Kutta method of the Radau IIA family of order 5 with adaptive time-stepping.",
+            "cite_spans": [
+                {
+                    "start": 169,
+                    "end": 173,
+                    "mention": "[28]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "In Fig. 4, we plot the obtained speed-up for different configurations:",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 9,
+                    "mention": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                }
+            ]
+        },
+        {
+            "text": "\n\u2022the final time T is 1000 or 2000,\u2022the final target accuracy is \u03b7=10\u22126 or \u03b7=10\u22128,\u2022the number of processors N_ varies from 10 to 100.\n",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "Like in the previous example, the adaptive algorithm outperforms the nonadaptive version in terms of speed-up. However, the gain is marginal for moderate accuracies \u03b7=10\u22126. For high accuracy \u03b7=10\u22128, the adaptive algorithm improves the speed-up by a factor of about 2 to 3 times with respect to the classical one. The improvement is more significant for large T.",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "\nIn Table 2, we illustrate that the coarse solver is again the main bottleneck to reach high parallel efficiency in the adaptive algorithm: we examine the speed-up and efficiency for T=2000, \u03b7=10\u22128 and N_=40 when we take and do not take into account the cost of the coarse solver.",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": [
+                {
+                    "start": 4,
+                    "end": 11,
+                    "mention": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ]
+        },
+        {
+            "text": "\n",
+            "cite_spans": [],
+            "section": "The Van der Pol oscillator ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "In extreme cases, the cost of the coarse solver may prevent any speed-up at all (see Section 4.2.3) and puts this obstruction at the forefront for future research. A prominent case are highly stiff ODEs. In the provided code, we can observe this fact in the case of the Oregonator system of equations. In view of the ongoing pandemic of COVID-19 at the time when this article was written, we have also tested an SEIR epidemic model which has very recently been proposed in [11] as a simple model for the spread of the virus in the Wuhan city area. The model captures the effect of the presence of individual reaction to the risk of infection and governmental action. If we run the parareal algorithm for the latter model, an integrator of type LSODA [31] for both coarse and fine solvers seems well adapted since it alternates between Adams or BDF integration for nonstiff and stiff parts and it has automatic stiffness detection. To reach a target accuracy \u03b7=5.10\u22126, it has been necessary to set \u03b5G=5.10\u22122, making the cost of the coarse solver too expensive to yield any parallel efficiency. However, if we could find an inexpensive coarse solver, perhaps based on empirical data or on good back-of the envelope calculations, our adaptive parareal algorithm would yield interesting speeds-ups. For example, with N=10 processors, we would get a speed-up of 3.79 (versus 1.4) in the nonadaptive version.",
+            "cite_spans": [
+                {
+                    "start": 473,
+                    "end": 477,
+                    "mention": "[11]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 750,
+                    "end": 754,
+                    "mention": "[31]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "section": "Discussion on extremely challenging cases of highly stiff ODEs: Oregonator and SEIR epidemic model ::: Results for several stiff ODEs ::: Numerical tests",
+            "ref_spans": []
+        },
+        {
+            "text": "The new adaptive formulation of the parareal algorithm opens the door to improve significantly the parallel efficiency of the method provided that the cost of the coarse solver is moderate. The increasing target tolerances which have to be met at each step allows to use online stopping criteria involving a posteriori estimators. The developed methodology remains theoretical since we have not quantified the impact of communication delays between processors nor potential memory issues (note however that the load balancing is devised with the purpose of equilibrating tasks and memory). In the framework of the ANR project \u201cCin\u00e9-Para (ANR-15-CE23-0019)\u201d, we are working on these issues that are of a different level of theory and involve different collaborators. This will be the topic of another paper. In addition to this, several extensions based on the current findings are subject of ongoing works, in particular, the coupling of the adaptive parareal with adaptive space\u2013time schemes, the coupling of parareal with internal iterative solvers like in the discussion of Appendix A.3 of the Appendix, and also the development of inexpensive coarse solvers.",
+            "cite_spans": [],
+            "section": "Conclusions and perspectives",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 1: Brusselator: Impact of the cost of the coarse solver. Speed-up and efficiency with T=500, \u03b7=10\u22128 and N_=50.\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2: Van der Pol: Impact of the cost of the coarse solver. Speed-up and efficiency with T=2000, \u03b7=10\u22128 and N_=40.\n",
+            "type": "table"
+        },
+        "FIGREF0": {
+            "text": "Fig. 1: Mapping of the accuracies \u03b5 against the tolerance parameters (atol=rtol) of the library. The dots are computed values: for a given value of the parameter, we examine the accuracy \u03b5 of the solver. We then interpolate the points with a cubic spline interpolation. This way, for a given intermediate accuracy \u03b6kN in the algorithm, we can infer the parameter value atol and rtol. Case T=20, integrator of the fine solver.",
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2: Speed-up in comparison to running a sequential fine solver as a function of the number of processors N_. Dashed lines: classical parareal. Continuous lines: Adaptive parareal.",
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fig. 3: Brusselator: Convergence history of the errors for T=20, \u03b7=10\u22128 and N_=20. Top: classical parareal. Bottom: adaptive parareal. Left: errors of the fine solver at every fine time-step. Right: maximum parareal error at each iteration k.",
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Fig. 4: Van der Pol: speed-up in comparison to running a sequential fine solver as a function of the number of processors N_. Dashed lines: classical parareal. Continuous lines: Adaptive parareal.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Quarteroni",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Valli",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "Data-driven time parallelism via forecasting",
+            "authors": [
+                {
+                    "first": "K.",
+                    "middle": [],
+                    "last": "Carlberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "L.",
+                    "middle": [],
+                    "last": "Brencher",
+                    "suffix": ""
+                },
+                {
+                    "first": "B.",
+                    "middle": [],
+                    "last": "Haasdonk",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Barth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIAM J. Sci. Comput.",
+            "volume": "41",
+            "issn": "3",
+            "pages": "B466-B496",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "A conceptual model for the coronavirus disease 2019 (COVID-19) outbreak in Wuhan, China with individual reaction and governmental action",
+            "authors": [
+                {
+                    "first": "Q.",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Lou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.S.",
+                    "middle": [],
+                    "last": "Musa",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.H.",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L.",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Int. J. Infect. Dis.",
+            "volume": "93",
+            "issn": "211\u2013216",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Turinici",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Domain Decomposition Methods in Science and Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "441-448",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "R.",
+                    "middle": [],
+                    "last": "Guetat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "S.",
+                    "middle": [],
+                    "last": "Aouadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.Q.",
+                    "middle": [],
+                    "last": "Bui",
+                    "suffix": ""
+                },
+                {
+                    "first": "R.",
+                    "middle": [],
+                    "last": "Guetat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M.L.",
+                    "middle": [],
+                    "last": "Minion",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Williams",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.E.",
+                    "middle": [],
+                    "last": "Simos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Psihoyios",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.",
+                    "middle": [],
+                    "last": "Tsitouras",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "AIP Conference Proceedings, Vol. 1048",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "A hybrid parareal spectral deferred corrections method",
+            "authors": [
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Minion",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Commun. Appl. Math. Comput. Sci.",
+            "volume": "5",
+            "issn": "2",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "Interweaving PFASST and parallel multigrid",
+            "authors": [
+                {
+                    "first": "M.L.",
+                    "middle": [],
+                    "last": "Minion",
+                    "suffix": ""
+                },
+                {
+                    "first": "R.",
+                    "middle": [],
+                    "last": "Speck",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Bolten",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Emmett",
+                    "suffix": ""
+                },
+                {
+                    "first": "D.",
+                    "middle": [],
+                    "last": "Ruprecht",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "SIAM J. Sci. Comput.",
+            "volume": "37",
+            "issn": "5",
+            "pages": "S244-S263",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF9": {
+            "title": "Parallel time integration with multigrid",
+            "authors": [
+                {
+                    "first": "R.D.",
+                    "middle": [],
+                    "last": "Falgout",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.",
+                    "middle": [],
+                    "last": "Friedhoff",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.V.",
+                    "middle": [],
+                    "last": "Kolev",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.P.",
+                    "middle": [],
+                    "last": "MacLachlan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.B.",
+                    "middle": [],
+                    "last": "Schroder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "SIAM J. Sci. Comput.",
+            "volume": "36",
+            "issn": "6",
+            "pages": "C635-C661",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "Multigrid reduction in time for nonlinear parabolic problems: A case study",
+            "authors": [
+                {
+                    "first": "R.D.",
+                    "middle": [],
+                    "last": "Falgout",
+                    "suffix": ""
+                },
+                {
+                    "first": "T.A.",
+                    "middle": [],
+                    "last": "Manteuffel",
+                    "suffix": ""
+                },
+                {
+                    "first": "B.",
+                    "middle": [],
+                    "last": "O\u2019Neill",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.B.",
+                    "middle": [],
+                    "last": "Schroder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIAM J. Sci. Comput.",
+            "volume": "39",
+            "issn": "5",
+            "pages": "S298-S322",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Toselli",
+                    "suffix": ""
+                },
+                {
+                    "first": "O.",
+                    "middle": [],
+                    "last": "Widlund",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "Monotonic parareal control for quantum systems",
+            "authors": [
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.",
+                    "middle": [],
+                    "last": "Salomon",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Turinici",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "SIAM J. Numer. Anal.",
+            "volume": "45",
+            "issn": "6",
+            "pages": "2468-2482",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "O.",
+                    "middle": [],
+                    "last": "Mula",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "Parallel in time algorithms for nonlinear iterative methods",
+            "authors": [
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Gaja",
+                    "suffix": ""
+                },
+                {
+                    "first": "O.",
+                    "middle": [],
+                    "last": "Gorynina",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ESAIM: Proc. Surv.",
+            "volume": "63",
+            "issn": "",
+            "pages": "248-257",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Bal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Ronsquist",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Staff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "653-663",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M.J.",
+                    "middle": [],
+                    "last": "Gander",
+                    "suffix": ""
+                },
+                {
+                    "first": "E.",
+                    "middle": [],
+                    "last": "Hairer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Domain Decomposition Methods in Science and Engineering XVII",
+            "volume": "",
+            "issn": "",
+            "pages": "45-56",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF18": {
+            "title": "Parallel-in-time molecular-dynamics simulations",
+            "authors": [
+                {
+                    "first": "L.",
+                    "middle": [],
+                    "last": "Baffico",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.",
+                    "middle": [],
+                    "last": "Bernard",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Turinici",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Z\u00e9rah",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Phys. Rev. E",
+            "volume": "66",
+            "issn": "5",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF19": {
+            "title": "A \u201cparareal\u201d time discretization for non-linear PDE\u2019s with application to the pricing of an american put",
+            "authors": [
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Bal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Recent Dev. Domain Decompos. Methods",
+            "volume": "23",
+            "issn": "",
+            "pages": "189-202",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "A family of embedded Runge-Kutta formulae",
+            "authors": [
+                {
+                    "first": "J.R.",
+                    "middle": [],
+                    "last": "Dormand",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.J.",
+                    "middle": [],
+                    "last": "Prince",
+                    "suffix": ""
+                }
+            ],
+            "year": 1980,
+            "venue": "J. Comput. Appl. Math.",
+            "volume": "6",
+            "issn": "1",
+            "pages": "19-26",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF21": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "E.",
+                    "middle": [],
+                    "last": "Hairer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Wanner",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "Solving Ordinary Differential Equations II. Stiff and Differential-Algebraic Problems",
+            "volume": "vol. 14",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF22": {
+            "title": "Parallel methods for integrating ordinary differential equations",
+            "authors": [
+                {
+                    "first": "J.",
+                    "middle": [],
+                    "last": "Nievergelt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1964,
+            "venue": "Commun. ACM",
+            "volume": "7",
+            "issn": "12",
+            "pages": "731-733",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF23": {
+            "title": "Stiff differential equations solved by Radau methods",
+            "authors": [
+                {
+                    "first": "E.",
+                    "middle": [],
+                    "last": "Hairer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Wanner",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "J. Comput. Appl. Math.",
+            "volume": "111",
+            "issn": "1",
+            "pages": "93-111",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF24": {
+            "title": "Automatic selection of methods for solving stiff and nonstiff systems of ordinary differential equations",
+            "authors": [
+                {
+                    "first": "L.",
+                    "middle": [],
+                    "last": "Petzold",
+                    "suffix": ""
+                }
+            ],
+            "year": 1983,
+            "venue": "SIAM J. Sci. Stat. Comput.",
+            "volume": "4",
+            "issn": "1",
+            "pages": "136-148",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF25": {
+            "title": "Spectral deferred correction methods for ordinary differential equations",
+            "authors": [
+                {
+                    "first": "A.",
+                    "middle": [],
+                    "last": "Dutt",
+                    "suffix": ""
+                },
+                {
+                    "first": "L.",
+                    "middle": [],
+                    "last": "Greengard",
+                    "suffix": ""
+                },
+                {
+                    "first": "V.",
+                    "middle": [],
+                    "last": "Rokhlin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "BIT Numer. Math.",
+            "volume": "40",
+            "issn": "2",
+            "pages": "241-266",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF26": {
+            "title": "A hybrid parareal spectral deferred corrections method",
+            "authors": [
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Minion",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Commun. Appl. Math. Comput. Sci.",
+            "volume": "5",
+            "issn": "2",
+            "pages": "265-301",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF27": {
+            "title": "Toward an efficient parallel in time method for partial differential equations",
+            "authors": [
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Emmett",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Minion",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Commun. Appl. Math. Comput. Sci.",
+            "volume": "7",
+            "issn": "1",
+            "pages": "105-132",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF28": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M.J.",
+                    "middle": [],
+                    "last": "Gander",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Householder Symposium XIX June 8\u201313, Spa Belgium",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF29": {
+            "title": "R\u00e9solution d\u2019EDP par un sch\u00e9ma en temps parar\u00e9el",
+            "authors": [
+                {
+                    "first": "J.",
+                    "middle": [],
+                    "last": "Lions",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                },
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Turinici",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "C. R. Acad. Sci. Paris",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF30": {
+            "title": "Stable parareal in time method for first- and second-order hyperbolic systems",
+            "authors": [
+                {
+                    "first": "X.",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "SIAM J. Sci. Comput.",
+            "volume": "35",
+            "issn": "1",
+            "pages": "A52-A78",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF31": {
+            "title": "Time-decomposed parallel time-integrators: theory and feasibility studies for fluid, structure, and fluid\u2013structure applications",
+            "authors": [
+                {
+                    "first": "C.",
+                    "middle": [],
+                    "last": "Farhat",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.",
+                    "middle": [],
+                    "last": "Chandesris",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Internat. J. Numer. Methods Engrg.",
+            "volume": "58",
+            "issn": "9",
+            "pages": "1397-1434",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF32": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "G.",
+                    "middle": [],
+                    "last": "Bal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q.",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Domain Decomposition Methods in Science and Engineering XVII",
+            "volume": "",
+            "issn": "",
+            "pages": "401-408",
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF33": {
+            "title": "Symmetric parareal algorithms for Hamiltonian systems",
+            "authors": [
+                {
+                    "first": "X.",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.",
+                    "middle": [],
+                    "last": "Le\u00a0Bris",
+                    "suffix": ""
+                },
+                {
+                    "first": "F.",
+                    "middle": [],
+                    "last": "Legoll",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.",
+                    "middle": [],
+                    "last": "Maday",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ESAIM Math. Model. Numer. Anal.",
+            "volume": "47",
+            "issn": "3",
+            "pages": "717-742",
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}
