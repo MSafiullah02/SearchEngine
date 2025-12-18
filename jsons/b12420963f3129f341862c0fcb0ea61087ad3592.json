@@ -1,0 +1,1562 @@
+{
+    "paper_id": "b12420963f3129f341862c0fcb0ea61087ad3592",
+    "metadata": {
+        "title": "Inductive Document Network Embedding with Topic-Word Attention",
+        "authors": [
+            {
+                "first": "Robin",
+                "middle": [],
+                "last": "Brochier",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Universit\u00e9 de Lyon",
+                    "location": {
+                        "addrLine": "Lyon 2 ERIC EA3083",
+                        "settlement": "Lyon",
+                        "country": "France"
+                    }
+                },
+                "email": "robin.brochier@univ-lyon2.fr"
+            },
+            {
+                "first": "Adrien",
+                "middle": [],
+                "last": "Guille",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Universit\u00e9 de Lyon",
+                    "location": {
+                        "addrLine": "Lyon 2 ERIC EA3083",
+                        "settlement": "Lyon",
+                        "country": "France"
+                    }
+                },
+                "email": "adrien.guille@univ-lyon2.fr"
+            },
+            {
+                "first": "Julien",
+                "middle": [],
+                "last": "Velcin",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Universit\u00e9 de Lyon",
+                    "location": {
+                        "addrLine": "Lyon 2 ERIC EA3083",
+                        "settlement": "Lyon",
+                        "country": "France"
+                    }
+                },
+                "email": "julien.velcin@univ-lyon2.fr"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Document network embedding aims at learning representations for a structured text corpus i.e. when documents are linked to each other. Recent algorithms extend network embedding approaches by incorporating the text content associated with the nodes in their formulations. In most cases, it is hard to interpret the learned representations. Moreover, little importance is given to the generalization to new documents that are not observed within the network. In this paper, we propose an interpretable and inductive document network embedding method. We introduce a novel mechanism, the Topic-Word Attention (TWA), that generates document representations based on the interplay between word and topic representations. We train these word and topic vectors through our general model, Inductive Document Network Embedding (IDNE), by leveraging the connections in the document network. Quantitative evaluations show that our approach achieves state-ofthe-art performance on various networks and we qualitatively show that our model produces meaningful and interpretable representations of the words, topics and documents.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Document networks, e.g. social media, question-and-answer websites, the scientific literature, are ubiquitous. Because these networks keep growing larger and larger, navigating efficiently through them becomes increasingly difficult. Modern information retrieval systems rely on machine learning algorithms to support users. The performance of these systems heavily depends on the quality of the document representations. Learning good features for documents is still challenging, in particular when they are structured in a network.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recent methods learn the representations in an unsupervised manner by combining structural and textual information. Text-Associated DeepWalk (TADW) [28] incorporates text features into the low-rank factorization of a matrix describing the network. Graph2Gauss [2] learns a deep encoder, guided by the network, that maps the nodes' attributes to embeddings. GVNR-t [3] factorizes a random walk based matrix of node co-occurrences and integrates word vectors of the documents in its formulation. CANE [25] introduces a mutual attention mechanism that builds representations of a document contextually to each of its direct neighbors in the network.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 260,
+                    "end": 263,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 364,
+                    "end": 367,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 499,
+                    "end": 503,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Apart from Graph2gauss, these methods are not intended to generate representations for documents with no connection to other documents and thus cannot induce a posteriori representations for new documents. Moreover, they provide little to no possibility to interpret the learned representations. CANE is a notable exception since its attention mechanism produces interpretable weights that highlight the words explaining the links between documents. Nevertheless, it lacks the ability to explain the representations for each document independently.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we describe and evaluate an inductive and interpretable method that learns word, topic and document representations in a single vector space, based on a new attention mechanism. Our contributions are the following:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-we present a novel attention mechanism, Topic-Word Attention (TWA), that produces representations of a text where latent topic vectors attend to the word vectors of a document; -we explain how to train the parameters of TWA by leveraging the links of the network. Our method, Inductive Document Network Embedding (IDNE), is able to produce representations for previously unseen documents, without network information; -we quantitatively assess the performance of IDNE on several networks and show that our method performs better than recent methods in various settings, including when new documents, not part of the network, are inductively represented by the algorithms. To our knowledge, we are the first to evaluate this kind of inductive setting in the context of document network embedding; -we qualitatively show that our model learns meaningful word and topic vectors and produces interpretable document representations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The rest of the paper is organized as follows. In Sect. 2 we survey related works. We present in details our attention mechanism and show how to train it on networks of documents in Sect. 3. Next, in Sect. 4, we present a thorough experimental study, where we assess the performance of our model following the usual evaluation protocol on node classification and further evaluating its capacity of inducting representations for text documents with no connection to the network. In Sect. 5, we study the ability of our method to provide interpretable representations. Lastly, we conclude this paper and provide future directions in Sect. 6. The code for our model, the datasets and the evaluation procedure are made publicly available 1 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Network embedding (NE) provides an efficient approach to represent nodes in a low dimensional vector space, suitable for solving various machine learning tasks. Recent techniques extend NE for document networks, showing that text and graph information can be combined to improve the resolution of classification and prediction tasks. In this section, we first cover important works in document NE and then relate recent advances in attention mechanisms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "DeepWalk [22] and node2vec [9] are the most well-known NE algorithms. They train dense embedding vectors by predicting nodes co-occurrences through random walks by adapting the Skip-Gram model initially designed for word embedding [19] . VERSE [24] propose an efficient algorithm that can handle any type of similarity over the nodes.",
+            "cite_spans": [
+                {
+                    "start": 9,
+                    "end": 13,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 27,
+                    "end": 30,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 231,
+                    "end": 235,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 244,
+                    "end": 248,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Network Embedding"
+        },
+        {
+            "text": "Text-Associated DeepWalk (TADW) [28] extends DeepWalk to deal with textual attributes. Yang et al. prove, following the work in [17] , that Skip-Gram with hierarchical softmax can be equivalently formulated as a matrix factorization problem. TADW then consists in constraining the factorization problem with a pre-computed representation of the documents T by using Latent Semantic Analysis (LSA) [6] . The task is to optimize the objective:",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 36,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Network Embedding"
+        },
+        {
+            "text": "where M = (A + A 2 )/2 is a normalized second-order adjacency matrix of the network, W is a matrix of one-hot node embeddings and H a feature transformation matrix. Final document embeddings are the concatenation of W and HT . Graph2Gauss (G2G) [2] is an approach that embeds each node as a Gaussian distribution instead of a vector. The algorithm is trained by passing node attributes through a non-linear transformation via a deep neural network (encoder). GVNR-t [3] is a matrix factorization approach for document network embedding, inspired by GloVe [21] , that simultaneously learns word, node and document representations. In practice, the following least-square objective is optimized:",
+            "cite_spans": [
+                {
+                    "start": 245,
+                    "end": 248,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 466,
+                    "end": 469,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 555,
+                    "end": 559,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Network Embedding"
+        },
+        {
+            "text": "where x ij is the number of co-occurrences of nodes i and j, u i is a one-hot encoding of node i and \u03b4j W |\u03b4j |1 is the average of the word embeddings of document j. Context-Aware Network Embedding (CANE) [25] consists in a mutual attention mechanism trained on a document network. It learns several embeddings for a document according to its different contextual documents, represented by its neighbors in the network. The attention mechanism selects meaningful features from text information in pairs of documents that explain their relatedness in the graph. A similar approach is presented in [4] where the links between pairs of documents are predicted by computing the mutual contribution of their word embeddings.",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 209,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 596,
+                    "end": 599,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Network Embedding"
+        },
+        {
+            "text": "In this work, we aim at constructing representations of documents that reflect their connections in a network. A key motivation behind our approach is to be able to predict a document's neighborhood given only its textual content. This allows our model to inductively produce embeddings for new documents for which no existing link is known. To that extend, Graph2Gauss is a similar approach. On the contrary, TADW and GVNR-t are not primarily designed for this purpose as they both learn one-hot embeddings for each node in the document network. Note that if some methods like GraphSage [10] , SDNE [27] and GAE [13] also enable induction on new nodes, they cannot deal with nodes that have no known connection. Also, our approach differs from CANE since this latter needs the neighbors of a document to generate its representation. IDNE learns to produce a single interpretable vector for each document in the network. In the next section, we review recent works in attention mechanisms for natural language processing (NLP) that inspired the conception of our method.",
+            "cite_spans": [
+                {
+                    "start": 588,
+                    "end": 592,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 600,
+                    "end": 604,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 613,
+                    "end": 617,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Network Embedding"
+        },
+        {
+            "text": "An attention mechanism uses a contextual representation to highlight or hide some parts of input data. Attention is an essential element of state-of-the-art neural machine translation (NMT) algorithms [18] by providing a powerful way to capture dependencies between words.",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 205,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Attention Mechanism"
+        },
+        {
+            "text": "The Transformer [26] introduces a formalism of attention mechanisms for NMT. Given a query vector q, a set of key vectors K and a set of value vectors V , an attention vector is produced with the following formula:",
+            "cite_spans": [
+                {
+                    "start": 16,
+                    "end": 20,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Attention Mechanism"
+        },
+        {
+            "text": "qK T measures the similarity between the query and each key k of K. \u03c9 is a normalization function such that all attention weights are positive and sum to 1. v a is then the weighted sum of the values V according to the attention weights. Multiple attention vectors can be generated by using a set of queries Q.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Attention Mechanism"
+        },
+        {
+            "text": "In CANE, as for various NLP tasks [7] , an attention mechanism generates attention weights that represent the strengths of relation between pairs of input words. However, in this paper, we do not seek to learn dependencies between pairs of words, but rather between words and some global topics. In this direction, the Set Transformer [16] constitutes a computationally efficient attention mechanism where the queries are replaced with a fixed-size set of learnable global inducing points. This model is originally not intended for NLP tasks, therefore we will explore the capacity of such inducing points to play the role of topic representations when applied to textual data.",
+            "cite_spans": [
+                {
+                    "start": 34,
+                    "end": 37,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 335,
+                    "end": 339,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Attention Mechanism"
+        },
+        {
+            "text": "Even if we introduce the concept of topic vectors, the aim of this work is not to propose another topic model [5, 23] . We hypothesize that the introduction of global topic vectors in an attention mechanism can (1) lead to useful representations of documents for different tasks and (2) bring an interpretable sight on the patterns learned by the model. Interpretability can help both machine learning practitioners to better refine their models and end users to understand automated recommendations.",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 113,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 114,
+                    "end": 117,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Attention Mechanism"
+        },
+        {
+            "text": "We are interested in finding low dimensional vector space representations of a set of n d documents organized in a network, described by a document-term matrix X \u2208 N n d \u00d7nw and an adjacency matrix A \u2208 N n d \u00d7n d , where n w stands for the number of words in our vocabulary. The method we propose, Inductive Document Network Embedding (IDNE), learns to represent the words and topics underlying the corpus in a single vector space. The document representations are computed by combining words and topics through an attention mechanism.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "In the following, we first describe how to derive the document vectors from known word and topic vectors through a novel attention mechanism, the Topic-Word Attention (TWA). Next, we show how to estimate the word and topic vectors, guided by the links connecting the documents of the network.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "We assume a p-dimensional vector space in which both words and topics are represented. We note W \u2208 R nw\u00d7p the matrix that contain the n w word embedding vectors and T \u2208 R nt\u00d7p the matrix of n t topic vectors. Figure 1 shows the matrix computation of the attention weights.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 209,
+                    "end": 217,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Representing Documents with Topic-Aware Attention"
+        },
+        {
+            "text": "Topic-Word Attention. Given a document i and its bag-of-word encoding X i \u2208 N + nw , we measure the attention weights between topics and words, Z i \u2208 R nt\u00d7nw , as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Representing Documents with Topic-Aware Attention"
+        },
+        {
+            "text": "The activation function g must satisfy two requirements: (1) all the weights are non-negative and (2) columns of Z i sum to one. The intuition behind the first requirement is that enforcing non-negativity should lead to sparse and interpretable topics. The second requirement transforms the raw weights into wordwise relative attention weights, which can be read as probabilities similarly to what is done in neural topic models [23] . An obvious choice would be columnwise softmax, however, we empirically find that ReLU followed by a column-wise normalization performs best.",
+            "cite_spans": [
+                {
+                    "start": 429,
+                    "end": 433,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Representing Documents with Topic-Aware Attention"
+        },
+        {
+            "text": "Document Representation. Given Z i , we are able to calculate topic-specific representations of the document i. From the perspective of topic k, the p-dimensional representation of document i is:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Representing Documents with Topic-Aware Attention"
+        },
+        {
+            "text": "Similarly to Eq. 3, each topic vector, akin to a query, attends to the word vectors that play the role of keys to generate Z i . The topic-specific representations are then the weighted sum of the values, also played by the word vectors. The final document vector is obtained by simple summation of all the topic-specific representations, which leads to d i = k D i k . Scaling by 1 |Xi|1 in Eq. 5 ensures that the document vectors have the same order of magnitude as the word vectors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Representing Documents with Topic-Aware Attention"
+        },
+        {
+            "text": "Since the corpus is organized in a network, we propose to estimate the parameters, W and T , by leveraging the links between the documents. We posit that the representations of documents connected by a short path in the network should be more similar in the vector space than those that are far apart. Thus, we learn W and T in a supervised manner, through the training of a discriminative model. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning from the Network"
+        },
+        {
+            "text": "Let \u0394 \u2208 {0, 1} n d \u00d7n d be a binary matrix, so that \u03b4 ij = 1 if document j is reachable from document i and \u03b4 ij = 0 otherwise. We model the probability of a pair of documents to be connected, given their representations, in terms of the sigmoid of the dot-product of d i and d j :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning from the Network"
+        },
+        {
+            "text": "Assuming the document representations are i.i.d, we can express the loglikelihood of \u0394 given W and T :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning from the Network"
+        },
+        {
+            "text": "Through the maximization of this log-likelihood via a first-order optimization technique, we back-propagate the gradient and thus learn the word and topic vectors that lead to the document representations that best reconstruct \u0394.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning from the Network"
+        },
+        {
+            "text": "Common tasks in document network embedding are classification and link prediction. We assess the quality of the representations learned with IDNE for these tasks in two different settings: (1) a traditional setting where all links and documents are observed and (2) an inductive setting where only a fraction of the links and documents is observed during training.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Quantitative Evaluation"
+        },
+        {
+            "text": "The first setting corresponds to a scenario where the goal is to propagate labels associated with a small portion of the documents. The second represents a scenario where we want to predict labels and links for new documents that have no network information, once the algorithm is already trained. This is common setting in real world applications. As an example, when a new user asks a new question on a Q&A website, we would like to suggest tags for its question and to recommend potential similar questions. In this case, the only information available to the algorithm is the textual content of the question.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Quantitative Evaluation"
+        },
+        {
+            "text": "We detail here the setup we use to train IDNE.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "Computing the \u0394 Matrix. We consider paths of length up to 2 and compute the \u0394 matrix in the following manner:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "This means that two documents are considered close in the network if they are direct neighbors or share at least one neighbor. Note that this matrix is the binarized version of the matrix TADW factorizes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "Optimizing the Log-Likelihood. We perform mini-batch SGD with the ADAM [12] update rule. Because most document networks are sparse, rather than uniformly sampling entries of \u0394, we sample 5000 balanced mini-batches in order to favor convergence. We sample 16 ",
+            "cite_spans": [
+                {
+                    "start": 71,
+                    "end": 75,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 255,
+                    "end": 257,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "We consider 4 networks of documents of various nature:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Networks"
+        },
+        {
+            "text": "-A well-known scientific citation network extracted from Cora 2 . Each document is an article labelled with a conference. -New York Times (NYT) titles of articles from January 2007. Articles are linked according to common tags (e.g. business, arts, technology) and are labeled with the section they appear in (e.g. opinion, news). This network is particularly dense and documents have a short length. -Two networks of the Q&A website Stack Exchange (SE) 3 from June 2019, namely gaming.stackexchange.com and travel.stackexchange.com. We only keep questions with at least 10 user votes and that have at least one answer with 10 user votes or more. We build the network by linking questions with their answers and by linking questions and answers of the same user. The labels are the tags associated with each question (Table 1) . ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 817,
+                    "end": 826,
+                    "text": "(Table 1)",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Networks"
+        },
+        {
+            "text": "For each network, we consider a traditional classification tasks, an inductive classification task and an inductive link prediction task.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tasks and Evaluation Metrics"
+        },
+        {
+            "text": "-the traditional task refers to a setting where the model is trained on the entire network and the learned representations are used as features for a one-vs-all linear classifier with a training set of labelled documents ranging from 2% to 10% for multi-class networks and from 10% to 50% for multi-label networks. -the inductive tasks refer to a setting where 10% of the documents are removed from the network and the model is trained on the resulting sub-network. For the classification task, a linear classifier is trained with the representations and the labels of the observed documents. Representations for hidden documents are then generated in an inductive manner, using their textual content only. Classifications and link predictions are then performed on these induced representations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Tasks and Evaluation Metrics"
+        },
+        {
+            "text": "To classify the learned representations, we use the LIBLINEAR [8] logistic regression [14] algorithm and we cross validate the regularization parameter for each dataset and each model. Every experiment is repeated 10 times and we report the micro average of the area under the ROC curve (AUC). The AUC uses the probabilities of the logistic regression for all classes and evaluates the quality of the resulting ranking given the true labels. This metric is thus suitable for information retrieval tasks where we want to penalize wrong predictions depending on their ranks. For link prediction, we rank pairs of documents according to the cosine similarity between their representations.",
+            "cite_spans": [
+                {
+                    "start": 62,
+                    "end": 65,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 86,
+                    "end": 90,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Tasks and Evaluation Metrics"
+        },
+        {
+            "text": "For all document networks, we process the documents by tokenizing text into words, discarding punctuation, stop words and words that appear less than 5 times or in more than 25% of the documents. We create document-term matrices that are used as input for 6 algorithms. Our baselines are representative of the different approaches for document NE. TADW and GVNR-t are based on matrix factorization whereas CANE and G2G are deep learning models. For each of them, we used the implementations of the authors:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Compared Representations"
+        },
+        {
+            "text": "-LSA: we use a 256-dimensional SVD decomposition of the tf-idf vectors as a text-only baseline; -TADW: we follow the guidelines of the original paper by using 20 iterations and a penalty term \u03bb = 0.2. For induction, we generate a document vector by computing the textual component HT in Eq. 1; -Graph2gauss (G2G): we make sure the loss function converges before the maximum number of iterations; -GVNR-t: we use \u03b3 = 10 random walks of length t = 40, a sliding window of size l = 5 and a threshold x min = 5 with 1 iteration. For induction, we compute \u03b4j W |\u03b4j |1 in Eq. 2; -CANE: we use the same parameters as in the original paper; -IDNE: we run all experiments with n t = 32 topic vectors. The effect of n t is discussed in Sect. 4.6.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Compared Representations"
+        },
+        {
+            "text": "Tables 2 and 3 detail the AUC scores on the traditional classification task. We report the results for CANE only for Cora since the algorithm did not terminate within 10 h for the other networks. In comparison, our method takes about 5 min to run on each network on a regular laptop. The classifier performs well on the representations we learned, achieving similar or better results than the baseline algorithms on Cora, Gaming and Travel Stack Exchange. However, regarding the New York Times network, GVNR-t and TADW have a slight advantage. Because of its high density, the links in this network are little informative which may explain the relative good scores of the LSA representations. We hypothesize that (1) TADW benefits from its input LSA features and that (2) GVNR-t benefits both from its random walk based matrix of node co-occurrences [20] , which captures more precisely the proximities of the nodes in such dense network, and from the short length of the documents making the word embedding averaging efficient [1, 15] . Table 4 shows the AUC scores in the inductive settings. For link prediction IDNE performs best on three networks, showing its capacity to learn meaningful word and topic representations according to the network structure. For classification, LSA and GVNR-t achieve the best results while IDNE reaches similar but slightly lower scores on all datasets. On the contrary, TADW and Graph2gauss show weaknesses on NYT and Gaming SE.",
+            "cite_spans": [
+                {
+                    "start": 850,
+                    "end": 854,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1028,
+                    "end": 1031,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1032,
+                    "end": 1035,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1038,
+                    "end": 1045,
+                    "text": "Table 4",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "Results Analysis"
+        },
+        {
+            "text": "In summary, IDNE shows constant performances across all settings where other methods lack of robustness against the type of network or the type of task. A surprising result is the good scores of GVNR-t for inductive classification which we didn't expect given that its textual component only is used for this setting. However, for the traditional classification, GVNR-t has difficulties to handle networks with longer documents. IDNE does not suffer the same problem because TWA carefully select discriminative words before averaging them. In Sect. 5, we further show that IDNE learns meaningful representations of words and topics and builds interpretable document representations. Figure 2 shows the impact of the number of topic vectors n t and of the number of steps (mini-batches) on the AUC scores obtained in traditional classification with Cora. Note that we observe a similar behavior on the other networks. We see that the scores improve from 1 to 16 topics and tend to stagnate for upper values. In a similar manner, performances improve up to 5000 iterations after which no increase is observed. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 683,
+                    "end": 691,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Results Analysis"
+        },
+        {
+            "text": "We first show in Sect. 5.1 that IDNE is capable of learning meaningful word and topic vectors. Then, we provide visualizations of documents that highlight the ability of the topic-word attention to reveal topics of interest. For all experiments, we set the number of topics to n t = 6. Table 5 shows the closest words to each topic, computed as the dot product between their respective vectors, learned on Cora. Word and topic vectors are trained to predict the proximity of the nodes in a network, meaningless words are thus always dissimilar to the topic vectors, since they do not help to predict a link. This can be verified by observing the words that have the largest and the smallest norms, also reported in Table 5 . Even though the topics are learned in an unsupervised manner, we notice that, when we set the number of topics close to the number of classes, each topic seems to capture the semantics of one particular class. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 286,
+                    "end": 293,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 715,
+                    "end": 722,
+                    "text": "Table 5",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Qualitative Evaluation"
+        },
+        {
+            "text": "To further highlight the ability of our model to bring interpretability, we show in Fig. 3 the topics that most likely generated the words of a document according to TWA. The document is the abstract of this paper whose weights are inductively calculated with IDNE previously trained on Cora. We compute its attention weights Z i and associate each word k to the maximum value of its column Z i k . We then colorize and underline each word associated to the two most represented topics in the document, if its weight is higher than 1 2 . We see that the major topic (green and single underline), that accounts for 32% of the weights, deals with the type of data, here document networks. The second topic (blue and double underline), which represents 18% of the weights, relates to text modeling, with words like \"interpretable\" and \"topics\". ",
+            "cite_spans": [
+                {
+                    "start": 532,
+                    "end": 535,
+                    "text": "1 2",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 84,
+                    "end": 90,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Topic Attention Weights Visualization"
+        },
+        {
+            "text": "In this paper, we presented IDNE, an inductive document network embedding algorithm that learns word and latent topic representations via TWA, a topicword attention mechanism able to produce interpretable document representations. We showed that IDNE performs state-of-the-art results on various network in different settings. Moreover, we showed that our attention mechanism provides an efficient way of interpreting the learned representations. In future work, we would like to study the effect of the sampling of the documents on the learned topics. In particular, the matrix \u0394 could capture other types of similarities between documents such as SimRank [11] which measures structural relatedness between nodes instead of proximities. This could reveal complementary topics underlying a document network and could provide interpretable explanations of the roles played by documents in networks.",
+            "cite_spans": [
+                {
+                    "start": 657,
+                    "end": 661,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A simple but tough-to-beat baseline for sentence embeddings",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Arora",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Deep Gaussian embedding of graphs: unsupervised inductive learning via ranking",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bojchevski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "G\u00fcnnemann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Global vectors for node representations",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Brochier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Guille",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Velcin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "2587--2593",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Link prediction with mutual attention for textattributed networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Brochier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Guille",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Velcin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Companion Proceedings of the 2019 World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "283--284",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Relational topic models for document networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Blei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Artificial Intelligence and Statistics",
+            "volume": "",
+            "issn": "",
+            "pages": "81--88",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Indexing by latent semantic analysis",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Deerwester",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dumais",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Furnas",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Landauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Harshman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "J. Am. Soc. Inf. Sci",
+            "volume": "41",
+            "issn": "6",
+            "pages": "391--407",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.04805"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "LIBLINEAR: a library for large linear classification",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hsieh",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "9",
+            "issn": "",
+            "pages": "1871--1874",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "node2vec: scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "855--864",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Inductive representation learning on large graphs",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1024--1034",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "SimRank: a measure of structural-context similarity",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Jeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Widom",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the Eighth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "538--543",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Variational graph auto-encoders",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NIPS Workshop on Bayesian Deep Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Logistic Regression. Statistics for Biology and Health",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Kleinbaum",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Klein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/b97379"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Distributed representations of sentences and documents",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1188--1196",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Set transformer",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Kosiorek",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Choi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Teh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Neural word embedding as implicit matrix factorization",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Goldberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2177--2185",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Effective approaches to attention-based neural machine translation",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Luong",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Pham",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "1412--1421",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "The pagerank citation ranking: bringing order to the web",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Page",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Brin",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Motwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Winograd",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "GloVe: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Deepwalk: online learning of social representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Al-Rfou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "701--710",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Autoencoding variational inference for topic models",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sutton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "VERSE: versatile graph embeddings from similarity measures",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tsitsulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mottin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Karras",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "539--548",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "CANE: context-aware network embedding for relation modeling",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "1",
+            "issn": "",
+            "pages": "1722--1731",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Structural deep network embedding",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1225--1234",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Network representation learning with rich text information",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Twenty-Fourth International Joint Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Matrix computation of the attention weights. Here W i is the compact view of diag(Xi)W where zero-columns are removed since they do not impact on the result. n w i denotes the number of distinct words in document i. Each element z jk of Z i is the column-normalized rectified scalar product between the topic vector tj and the word embedding w i k and represents the strength of association between the topic j and the word k in document i. The final document representation is then the sum of the topic-specific representations",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "positive examples (\u03b4 ij = 1) and 16 negative ones (\u03b4 ij = 0) per mini-batch. Positive pairs of documents are drawn according to the number of paths of length 1 or 2 linking them. Negative samples are uniformly drawn. The impact of the number of steps is detailed in Sect. 4.6.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Impact of the number of topics and of the number of steps on the traditional classification task on Cora with IDNE.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Topics provided by IDNE in the abstract of this very paper trained on Cora.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "General properties of the studied networks.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Micro AUC scores on Cora and NYT",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Micro AUC scores on Stack Exchange networks",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Micro AUC scores for inductive classification and inductive link predictionInductive classificationInductive Link Prediction Cora NYT Gaming Travel Cora NYT Gaming Travel",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Topics with their closest words produced by IDNE on Cora and words whose vector L2 norms are the largest (resp. the smallest) reported in parenthesis. The labels in this dataset are: Case Based, Genetic Algorithms, Neural Networks, Probabilistic Methods, Reinforcement Learning, Rule Learning and Theory.Topic 1 Casebased, reasoning, reinforcement, knowledge, system, learning, decision Topic 2 Chain, belief, probabilistic, length, inference, distributions, markov Topic 3 Search, ilp, problem, optimal, algorithms, heuristic, decision Topic 4 Genetic, algorithm, fitness, evolutionary, population, algorithms, trees Topic 5 Bayesian, statistical, error, data, linear, accuracy, distribution Topic 6 Accuracy, induction, classification, features, feature, domains, inductive Largest Genetic (8.80), network (8.07), neural (7.43), networks (6.94), reasoning (6.16)",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

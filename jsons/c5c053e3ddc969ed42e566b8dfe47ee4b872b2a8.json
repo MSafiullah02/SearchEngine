@@ -1,0 +1,2189 @@
+{
+    "paper_id": "c5c053e3ddc969ed42e566b8dfe47ee4b872b2a8",
+    "metadata": {
+        "title": "Diagnosing BERT with Retrieval Heuristics",
+        "authors": [
+            {
+                "first": "Arthur",
+                "middle": [],
+                "last": "C\u00e2mara",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Delft University of Technology",
+                    "location": {
+                        "settlement": "Delft",
+                        "country": "The Netherlands"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "B",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Delft University of Technology",
+                    "location": {
+                        "settlement": "Delft",
+                        "country": "The Netherlands"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Claudia",
+                "middle": [],
+                "last": "Hauff",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Delft University of Technology",
+                    "location": {
+                        "settlement": "Delft",
+                        "country": "The Netherlands"
+                    }
+                },
+                "email": "c.hauff@tudelft.nl"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Word embeddings, made widely popular in 2013 with the release of word2vec, have become a mainstay of NLP engineering pipelines. Recently, with the release of BERT, word embeddings have moved from the term-based embedding space to the contextual embedding space-each term is no longer represented by a single lowdimensional vector but instead each term and its context determine the vector weights. BERT's setup and architecture have been shown to be general enough to be applicable to many natural language tasks. Importantly for Information Retrieval (IR), in contrast to prior deep learning solutions to IR problems which required significant tuning of neural net architectures and training regimes, \"vanilla BERT\" has been shown to outperform existing retrieval algorithms by a wide margin, including on tasks and corpora that have long resisted retrieval effectiveness gains over traditional IR baselines (such as Robust04). In this paper, we employ the recently proposed axiomatic dataset analysis technique-that is, we create diagnostic datasets that each fulfil a retrieval heuristic (both term matching and semantic-based)-to explore what BERT is able to learn. In contrast to our expectations, we find BERT, when applied to a recently released large-scale web corpus with ad-hoc topics, to not adhere to any of the explored axioms. At the same time, BERT outperforms the traditional query likelihood retrieval model by 40%. This means that the axiomatic approach to IR (and its extension of diagnostic datasets created for retrieval heuristics) may in its current form not be applicable to large-scale corpora. Additional-different-axioms are needed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Over the course of the past few years, IR has seen the introduction of a large number of successful deep learning approaches for solving all kinds of tasks previously tackled with hand-crafted features (within the learning to rank framework) or traditional retrieval models such BM25.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In 2017, with the introduction of the transformer architecture [33] , a second wave of neural architectures for NLP has emerged. Approaches (and respective models) like BERT [7] , XLNet [41] and GPT-2 [24] have shown that it is indeed possible for one general architecture to achieve state-of-the-art performance across very different NLP tasks (some of which are also related to IR tasks, such as question answering, reading comprehension, etc.).",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 67,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 174,
+                    "end": 177,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 186,
+                    "end": 190,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 201,
+                    "end": 205,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Ad-hoc retrieval, the task of ranking a set of documents given a single query, has long resisted the success of neural approaches, especially when employed across standard IR test collections such as Robust04 1 , which come with hundreds of topics (and thus relatively little training data). Often, the proposed neural approaches require a very careful design of their architecture. Also, the training regime and the input data transformations have to be just right [17] in order to beat or come close to well-tuned traditional IR baselines such as RM3 [2, 16] ",
+            "cite_spans": [
+                {
+                    "start": 466,
+                    "end": 470,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 553,
+                    "end": 556,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 557,
+                    "end": 560,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "With the introduction of BERT in late 2018, this has finally changed. Recently, a range of BERT-inspired approaches have been shown to clearly surpass all strong IR baselines on Robust04 [6, 40] and other IR corpora.",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 190,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 191,
+                    "end": 194,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "It is still an open question though what exactly makes BERT and similar approaches perform so well on IR tasks. While recent works try to understand what BERT learns most often by analysing attention values, e.g., [4, 12, 21, 32] , analysing BERT under the IR light requires a different set of tools. While most NLP tasks optimise for precision, recall or other objective metrics, the goal of ad-hoc retrieval is to optimise for relevance, a complex multidimensional and somewhat subjective concept [3] .",
+            "cite_spans": [
+                {
+                    "start": 214,
+                    "end": 217,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 222,
+                    "end": 225,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 226,
+                    "end": 229,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 499,
+                    "end": 502,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we set out to explore BERT under the IR lens, employing the concept of diagnostic datasets, an IR model analysis approach (inspired by similar NLP and computer vision approaches) proposed last year by Rennings et al. [25] . The idea behind these datasets is simple: each dataset is designed to fulfil one retrieval axiom [9] , i.e., a heuristic that a good retrieval function should fulfil 3 . Each dataset contains query-documents instances (most often, a query and two documents) that the investigated model should rank in the correct order as determined by the heuristic. The extent to which a model correctly ranks those instances is allowing us to gain insights into what type of information the retrieval model pays attention to (or not) when ranking documents. While traditional retrieval models such as BM25 [26] can be analysed analytically, neural nets with their millions or even billions of learnt weights can only be analysed in such an empirical manner.",
+            "cite_spans": [
+                {
+                    "start": 232,
+                    "end": 236,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 336,
+                    "end": 339,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 405,
+                    "end": 406,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 831,
+                    "end": 835,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "More concretely, we attempt to analyse a version of BERT, DistilBERT (that was shown to attain 97% of \"vanilla\" BERT performance [28] ), fine-tuned on the TREC 2019 Deep Learning track dataset 4 . We extend previous work [25] by incorporating additional axioms (moving from term matching to semantic axioms). We find that DistilBERT to outperform the traditional query likelihood (QL) model by 40%. In contrast to our expectations however, we find that BERT does not adhere to any of the axioms we incorporate in our work. This implies that the currently existing axioms are not sufficient and not applicable to capture 1 Robust04 is a test collection employed at the TREC 2004 robust retrieval task [35] , consisting of 528K newswire documents, 250 topics and 311K relevance judgements. 2 We want to emphasise here that this observation is specific to IR corpora with few training topics; for the very few corpora with hundreds of thousands of released topics (such as MSMarco) this observation does not hold. 3 As a concrete example, consider the TFC1 [9] heuristic: The more occurrences of a query term a document has, the higher its retrieval score. 4 https://microsoft.github.io/TREC-2019-Deep-Learning/. the heuristics that a strong supervised model learns (at least for the corpus and model we explore); it is not yet clear to what extent those results generalise beyond our model and corpus combination but it opens up a number of questions about the axiomatic approach to IR.",
+            "cite_spans": [
+                {
+                    "start": 129,
+                    "end": 133,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 221,
+                    "end": 225,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 700,
+                    "end": 704,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 788,
+                    "end": 789,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1011,
+                    "end": 1012,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1054,
+                    "end": 1057,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Axiomatic Information Retrieval. The use of axioms (or \"retrieval heuristics\") as a means to improve and understand information retrieval techniques is well established. It is an analytic technique to explore retrieval models and how best to improve them. In their seminal work, Fang et al. [9, 10] introduced a number of term-matching based heuristics that models should follow in order to be successful in retrieval tasks. Subsequently, Fang et al. [11] proposed a set of axioms based on semantic matching and thus allowing non-exact matches to be accounted for in axiomatic retrieval. We apply these axioms in our workalbeit in a slightly adapted manner. Other applications for axioms in IR include document re-ranking based on a Learning to Rank scenario [13] and query expansion [8] by exploring similar axioms. It should be noted, that-while sensible-it cannot be assumed that these axioms are a good fit for all kinds of corpora; they represent a general notion of how a good retrieval function should behave. Recently, Rennings et al. [25] introduced diagnostic datasets extracted from actual corpora that each fulfil one axiom. In contrast to the axiomatic approach, which requires an analytical evaluation of the retrieval functions under investigation, a diagnostic corpus enables us to analyse models' axiomatic performance that are too large to be analysed analytically (such as neural models with millions or even billions of parameters 5 ). Our work continues in that direction with a larger number of axioms (9 vs. 4) and the analysis of the current neural state-of-the-art (i.e., BERT).",
+            "cite_spans": [
+                {
+                    "start": 291,
+                    "end": 294,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 295,
+                    "end": 298,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 451,
+                    "end": 455,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 759,
+                    "end": 763,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 784,
+                    "end": 787,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1043,
+                    "end": 1047,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Neural IR Models. Neural IR models, i.e., deep learning based approaches that tackle IR problems, have seen a massive rise in popularity in the last few years, with considerable success [20] . Models like DRMM [19] , ARCII [14] and aNMM [39] have been shown to be suitable for a range of IR tasks when sufficient training data is available; it remains at best unclear at smaller data scale whether the reported successes are not just an artefact of weak baselines [17] .",
+            "cite_spans": [
+                {
+                    "start": 186,
+                    "end": 190,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 223,
+                    "end": 227,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 464,
+                    "end": 468,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently, a new wave of approaches, based on the transformer architecture [33] has shown that, finally, neural models can significantly outperform traditional and well-tuned retrieval methods such as RM3 [2] . Yang et al. [40] have shown that BERT, fine-tuned on the available TREC microblog datasets, and combined with a traditional retrieval approach such as query likelihood significantly outperforms well-tuned baselines, even on Robust04 which has shown to be a notoriously difficult dataset for neural models to do well on. With similar success, Dai and Callan [6] have recently employed another BERT variant on Robust04 and ClueWeb09. Lastly we point out, that works are now also beginning to appear, e.g., [18] , that use the contextual word embeddings produced by BERT in combination with another strong neural model, again with strong improvements over the existing baselines.",
+            "cite_spans": [
+                {
+                    "start": 74,
+                    "end": 78,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 204,
+                    "end": 207,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 222,
+                    "end": 226,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 567,
+                    "end": 570,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 714,
+                    "end": 718,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Analysing Neural IR Models. As we aim to analyse BERT, we also consider how others have tackled this problem. Analysing neural models-whether for IR, NLP or another research domain-is not a trivial task. By now a great number of works have tried to light up the black box of the neural learning models [1] , with varying degrees of success. Within IR, Pang et al. [22] have aimed to paint a complete and high-level picture of the neural IR area, comparing the behaviour of different approaches, and showing that interaction and representation-based models focus on different characteristics of queries and documents. While insightful, such work does not enable us to gain deep insights into a single model. Closer to our work, Rosset et al. [27] employ axioms to generate artificial documents for the training of neural models and the regularization of the loss function. In contrast, we employ axioms to analyze retrieval models.",
+            "cite_spans": [
+                {
+                    "start": 302,
+                    "end": 305,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 364,
+                    "end": 368,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 741,
+                    "end": 745,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Another direction of research has been the development of interpretation tools such as DeepSHAP [12] and LIRME [34] that aim to generate local explanations for neural IR models. Recently, in particular BERT (due to its successes across a wide range of tasks and domains) has become the focus of analysisnot within IR though. While approaches like [4] explore the attention values generated by the model's attention layers, Tenney et al. [32] argue that BERT is re-discovering classical NLP pipeline approaches in its layers, \"in an interpretable and localizable way\", essentially repeating traditional NLP steps in a similar order as an expert would do, with steps like POS tagging, parsing, NER and coreference resolution happening within its layers in the expected order. Finally, Niven et al. [21] raise some critical points about BERT, arguing that it only \"exploits spurious statistical cues in the dataset\"; they showcase this by creating adversarial datasets that can significantly harm its performance.",
+            "cite_spans": [
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 347,
+                    "end": 350,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 437,
+                    "end": 441,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 796,
+                    "end": 800,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The usage of diagnostic datasets as a means to analyse neural models is common in NLP, e.g. [15, 36, 37] as there are a large number of fine-grained linguistic tasks (anaphora resolution, entailment, negation, etc.) that datasets can be created for with relative ease. In contrast, in IR the central notion is relevance and although we know that it can be decomposed into various types (topical, situational, etc.) of relevance [29] , we have no easy way of creating datasets for each of these-it remains a time-intensive and expensive task. This also explains why corpora such as Robust04 remain useful and in use for such a long time. Instead, like Rennings et al. [25] we turn to the axiomatic approach to IR and create diagnostic datasets-one for each of our chosen retrieval heuristics. It has been shown that, generally, retrieval functions that fulfil these heuristics achieve a greater effectiveness than those that do not. In contrast to [25] which restricted itself to four term matching axioms, we explore a wider range of axioms, covering term frequency, document length, lower-bounding term frequency, semantic term matching and term proximity constraints. In total, we explore 9 axioms, all of which are listed in Table 1 with a short informal description of their main assumption of what a sensible retrieval function should fulfil. We note that this covers most of the term-matching and semantic-matching axioms that have been proposed. We have eliminated a small number from our work as we do not consider them relevant to BERT (e.g., those designed for pseudo-relevance feedback [5] ).",
+            "cite_spans": [
+                {
+                    "start": 92,
+                    "end": 96,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 97,
+                    "end": 100,
+                    "text": "36,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 428,
+                    "end": 432,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 667,
+                    "end": 671,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 947,
+                    "end": 951,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1597,
+                    "end": 1600,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1228,
+                    "end": 1235,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "As the axiomatic approach to IR has been designed to analytically analyse retrieval functions, in their original version they assume very specific artificial query and document setups. As a concrete example, let us consider axiom STMC1 [11] . It is defined as follows: given a single-term query Q = {q} and two single-term documents",
+            "cite_spans": [
+                {
+                    "start": 236,
+                    "end": 240,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "the retrieval score of D 1 should be higher than D 2 if the semantic similarity between q and d 1 is higher than that between q and d 2 . This description is sufficient to mathematically analyse classic retrieval functions, but not suitable for models with more than a handful of parameters. We thus turn to the creation of datasets that exclusively contain instances of query/documents (for STMC1 an instance is a triple, consisting of one query and two documents) that satisfy a particular axiom. As single-term queries and documents offer no realistic test bed, we extend (moving beyond single-term queries and documents) and relax (moving beyond strict requirements such as equal document length) the axioms in order to extract instances from existing datasets that fulfil the requirements of the extended and relaxed axiom. Importantly, this process requires no relevance judgements-we can simply scan all possible triples in the corpus (consisting of queries and documents) and add those to our diagnostic dataset that fulfil our requirements. We then score each query/document pair with our BERT model 6 and determine whether the score order of the documents is in line with the axiom. If it is, we consider our model to have classified this instance correctly.",
+            "cite_spans": [
+                {
+                    "start": 1109,
+                    "end": 1110,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "While Table 1 provides an informal overview of each heuristic, we now formally describe each one in more detail. Due to the space limitations, we focus on a mathematical notation which is rather brief. For completeness, we first state the original axiom and then outline how we extend and relax it in order to create a diagnostic dataset from it. For axioms TFC1, TFC2, LNC2 and M-TDC we follow the process described in [25] . We make use of the following notation: Q is a query and consists of terms q 1 , q 2 , ...; D i is a document of length |D i | containing terms d i1 , d i2 , ...; the count of term w in document D is c(w, D); lastly, S(Q, D) is the retrieval score the model assigns to D for a given Q. Apart from the proximity heuristic TP, the remaining heuristics are based on the bag-of-word assumption, i.e., the order of terms in the query and documents do not matter. TFC1-Adapted. In order to extract query/document/document triples from actual corpora, we need to consider multi-term queries and document pairs of approximately the same length. Let Q = {q 1 , q 2 , .., q |Q| } and |D 1 |\u2212|D 2 | \u2264 abs(\u03b4). S(Q, D 1 ) > S(Q, D 2 ) holds, when D 1 has at least the same query term count as D 2 for all but one query term (and for this term D 1 's count is higher), i.e.,",
+            "cite_spans": [
+                {
+                    "start": 420,
+                    "end": 424,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 13,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "TFC2-Adapted. Analogous to TFC1, queries can contain multiple terms and documents only have to have approximately the same length. Let Q = {q 1 , q 2 , .., q |Q| } and max Di,Dj \u2208{D1,D2,D3} (|D i | \u2212 |D j | \u2264 abs(\u03b4)). If every document contains at least one query term, and D 3 has more query terms than D 2 and D 2 has more query terms than D 1 , and the difference of query terms count between D 2 and D 1 should be the same as between D 3 and D 2 , for all query terms, i.e.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "M-TDC-Adapted. Again, Let Q contain multiple terms and |D 1 | \u2212 |D 2 | \u2264 abs(\u03b4). D 1 , D 2 also differ in at least one query term count (\u2203q i \u2208 Q, such that c(q i , D 1 ) = c(q i , D 2 )). If, for all query term pairs the conditions hold that c(q i , For the following semantic axioms, let us define the function \u03c3(t 1 , t 2 ) as the cosine distance between the embeddings of terms t 1 and t 2 . We also define \u03c3 (T 1 , T 2 ), where T can be either a document D or a query Q, as an extension to \u03c3, defined by \u03c3 (T 1 , T 2 ) = cos( i\u2208T 1 ti |T1| , i\u2208T 2 ti |T2| ), the cosine distance between the average term embeddings for each document. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "We allow Q to be a multiple query term, D 1 to contain non-query terms and D 2 to contain query terms. If",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "STMC2-Adapted."
+        },
+        {
+            "text": "Let Q = {q 1 , q 2 } be a two-term query and d a non-query term such that \u03c3(d, ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "STMC3-Original."
+        },
+        {
+            "text": "We create diagnostic datasets for each of these axioms by extracting instances of queries and documents that already exist in the dataset. In this section, we explain how these datasets were generated and how we employed them to evaluate BERT.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "In order to extract diagnostic datasets, we used the corpus and queries for the Document Ranking Task from the TREC 2019 Deep Learning track 7 . This is the only publicly available ad-hoc retrieval dataset that was built specifically for the training of deep neural models, with 3,213,835 web documents and 372,206 Table 1 . Overview of retrieval heuristics employed in our work. The diagnostic datasets for heuristics marked with a blue background were first discussed in [25] . The naming of the heuristics is largely taken from the papers proposing them.",
+            "cite_spans": [
+                {
+                    "start": 473,
+                    "end": 477,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 315,
+                    "end": 322,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "TREC 2019 Deep Learning Track"
+        },
+        {
+            "text": "Term frequency constraints TFC1 [9] The more occurrences of a query term a document has, the higher its retrieval score. TFC2 [9] The increase in retrieval score of a document gets smaller as the absolute query term frequency increases. M-TDC [9, 30] The more discriminating query terms (i.e., those with high IDF value) a document contains, the higher its retrieval score.",
+            "cite_spans": [
+                {
+                    "start": 32,
+                    "end": 35,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 126,
+                    "end": 129,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 247,
+                    "end": 250,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Heuristic Informal description Instance"
+        },
+        {
+            "text": "Length normalization constraints LNC1 [9] The retrieval score of a document decreases as terms not appearing in the query are added. LNC2 [9] A document that is duplicated does not have a lower retrieval score than the original document.",
+            "cite_spans": [
+                {
+                    "start": 38,
+                    "end": 41,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 138,
+                    "end": 141,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Heuristic Informal description Instance"
+        },
+        {
+            "text": "Semantic term matching constraints STMC1 [11] A document's retrieval score increases as it contains terms that are more semantically related to the query terms. STMC2 [11] The document terms that are a syntactic match to the query terms contribute at least as much to the document's retrieval score as the semantically related terms. STMC3 [11] A document's retrieval score increases as it contains more terms that are semantically related to different query terms.",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 171,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 340,
+                    "end": 344,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Heuristic Informal description Instance"
+        },
+        {
+            "text": "A document's retrieval score increases as the query terms appearing in it appear in closer proximity. what is a flail chest a constitution is best described as a(n) . -)what was the immediate impact of the success of the manhattan project?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Term proximity constraint TP [31]"
+        },
+        {
+            "text": "The queries consist on average of 5.89(\u00b12.51) words while documents consist on average of 1084.88(\u00b12324.22) words.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Term proximity constraint TP [31]"
+        },
+        {
+            "text": "Most often, one relevant document exists per query (1.04 relevant documents on average). These relevance judgements were made by human judges on a passage-level: if a passage within a document is relevant, the document is considered relevant. Unlike other TREC datasets, like Robust04, there is no topic description or topic narrative.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Term proximity constraint TP [31]"
+        },
+        {
+            "text": "At the time of this writing, the relevance judgements for the test queries were not available. Therefore, we split the development queries further, in a new dev and test dataset, in a 70%-30% fashion. In the rest of this paper, when we refer to the test or dev dataset, we are referring to this split. The train split remains the same as the original dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Term proximity constraint TP [31]"
+        },
+        {
+            "text": "We begin by indexing the document collection using the Indri toolkit 8 , and retrieve the top-100 results using a traditional retrieval model with just one hyperparameter, namely, QL, with Indri's default setting (Dirichlet smoothing [42] and \u03bc = 2500). Finally, for BERT, we employ Hugging Face's library 9 of DistilBERT [28] , a distilled version of the original BERT model, with fewer parameters (66 million instead of 340 million), and thus more efficient to train, but with very similar results.",
+            "cite_spans": [
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 322,
+                    "end": 326,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Retrieval and Ranking"
+        },
+        {
+            "text": "We fine-tuned our BERT 10 model with 10 negative samples for each positive sample from the training dataset, randomly picked from the top-100 retrieved from QL. We set the maximum input length to 512 tokens. For fine-tuning we used the sequence classification model. It is implemented by adding a fullyconnected layer on top of the [CLS] token embedding, which is the specific output token of the BERT model that our fine-tuning is based upon.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Retrieval and Ranking"
+        },
+        {
+            "text": "Given the limitation of BERT regarding the maximum number of tokens, we limited the document length to its first 512 tokens, though we note that alternative approaches exist (e.g., in [40] the BERT scores across a document's passages/sentences are aggregated). In Table 3 , we report the retrieval effectiveness in terms of nDCG and MRR for the documents limited to 512 tokens. We rerank the top-100 retrieved documents based on its first 512 tokens. It is clear that BERT is vastly superior to QL with a 40% improvement in nDCG and 25% improvement in MRR.",
+            "cite_spans": [
+                {
+                    "start": 184,
+                    "end": 188,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 264,
+                    "end": 271,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Retrieval and Ranking"
+        },
+        {
+            "text": "Given the adapted axioms defined in Sect. 3, we now proceed on describing how to extract actual datasets from our corpus. STMC3 We define \u03c3 as the cosine distance between the embeddings of the terms and \u03c3 as the cosine distance between the average embeddings. We trained the embeddings using GLoVe [23] on the entire corpus. For STMC3, we set \u03b4 = 0.2.",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 127,
+                    "text": "STMC3",
+                    "ref_id": null
+                },
+                {
+                    "start": 298,
+                    "end": 302,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diagnostic Datasets"
+        },
+        {
+            "text": "In Table 2 we list the number of diagnostic instances we created for each diagnostic dataset. In addition, we also performed a sanity check on the extent to which the document order determined by each axiom corresponds to the relevance judgements. Although only a small set of instances from each diagnostic dataset contains a document with a relevant document (row II in Table 2) we already see a trend: apart from TFC1 and M-TDC where 91% and 82% of the diagnostic instances have an agreement between axiomatic ordering and relevance ordering, the remaining axioms are actually not in line with the relevance ordering for most of the instances. This is a first indication that we have to consider an alternative set of axioms, better fit for such a corpus, in future work.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 2",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 372,
+                    "end": 380,
+                    "text": "Table 2)",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In Table 3 we report the fraction of instances both QL and BERT fulfil for each diagnostic dataset. As expected, QL correctly (as per the axiom) ranks the document pairs or triples most of the time, with the only outlier being TP, where QL performs essentially random-again, not a surprise given that QL is a bag-ofwords model. In contrast-with the exception of LNC2, where BERT's ranking is 11 Note that we only append the document to itself if the final size does not exceed 512.",
+            "cite_spans": [
+                {
+                    "start": 392,
+                    "end": 394,
+                    "text": "11",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "essentially the opposite of what the LNC2 axiom considers correct (with only 6% of the instances ranked correctly)-BERT has not learnt anything that is related to the axioms as the fraction of correctly ranked instances hovers around 50% (which is essentially randomly picking a document order). Despite this lack of axiomatic fulfilment, BERT clearly outperforms QL, indicating that the existing axioms are not suitable to analyse BERT. The reverse ranking BERT proposes for nearly all of the LNC2 instances can be explained by the way the axiom is phrased. It is designed to avoid over penalising documents, and thus a duplicated document should always have a retrieval score that is not lower than the original document. The opposite argument though could be made too (and BERT ranks accordingly), that a duplicated document should not yield a higher score than the original document as it does not contain novel/additional information. As we did not provide LNC2 instances in the training set, BERT is not able to rank according to the axiom, in line with the findings of other neural approaches as shown by Rennings et al. [25] .",
+            "cite_spans": [
+                {
+                    "start": 1128,
+                    "end": 1132,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Finally, we observe that, counter-intuitively, BERT does not show a performance better than QL for semantic term matching constraints. For instance, one may expect that BERT would fare quite well on STMC1, given its semantic nature. However, our results indicate that BERT is actually considers term matching as one of its key features. In order to further explore this tension between semantic and syntactic term matching, we split the queries in our test set by their term overlap between the query and the relevant document (if several relevant documents exist for a query, we randomly picked one of them). If a query/document has no (or little) term overlap, we consider this as a semantic match. The results of this query split can be found in Fig. 1 . We split the query set roughly into three equally sized parts based on the fraction of query terms appearing in the relevant document (as an example, if a query/document pair has a fraction of 0.5, half of all query terms appear in the document). We report results for all queries (Fig. 1 (left) ), as well as only those where the relevant document appears in the top-100 QL ranking ( Fig. 1 (right) ). We find that BERT outperforms QL across all three splits, indicating that BERT is indeed able to pick up the importance of syntactic term matching. At the same time, as expected, BERT is performing significantly better than QL for queries that require a large amount of semantic matching. That brings into question on why, then, the axiomatic performance across our semantic axiomatic datasets does not reflect that. One hypothesis is that the semantic similarity we measure (based on context-free word embeddings) is different to the semantic similarity measured via contextual word embeddings. This in itself is an interesting avenue for future work, since it brings a new question on what that semantic relationship is, and how to accurately measure it. Fig. 1 . The test queries are split into three sets, depending on the fraction of term overlap between the query and its corresponding relevant document. On the left, we plot all queries, on the right only those queries for which the relevant document appears in the top-100 ranked documents of the QL ranking.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 749,
+                    "end": 755,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 1039,
+                    "end": 1053,
+                    "text": "(Fig. 1 (left)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1143,
+                    "end": 1157,
+                    "text": "Fig. 1 (right)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1918,
+                    "end": 1924,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In this paper, we set out to analyze BERT with the help of the recently proposed diagnostic datasets for IR based on retrieval heuristics approach [25] . We expected BERT to perform better at fulfilling some of the proposed semantic axioms. Instead, we have shown that BERT, while significantly better than traditional models for ad-hoc retrieval, does not fulfil most retrieval heuristics, created by IR experts, that are supposed to produce better results for ad-hoc retrieval models. We argue that based on these results, the axioms are not suitable to analyse BERT and it is an open question what type of axioms would be able to capture some performance aspects of BERT and related models. In fact, how to arrive at those additional axioms, based on the knowledge we have now gained about BERT is in itself an open question.",
+            "cite_spans": [
+                {
+                    "start": 147,
+                    "end": 151,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion and Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP. ACL",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Linzen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chrupala",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alishahi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "UMass at TREC 2004: Novelty and HARD",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Abdul-Jaleel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Computer Science Department Faculty Publication Series",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "The concept of relevance in IR",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Borlund",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "J. Am. Soc. Inf. Sci. Technol",
+            "volume": "54",
+            "issn": "10",
+            "pages": "913--925",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "What does BERT look at? An analysis of BERT's Attention",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Khandelwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Is document frequency important for PRF?",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gaussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ICTIR 2011",
+            "volume": "6931",
+            "issn": "",
+            "pages": "89--100",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-23318-0_10"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Deeper text understanding for IR with contextual neural language modeling",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "985--988",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "NAACL-HLT (1)",
+            "volume": "",
+            "issn": "",
+            "pages": "4171--4186",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A re-examination of query expansion using lexical resources",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "139--147",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "A formal study of information retrieval heuristics",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "49--56",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "An exploration of axiomatic approaches to information retrieval",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "480--487",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Semantic term matching in axiomatic approaches to information retrieval",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "115--122",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A study on the interpretability of neural retrieval models using DeepSHAP",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Fernando",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Anand",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "1005--1008",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Axiomatic result re-ranking",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hagen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "V\u00f6lske",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "G\u00f6ring",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "721--730",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Convolutional neural network architectures for matching natural language sentences",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "2042--2050",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Adversarial examples for evaluating reading comprehension systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2021--2031",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Relevance-based language models",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Lavrenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "120--127",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "The neural hype and comparisons against weak baselines",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "SIGIR Forum",
+            "volume": "52",
+            "issn": "2",
+            "pages": "40--51",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "CEDR: contextualized embeddings for document ranking",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Macavaney",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "1101--1104",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Deep relevance ranking using enhanced document-query interactions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Brokos",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Androutsopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1849--1860",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "An introduction to neural information retrieval",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "13",
+            "issn": "1",
+            "pages": "1--126",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Probing neural network comprehension of natural language arguments",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Niven",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ACL (1)",
+            "volume": "",
+            "issn": "",
+            "pages": "4658--4664",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "A deep investigation of deep IR models",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "GloVe: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Language models are unsupervised multitask learners",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radford",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Child",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Luan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Amodei",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "An axiomatic approach to diagnosing neural IR models",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rennings",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Moraes",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fuhr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ECIR 2019",
+            "volume": "11437",
+            "issn": "",
+            "pages": "489--503",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-15712-8_32"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "The probabilistic relevance framework: BM25 and beyond",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "3",
+            "issn": "4",
+            "pages": "333--389",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "An axiomatic approach to regularizing neural ranking models",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rosset",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tiwary",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "981--984",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "DistilBERT, a Distilled Version of BERT: Smaller. Faster, Cheaper and Lighter",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sanh",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Debut",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chaumond",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Relevance reconsidered",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Saracevic",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "",
+            "volume": "2",
+            "issn": "",
+            "pages": "201--218",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Gravitation-based model for information retrieval",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Wen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "488--495",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "An exploration of proximity measures in information retrieval",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "295--302",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "BERT rediscovers the classical NLP pipeline",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Tenney",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Das",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Pavlick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ACL (1)",
+            "volume": "",
+            "issn": "",
+            "pages": "4593--4601",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "LIRME: locally interpretable ranking model explanation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Verma",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ganguly",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "1281--1284",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Overview of the TREC 2004 robust retrieval track",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "GLUE: a multi-task benchmark and analysis platform for natural language understanding",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hill",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bowman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "BlackboxNLP@EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "353--355",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Towards AI-complete question answering: a set of prerequisite toy tasks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chopra",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICLR (Poster)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Google's neural machine translation system: bridging the gap between human and machine translation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "aNMM: ranking short answer texts with attention-based neural matching model",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "287--296",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Simple applications of BERT for ad hoc document retrieval",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "XLNet: generalized autoregressive pretraining for language understanding",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Carbonell",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "5754--5764",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "A study of smoothing methods for language models applied to ad hoc information retrieval",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ACM SIGIR Forum",
+            "volume": "51",
+            "issn": "",
+            "pages": "268--276",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "TFC1-Original. Assume Q = {q} and |D 1 | = |D 2 |. If c(q, D 1 ) > c(q, D 2 ), then S(Q, D 1 ) > S(Q, D 2 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "D 2 ) and c(q i , Q) \u2265 c(q j , Q), then S(Q, D 1 ) \u2265 S(Q, D 2 ).LNC1-Original.Let Q be a query and D 1 , D 2 be two documents. If for some q / \u2208 Q, c(q , D 2 ) = c(q , D 1 ) + 1 and for any q \u2208 Q c(q, D 2 ) = c(q, D 1 ), then S(Q, D 1 ) \u2265 S(Q, D 2 ).LNC1-Adapted.The axiom can be used with no adaptation.LNC2-Original. Let Q be a query. \u2200k > 1, if D 1 and D 2 are two documents such that |D 1 | = k \u00b7 |D 2 |, and \u2200q \u2208 Q, c(q, D 1 ) = k \u00b7 c(q, D 2 ), then S(Q, D 1 ) \u2265 S(Q, D 2 ).LNC2-Adapted. The axiom can be used with no adaptation. TP-Original. Let Q = {q 1 , q 2 , ...q |Q| } be a query and D a document generated by switching the position of query terms in D. Let \u03c3(Q, D) be a function that measures the distance of query terms q i \u2208 Q inside a document D. If \u03c3(Q, D) > \u03c3(Q, D ), then S(Q, D) < S(Q, D ). TP-Adapted. Let \u0393(D, Q) = min (q1,q2\u2208Q\u2229D,q1 =q2) Dis(q 1 , q 2 ; D) be a function that computes the minimum distance between every pair of query terms in D. If \u0393(D 1 , Q) < \u0393(D 2 , Q), then S(Q, D 1 ) > S(Q, D 2 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "STMC1-Original. Let Q = {q} be a one-term query, D 1 = {d 11 } and D 2 = {d 21 } be two single term documents, such that d 11 = d 21 , q = d1 1 and q = d 21 . If \u03c3(q, d 11 ) > \u03c3(q, d 21 ), then S(Q, D 1 ) > S(Q, D 2 ). STMC1-Adapted. We allow D 1 and D 2 to be arbitrarily long, covering the same number of query terms (i.e. |D 1 Q| = |D 2 Q|). Assume {D i } \u2212 {Q} be the document D i without query terms, If \u03c3 ({D 1 } \u2212 {Q}, Q) > \u03c3 ({D 2 } \u2212 {Q}, Q), then S(Q, D 1 ) > S(Q, D 2 ). STMC2-Original. Let Q = {q} be a one-term query and d a non-query term such that \u03c3(d, q) > 0. If D 1 = {q} and |D 2 | = k, (k \u2265 1), composed entirely of d's (i.e.vc(d, D 2 ) = k), then S(Q, D 1 ) \u2265 S(Q, D 2 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "q1, D 2 ) = |D 2 | \u2212 1 and c(d, D 2 ) = 1, then S(Q, D 1 ) \u2264 S(Q, D 2 ). STMC3-Adapted. Let D 1 and D 2 be two arbitrary long documents that covers the same number of query terms (i.e. |D 1 Q| = |D 2 Q|). If |D 1 | \u2212 |D 2 | \u2264 abs(\u03b4), qi\u2208Q c(q i , D 1 ) > qi\u2208Q c(q i , D 2 ) and \u03c3 ({D 2 }\u2212{Q}, Q) > \u03c3 ({D 1 }\u2212{Q}, Q), then S(Q, D 1 ) > S(Q, D 2 ).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "queries (367,013 queries in the training set and 5,193 in the development set). The queries and documents, while stripped of HTML elements, are not necessarily well-formed as seen in the following examples from the training set:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "TFC1, TFC2, M-TDC, LNC1 We add tuples of queries and documents {q,d i , d j } (or {q, d i , d j , d k } for TFC2)for every possible pair of documents {d i , d j } in the top 100 retrieved by QL that follow the assumptions from Sect. 3, with \u03b4 = 10. We also compute IDF for M-TDC on the complete corpus of documents, tokenized by WordPiece[38].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Overview of the retrieval effectiveness (nDCG columns) and the fraction of diagnostic dataset instances each model ranks correctly. nDCG MRR TFC1 TFC2 M-TDC LNC1 LNC2 TP STMC1 STMC2 STMC3 QL 0.2627 0.3633 0.99 0.70 0.88 0.50 1.00 0.39 0.49 0.70 0.70 DistilBERT 0.3633 0.4537 0.61 0.39 0.51 0.50 0.00 0.41 0.50 0.51 0.51",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Overview of the number of instances in each diagnostic dataset (row I), the number of instances within each diagnostic dataset that contain a relevant document (row II) and the fraction of instances among all of row II where the order of the documents according to the axiom is in line with the relevance judgments. LNC2 is based on new documents, thus, it does not have a fraction of agreement",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgement. This research has been supported by NWO project SearchX (639.022.722).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

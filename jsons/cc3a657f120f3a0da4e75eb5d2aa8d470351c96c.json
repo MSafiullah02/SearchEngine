@@ -1,0 +1,1769 @@
+{
+    "paper_id": "cc3a657f120f3a0da4e75eb5d2aa8d470351c96c",
+    "metadata": {
+        "title": "Adding Concurrency to a Sequential Refinement Tower",
+        "authors": [
+            {
+                "first": "Gerhard",
+                "middle": [],
+                "last": "Schellhorn",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Augsburg",
+                    "location": {
+                        "settlement": "Augsburg",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Stefan",
+                "middle": [],
+                "last": "Bodenm\u00fcller",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Augsburg",
+                    "location": {
+                        "settlement": "Augsburg",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "J\u00f6rg",
+                "middle": [],
+                "last": "Pf\u00e4hler",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Augsburg",
+                    "location": {
+                        "settlement": "Augsburg",
+                        "country": "Germany"
+                    }
+                },
+                "email": "joerg.pfaehler@gmx.de"
+            },
+            {
+                "first": "Wolfgang",
+                "middle": [],
+                "last": "Reif",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Augsburg",
+                    "location": {
+                        "settlement": "Augsburg",
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "This paper defines a concept and a verification methodology for adding concurrency to a sequential refinement tower of abstract state machines, that is based on data refinement and a component structure.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We have developed such a refinement tower for the Flashix file system earlier, from which we generate executable (C and Scala) Code.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "The question we answer in this paper, is how to add concurrency based on locks to such a refinement tower, without breaking the initial modular structure. We achieve this by just enhancing the relevant components, and adding intermediate atomicity refinements that complement the data refinements that are already there. We also give a verification methodology for such atomicity refinements.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Supported by the Deutsche Forschungsgemeinschaft (DFG), \"Verifikation von Flash-Dateisystemen\" (grants RE828/13-1 and RE828/13-2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Development of formally proved software systems using incremental refinement has been successfully used in many case studies. Often the system developed is a sequential system, e.g. a compiler. The standard technique used then is data refinement [8, 9, 14] or closely related definitions [2] .",
+            "cite_spans": [
+                {
+                    "start": 246,
+                    "end": 249,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 250,
+                    "end": 252,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 253,
+                    "end": 256,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 288,
+                    "end": 291,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our group has developed a verified file system for flash memory [12, 13, 22 ,26] using a strategy based on data types specified as abstract state machines (ASMs, [4] ), data refinement, and subcomponents. The resulting refinement tower is shown in Fig. 1 . It starts with an abstract state machine that specifies the POSIX file system operations. This interface is then refined to an implementation VFS (denoted by VFS POSIX), which calls operations of a submachine AFS. This machine acts as an abstract interface to the next implementation. This continues until the MTD layer is reached, which is the generic interface for flash hardware used in Linux.",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 68,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 69,
+                    "end": 72,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 73,
+                    "end": 75,
+                    "text": "22",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 162,
+                    "end": 165,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 248,
+                    "end": 254,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Scala code for simulations as well as C code integrated into the Linux kernel has been generated from the implementations (shown in grey). The file system so far is strictly sequential, i.e., all operations are called in sequential order. Adding concurrency is however relevant for practical usability and efficiency on at least three levels: top-level operations, garbage collection and wear leveling.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Since existing refinement strategies are typically designed to start with an atomic specification that is refined to a concurrent system, this raises the question how to add concurrency a posteriori to intermediate levels of such a refinement tower without losing modularity and without having to start verification from scratch. This paper gives a positive answer to the question, by \"shifting\" parts of the refinement towers, i.e., by modifying individual specifications and implementations, to make them concurrent.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We will use erase block management (the EBM interface) and the concurrent implementation of wear leveling (WL) based on the interface Blocks as an example to demonstrate how concurrency is added. A specification of the sequential specifications and refinements involved has already been published in [23] .",
+            "cite_spans": [
+                {
+                    "start": 300,
+                    "end": 304,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fig. 1. Flashix refinement tower"
+        },
+        {
+            "text": "The next section will give a simplified version of the relevant sequential specifications and implementation, to demonstrate in Sect. 3 how concurrency using locks is added and how restrictions are encoded as ownership constraints. Section 4 informally introduces the well-known concept of linearizability as the relevant concept to verify correctness of concurrent implementations, and shows how the proof of linearizability can be split into one of data refinement (that reuses the original proof) and one of atomicity refinement. Section 5 will give a proof strategy based on rely-guarantee proofs and reduction. Both have been implemented in our KIV [11] theorem prover. The specifications and proofs for the case study are available online [18] . Section 6 gives related work, and Sect. 7 concludes.",
+            "cite_spans": [
+                {
+                    "start": 654,
+                    "end": 658,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 745,
+                    "end": 749,
+                    "text": "[18]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fig. 1. Flashix refinement tower"
+        },
+        {
+            "text": "Flash hardware is partitioned into erase blocks. Blocks can be written sequentially, and erased as a whole. Erasing wears out the block until it becomes unusable. Therefore, for efficient usage of a flash device, blocks must be worn out evenly. In particular if a device is filled to a large part with static data, the blocks with these data must sometimes be swapped with other (currently empty) blocks, that have often been modified and erased. This is called wear leveling. Wear leveling is hidden from the more abstract levels of the file system by the erase block manager (EBM) interface. The interface offers access to logical blocks. The task of the implementation (WL) is to map them to the physical blocks offered by the hardware, and to change the mapping when this is advisable, using an internal operation for wear leveling that has no effect (implements skip) for the interface EBM.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "An abstract specification of the erase block manager is given with the ASM EBM. The state consists of a function that maps logical block numbers to actual content and a set of currently used (\"mapped\") block numbers. The implementation of EBM is given by the ASM WL together with a specification Blocks as a submachine. This refinement introduces the distinction between logical and physical blocks. Blocks allows reading and writing of physical blocks while WL is responsible for the mapping of logical to physical blocks. Furthermore, the wear leveling algorithm is implemented in WL.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "To enable wear leveling each physical block in Blocks contains a header. This header stores which logical block is mapped to the physical block or if the block is currently unmapped (\u22a5). The state of Blocks is a function that maps physical block numbers to blocks. Initially all blocks are unmapped and empty. The interface of Blocks as shown in Fig. 3 provides additional functionality to write and read the header of a physical block. Accessing the content of a block requires it to be mapped, i.e., the header of the block must not be \u22a5. For wear leveling the interface also offers an interface operation blocks get wl that returns two physical blocks from and to, that are suitable for wear leveling. The actual decision is based on erase counts (also stored in block headers), but we leave the concrete implementation open here. To signal that wear leveling is currently unnecessary, the operation returns a block from with an unmapped header.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 346,
+                    "end": 352,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "The operations of WL are depicted in Fig. 4 . To avoid scanning the headers of all blocks, the state of WL maintains an in-memory mapping from logical block numbers to headers, which contain the corresponding physical block numbers if the logical block is mapped. Reading and writing of content delegates to the corresponding operations of Blocks by following LMap. If a logical block is unmapped, the write operation first maps this block to an unused physical block by writing a header and updating LMap. Therefore Blocks provides an operation blocks map that returns a fresh block that can be mapped.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 37,
+                    "end": 43,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "The wear leveling operation wl wear leveling, that is not visible to the clients, first requests a pair of blocks to be wear leveled by calling blocks get wl. If the from Block is mapped, its header and content are copied to the to Block and LMap is updated. We leave away many details here, that ensure, that crashing in the middle of wear leveling will result in a consistent state, see [23] .",
+            "cite_spans": [
+                {
+                    "start": 389,
+                    "end": 393,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "To prove the refinement WL EBM three invariants are established in WL. The three predicates guarantee a valid mapping between logical and physical blocks. injective prohibits that two logical blocks are mapped to the same physical block, lmapblocks ensures that each mapped physical block in lmap points to the correct logical block, and blockslmap ensures that each mapped physical block also has a matching entry in lmap.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "The abstraction relation between states of the specification and states of the implementation ensures that mapped blocks in Mapped conform with mapped logical blocks in LMap and that contents of Contents conform to the contents of the mapped physical blocks in Blocks. Together with the invariants this is sufficient to prove a data refinement using forward simulation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The Refinement for Wear Leveling"
+        },
+        {
+            "text": "The sequential code calls the wear leveling operation at the end of every other operation. This causes small pauses in between operations. A better solution is to call wear leveling in a separate thread concurrently. This exploits that even the MTD hardware interface is capable of reading and writing different blocks concurrently. This is not possible for individual blocks, since these do not provide random access, but can be written sequentially only.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Adding Concurrency and Ownership"
+        },
+        {
+            "text": "Adding concurrency implies that interface operations are now called concurrently by several threads, and it is natural to assume that they now have an atomic semantics (which is the natural semantics of ASMs, but was not required in a sequential context). We emphasize this, by writing EBM At and Blocks At for EBM and Blocks with atomic semantics, although the machines are the same. Assuming an atomic semantics for the implementation is however unrealistic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Adding Concurrency and Ownership"
+        },
+        {
+            "text": "A simple solution that enforces an atomic semantics for an implementation is to use a single global mutex, that is set before each operation and released afterwards. Doing so for the operations of WL would however prevent wear leveling from running concurrent.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Adding Concurrency and Ownership"
+        },
+        {
+            "text": "An implementation of Blocks that uses such a simple locking strategy would be correct to enforce atomicity, but too restrictive as it would prevent concurrent access to different blocks. It would also not be sufficient for the correctness of WL. To understand this, consider the implementation of wl write in Fig. 4 and a potential interleaving of two concurrent executions of this operation as depicted in Fig. 5 . Here two threads tid 1 and tid 2 write two contents to different logical blocks lnum 1 resp. lnum 2 . Both logical blocks are unmapped so by calling blocks map unmapped physical blocks are chosen to be mapped. Although the operation is atomic it is possible that for tid 2 the same physical block pnum is returned as for tid 1 since tid 1 has not written the new header yet. Both threads would then write to the same physical block, first different headers that point to lnum 1 resp. lnum 2 , then different contents c 2 resp. c 1 . After both writes finish an inconsistent state is reached to the effect that the written data of tid 2 is lost and the injectivity of the block mapping is violated. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 309,
+                    "end": 315,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 407,
+                    "end": 413,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Adding Concurrency and Ownership"
+        },
+        {
+            "text": "A concept is needed that enforces on the level of Blocks that its implementation can assume that only one thread is writing each block at one time, and that headers are written by a single thread only.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "The concept we use is that of threads owning data structures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "data owner = readers(tids : set threadid ) | writer(tid : threadid )",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "ghoststate OBlocks : nat \u2192 owner OHeaders : owner An owner can either own a data structure non-exclusively (typically for reading) or exclusively for writing. That a thread owns all headers or some block for reading or writing is specified as two ghost variables OHeaders and OBlocks. To ensure, that clients of the extended interface Blocks Owns shown in Fig. 6 respect the ownership, we add preconditions to the operations, that request read-ownership for reading and write-ownership for writing blocks and headers. A thread that wants to call an operation of Blocks Owns must now acquire ownership before it and can release ownership afterwards. For this purpose the interface is extended with two auxiliary acquire and release operations. These acquire and release full ownership, which is sufficient for the concurrent implementation of wear leveling given below. It is possible to add operations that acquire and release read-ownership too. Acquiring full ownership has the precondition that there is no current owner. If two threads now try to write the same block, one of them will violate the precondition of acquire (if it tries to acquire) or it will violate the precondition of writing (if it does not). But this is impossible, since submachine calls in implementations are checked to satisfy their preconditions. Calls to acquire and release in the augmented code of wear leveling will now ensure, that ownership is properly acquired. They are used for verification, but are \"ghost code\" that is eliminated when generating executable code.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 356,
+                    "end": 362,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "To make sure, that calls to acquire never violate their precondition, we have to use locks in the extended implementation of WL given in Fig. 8 . The simple implementation we give here just uses mutexes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 137,
+                    "end": 143,
+                    "text": "Fig. 8",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "The locking and unlocking operations mutex lock and mutex unlock are specified as the atomic program statements given in Fig. 7 . The definition of mutex lock uses the program construct atomic \u03d5 { \u03b1 }. The atomic construct blocks the current thread until its guard \u03d5 is satisfied. Immediately afterwards, the program \u03b1 is executed in a single, indivisible step. Fig. 7 . Mutex locking operations Figure 8 shows the result of applying sufficient locking and ownership acquisition to WL. Additionally, each atomic step gets an individual label (W1-W18, R1-R8, and WL1-WL21) to give assertions for this program point when reasoning about atomicity (see Sect. 5). We refer to this concurrent implementation as WL Conc . The state of WL Conc is enhanced by a lock that protects the headers of all blocks, and locks for each logical block that protects its contents.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 121,
+                    "end": 127,
+                    "text": "Fig. 7",
+                    "ref_id": null
+                },
+                {
+                    "start": 362,
+                    "end": 368,
+                    "text": "Fig. 7",
+                    "ref_id": null
+                },
+                {
+                    "start": 396,
+                    "end": 404,
+                    "text": "Figure 8",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "We use mutexes for all locks, since they match our simplification of acquiring write-ownership only. The actual Erase-Block-Manager in Flashix employs readerwriter locks whenever parallel reading is unproblematic. The general locking concept of WL Conc is to acquire Lock only if the mapping from logical to physical blocks needs to be updated. This is the case when writing to an unmapped block or when wear leveling is active. Otherwise, locking only one individual Locks(lnum) of a specific logical block lnum is sufficient. This lock protects the corresponding entry LMap(lnum) of the block mapping as well as the content of the physical block LMap(lnum).blockno. With this strategy multiple reads and writes to different, mapped logical blocks are possible, even in parallel to wear leveling. One exception is that the Lock has to be acquired in every wl write execution (W2-W14 in Fig. 8) , at least for a short amount of time. This is due to the locking hierarchy that is employed to avoid deadlocks. When running in parallel, it is possible that a wl write and wl wear leveling may both need to acquire Lock and the same Locks(lnum), so it must be ensured that those operations request the locks in the same order. Because wl wear leveling needs to be owner of OHeaders to get suitable physical blocks at WL4 before a logical block can be locked, wl write must request Lock (W2) ahead of requesting Locks(lnum) (W3). Figure 9 shows the resulting refinement of EBM At . Proving WL Conc EBM At using linearizability is discussed in detail in the next sections. It remains to integrate the new \"shifted\" refinement into the refinement tower. The layers above EBM At can remain untouched since EBM At is identical to EBM, and sequential use of EBM At is not problematic. Below Blocks Owns an adjustment is necessary: a simple one is to use a global lock around the operations of its implementation. Since the level is already close to the MTD hardware interface, the real solution propagates ownership down to ownerships at the hardware level (where blocks store a sequence of bytes instead of a header and content).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 887,
+                    "end": 894,
+                    "text": "Fig. 8)",
+                    "ref_id": null
+                },
+                {
+                    "start": 1425,
+                    "end": 1433,
+                    "text": "Figure 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Fig. 5. Critical interleaving of two wl write executions"
+        },
+        {
+            "text": "The standard correctness criterion we use to prove correctness of the refinement of EBM At to WL Conc from Fig. 9 is linearizability. A formal definition can be found in [15] , we only give an informal description here.",
+            "cite_spans": [
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 107,
+                    "end": 113,
+                    "text": "Fig. 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "A concurrent implementation CASM with nonatomic programs COP i is linearizable to an atomic specification AASM with atomic operations AOP i , if the input/output behaviors of each concurrent run can be explained by mapping them to the sequential input/output behavior of some sequential run of AASM. The mapping between a concurrent and a sequential run is as follows: for each concurrent call of an operation COP i that is started at time t i and returns at time t i find some point in time l i with t i \u2264 l i \u2264 t i , such that all l i are different. The point is called the linearization point of the operation call. Then construct some sequential run of AASM that executes each corresponding abstract operation AOP i atomically at time l i . Note that even for fixed linearization points this may give several sequential runs if the abstract operations are nondeterministic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "A refinement from AASM to CASM then is linearizable, if for every concurrent run linearization points and an abstract sequential run can be found, such that all operation calls have the same inputs and outputs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "The clients of the interface then cannot distinguish the concurrent run from one, where each operation call is delayed until time l i , executes AOP i atomically and then is delayed again until time t i .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "Our proof technique will use an intermediate machine at(WL Conc ) that is the same as WL Conc , but executes the code of each operation as one atomic step. This splits the refinement problem into three parts as shown in Fig. 10 . The data refinement WL At EBM At , that we have already proved (since the ASMs are the same as WL and EBM). Second, a trivial refinement at(WL Conc ) WL At that abstracts from the locking/unlocking (and acquire/release) instructions in at(WL Conc ), since the overall effect of locking/unlocking in one atomic step is empty. Finally, the atomicity refinement WL Conc at(WL Conc ), where both machines have the same data and operations, but different atomicity. Splitting the refinement from an atomic AASM to a concurrent CASM by using an intermediate at(CASM), which executes the operations of CASM atomically, has the advantage that data refinement is completely decoupled from atomicity refinement.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 220,
+                    "end": 227,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "The next section will describe a proof strategy for proving the atomicity refinement between at(WL Conc ) and WL Conc , which is the new problem we get from adding concurrency to the refinement tower.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Linearizabilty and Atomicity Refinement"
+        },
+        {
+            "text": "The proof strategy we use to prove atomicity refinement consists of two steps. First we prove that the concurrent runs of WL Conc satisfy some assertions at all program points. These proofs use thread-local reasoning with the rely-guarantee calculus. They additionally ensure termination and deadlock-freedom, which are not implied by linearizability alone. Second we prove that based on the assertions, atomic program steps can be reduced to larger and larger atomic steps, until we arrive at at(WL Conc ). We sketch the basic strategy in the first subsection, and give results for the case study in Sect. 5.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proof Strategy for Atomicity Refinement"
+        },
+        {
+            "text": "The variant of the rely-guarantee calculus used here is similar to the one given in [30] , Section 5. The basic correctness statement 1 is of the form pre \u2227 I \u2192 R, G, I , run, \u03b1 post where program \u03b1 is assumed to be the sequential program of some thread, that executes atomic steps. These alternate with environment steps, where one environment step is an arbitrary sequence of steps of other threads.",
+            "cite_spans": [
+                {
+                    "start": 84,
+                    "end": 88,
+                    "text": "[30]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The program is assumed to use the state variables x. Precondition pre, postcondition post, predicate run, and global invariant I are predicates over this state. The rely R and the guarantee G restrict environment and program steps. They are predicates over x and x We write arguments in predicates if they differ from the standard ones only.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The formula asserts, that program \u03b1, when started in a state that satisfies precondition pre and global invariant I , will execute steps that satisfy G and preserve the invariant I , as long as all previous environment steps satisfy R and preserve I too. No program step will block, when at that time run holds. In addition, when all environment steps satisfy R and preserve I , then the program will either terminate and the final state will satisfy post, or it will stop in a blocked state where run is false.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The calculus to prove such formulas in KIV is based on symbolic execution. The basic rule to execute one atomic step at label L, that is annotated with an assertion \u03d5 L is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The rule reduces the conclusion at the bottom to premises. The first premise states that before executing \u03b1 the assertion at the initial label holds, and that the first step does not block (\u03d5 holds) whenever the run predicate is true.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The second premise uses the Dynamic Logic formula \u03b1 x = x which asserts that the sequential program \u03b1 has a terminating run that yields a state x . The premise ensures that the first atomic step of the program, which executes \u03b1 is a step that satisfies G and preserves the invariant I .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The third premise continues symbolic execution with the rest of the program. Its precondition uses two sets x 0 and x 1 of fresh variables, to represent the two old states before and after the first atomic program step. The subsequent environment step from x 1 to the current state x is assumed to satisfy R. Since rely steps preserve the invariant, it can be assumed for the current state again.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "One common instance of the rule is a parallel assignment y := t, which can be viewed as an abbreviation for atomic true {y := t}. In this case the formula \u03b1 x = x reduces to y = t \u2227 z = z, where z are the remaining variables from x that are not assigned.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "The rules for other constructs like conditionals resemble the usual rules for symbolic execution of programs, except that similar to the rule above they have rely steps in between program steps and side conditions for assertions and guarantee. For loops, a loop invariant (that holds at the start of each iteration) and a variant, that decreases with a wellfounded order are needed. Proofs for recursive routines need wellfounded induction.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "Individual rely-guarantee proofs for single threads can be combined to a rely-guarantee property of a concurrent system. The crucial property that needs to hold for this to work, is that the relies and guarantees must be compatible: the guarantee of each thread G tid must imply the relies R tid of other threads tid = tid . For our state machines where all threads are known to execute the same operations, the guarantee can be chosen to be G tid := tid =tid R tid , the weakest guarantee possible that is trivially compatible. The system is deadlockfree, if the disjunction of all tid run tid holds. When a mutex is used, run tid is chosen to be lock = locked(tid ) \u2228 lock = F ree which implies this condition. This easily generalizes to the hierarchy of locks used in the case study.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "In summary, to verify assertions for a specification of a concurrent state machine with operations OP i , the user has to provide an invariant I , a rely R tid and a predicate idle tid . The latter describes states, where a thread is not currently executing an operation. From these predicate logic proof obligations (e.g. the R must be reflexive, initial states satisfy the invariant etc.) are generated, together with the following rely guarantee proof obligation for each operation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "Successful verification guarantees that each of the assertions \u03d5 L holds every time a thread reaches label L, that the operations terminate and that the implementation is deadlock-free. The verified assertions are then used to combine atomic statements to larger ones following Lipton's [19] strategy of reduction. The idea is that a thread executing two atomic steps At L1 and At L2 (at labels L1 and L2) with an environment step in between is often equivalent to first executing the environment step, then At L1 and At L2 with no intermediate environment step. In this case the two steps can be merged together to form one atomic step. Reverting the order of first executing At L1 and then an environment step is possible, if all steps of other threads, that could be a part of the environment step, commute to the right with At L1 , in the sense that executing them in both orders gives the same final state. In this case At L1 is called a right mover. Analogous to this, a step that commutes to left with all steps is called a left mover. Figure 11 shows an example, where the environment step consists of two steps At M and At N of other threads. The original run is shown at the bottom, the alternative run which allows executing At L1 and At L2 as one atomic step at the top. The intermediate states of the runs are different, but they reach the same final state.",
+            "cite_spans": [
+                {
+                    "start": 287,
+                    "end": 291,
+                    "text": "[19]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1043,
+                    "end": 1052,
+                    "text": "Figure 11",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Rely-Guarantee Proofs and Reduction"
+        },
+        {
+            "text": "where L is the label, and \u03d5 L the assertion established. The guard \u03b5 L is true for all statements, except locking instructions, cf. Figure 7 . Program \u03b1 L is either an assignment, or the call of a submachine operation. For a conditional or a while loop with test \u03b4, \u03b1 L is defined to be b := \u03b4 using a fresh variable b, while binding a local variable let y = t in . . . gives \u03b1 L \u2261 {y := t}. The formal condition for At L1 to commute to the right with At L2 executed by another thread is",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 132,
+                    "end": 140,
+                    "text": "Figure 7",
+                    "ref_id": null
+                }
+            ],
+            "section": "The atomic steps of the programs can all be written in the form"
+        },
+        {
+            "text": "In the formula, \u03d5 M , \u03b5 M , \u03b1 M are variants, that rename thread local variables used in At M to new, primed variables disjoint from the shared state and the local variables of At L . The criterion critically uses the assertions at both labels, since they often show that the preconditions of the implication contradict each other, trivializing the proof. If, for example the two steps are both in a region where a common lock is needed, they commute trivially: \u03d5 L implies lock = locked(tid ), while \u03d5 M implies lock = locked(tid ), so the proof obligation trivially holds. A general result is that locking is always a right mover, while unlocking is always a left mover.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The atomic steps of the programs can all be written in the form"
+        },
+        {
+            "text": "Combining steps to larger steps can be translated into rules for making statements like sequential composition, conditionals and loops atomic, when their parts are atomic already. We use rules similar to the reduction rules given in [10] . Iterated application gives larger and larger atomic blocks. Ideally, the final result is that the whole concurrent program of one operation has been combined into a single atomic step. If this is possible, then a linearizability proof becomes trivial, as the linearizability point then simply is the single atomic step.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The atomic steps of the programs can all be written in the form"
+        },
+        {
+            "text": "The main task for proving the atomicity refinement of the case study is to find assertions, rely conditions and a global invariant that are strong enough to allow atomicity refinement.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proving the Case Study"
+        },
+        {
+            "text": "The rely conditions are derived from the crucial ideas what data structures are protected from being changed, when thread tid has a certain lock or ownership. This results in the following clauses. The only rely that is somewhat difficult to find is the last one: if a thread locks logical block n, then other threads are not allowed to change the block header to point to or to point away from n.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proving the Case Study"
+        },
+        {
+            "text": "The global invariant and the assertions are derived from several sources. First, ownership as used in the interface Blocks Owns has to be compatible with the use of locks. For the given case study, it turns out that lmapblocks and injective are preserved by all steps, but that blockslmap does not hold while the headers are locked. As a result the global invariant can include blockslmap(Blocks, LMap) only when the headers are currently not owned (Oheaders = readers(\u2205)). To establish this assertion, after a step that releases OHeaders, assertions have to be given for all labels, where OHeaders is taken. For writing the predicate is violated between line W9 after the header of block pnum has been set to lnum and line W11, where LMap(lnum) is set to pnum. For all lines in this range blockslmap(Blocks, LMap(lnum; pnum)) holds: if LMap were already updated, then blockslmap would hold. The wear leveling algorithm gives similar assertions for the range WL13-WL15.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proving the Case Study"
+        },
+        {
+            "text": "Finally, assertions are sometimes necessary for the code after a test or after assignments to a variable. In a purely sequential setting, the test for LMap(lnum) = \u22a5 at R2 ensures that this formula holds, until the subsequent let binding pnum = LMap(n).blockno at line R4, which will ensure pnum = LMap(lnum).blockno when the variable pnum is used later on. However, in the concurrent setting LMap may be assigned by other threads, destroying each of these properties. In the given case, the rely conditions are strong enough to propagate the formulas, so we assert that at line R4 the first formula holds, while for lines R5-R7 the second holds. A number of similar assertions are needed for other local variables.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "OHeaders"
+        },
+        {
+            "text": "Proving the rely-guarantee proof obligations for the individual programs requires the main effort in proving the concurrent setting correct. This is in line with case studies we have done for lock-free algorithms [25, [27] [28] [29] , where proving rely-guarantee assertions caused the main effort too.",
+            "cite_spans": [
+                {
+                    "start": 213,
+                    "end": 217,
+                    "text": "[25,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 218,
+                    "end": 222,
+                    "text": "[27]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 223,
+                    "end": 227,
+                    "text": "[28]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[29]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "OHeaders"
+        },
+        {
+            "text": "After establishing assertions for all program points, the program can then be reduced, combining atomic steps to larger ones. This requires to find out, which steps are left or right movers (or both). The current strategy implemented in KIV does simple syntactic checks to check whether the resulting commutativity requirement (1) is trivial: either the accessed variables are disjoint, or the preconditions of the proof obligation trivially reduce to false. Otherwise it is possible to generate proof obligations, by manually asserting that certain steps (identified by their label) are left or right movers (or both).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "OHeaders"
+        },
+        {
+            "text": "For the case study, manual specifications of mover types are currently necessary for the atomic calls blocks acquire (right mover) and blocks release (left mover) of Blocks At . The reader may check, that this trivially implies that the other operations of Blocks At are left and right movers. After the mover types have been determined, the reduction rules are then applied automatically, to form maximally large atomic blocks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "OHeaders"
+        },
+        {
+            "text": "This immediately results in a single atomic block for wl write and wl read. Reducing wl wear leveling creates three atomic blocks. The first ends at the conditional at line WL6 and is a right mover. The second is for the let-block WL7-WL19. The third is for the last two lines WL20-WL21, and is a left mover. The conditional cannot be reduced, since its then-branch requires the lock for block lnum to be free, while the empty else-branch does not have this guard. With the atomic blocks now being much larger than before, it becomes possible to prove much stronger invariants that just hold in between blocks, but did not hold for the original programs. In particular, since all locking and unlocking of blocks is now within atomic regions, the simple invariant that all Locks(lnum) are always free can be established using another simple rely-guarantee proof. With the new invariant established, another reduction step finds, that the conditional at line WL6 can now be reduced to an atomic block. Together with the initial and the final block being right resp. left movers already, the wear leveling code is combined by another reduction step into a single step. This implies that the concurrent implementation of wear leveling is indeed linearizable and a correct refinement.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "OHeaders"
+        },
+        {
+            "text": "Related work on wear leveling and the flash file system we have developed has already been given in [23] , where the full version of the sequential wear leveling algorithm has been specified.",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 104,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "This paper is based on the PhD of J\u00f6rg Pf\u00e4hler [21] , where concurrency was added to the full wear leveling algorithm. The full version needs to add ownership annotations and locks to several refinements. This version is now used in our actual flash file system implementation. The PhD also contains extensions that allow verifying crash-safety, which we could not address in this paper. The flash file system by Damchoom et al. [7] has concurrent wear leveling. The synchronization between threads is implicitly performed by the semantics of Event-B models, i.e., an event in an Event-B model is always executed atomically, and not explicitly via locks or other synchronization primitives. This makes the step to actual running code more difficult and less straightforward. The full erase block management used in our flash file system is also more general, because it does not use additional bits of out-of-band data of an erase block.",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 51,
+                    "text": "[21]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 429,
+                    "end": 432,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Verification of concurrent, lock-based systems is of course a very broad topic with lots of important contributions, and the proof techniques we use are from this field. We are not aware of other formal methods that specifically address the question of this paper: how to add concurrency a posteriori to an existing modular, sequential system, without having to prove the system from scratch. Adding concurrency to components of an existing software system to increase efficiency is however a recurring software engineering task that should be supported by formal methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Refinement and abstraction of atomicity is quite common for concurrent systems, and many refinement definitions for concurrent systems like [1] or [20] address refinements of atomicity. The refinement calculus of Back [3] uses the opposite direction. It starts out with an atomic program and splits it into smaller actions in refinement steps.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 147,
+                    "end": 151,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The calculus of atomic actions due to Elmas et al. [10] is an extension of Lipton's [19] original approach for highly concurrent, linearizable programs. It provides a more incremental verification methodology than the calculus given here for highly concurrent systems and its implementation is better automated. The assertions and invariants are incrementally validated in [10] , whereas here a rely/guarantee proof is used to validate them before applying any reductions. The rules of the calculus in [10] address partial correctness, so termination would have to be proven differently. Nevertheless, many of the reduction rules given in this paper are directly used in our approach too.",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 55,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 84,
+                    "end": 88,
+                    "text": "[19]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 373,
+                    "end": 377,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 502,
+                    "end": 506,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Ownership annotations are used in the C verifier VCC [6] and Spec# [16] in order to ensure data-race freedom of the code. They are typically coupled to objects of the programming language, while we decouple the use of ownership from objects. Fractional permissions [5] in concurrent versions of separation logics [24] serve a similar purpose as ownership. These are for example supported by the C code verifier VeriFast [17] .",
+            "cite_spans": [
+                {
+                    "start": 53,
+                    "end": 56,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 67,
+                    "end": 71,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 265,
+                    "end": 268,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 313,
+                    "end": 317,
+                    "text": "[24]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 420,
+                    "end": 424,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We have presented an approach for adding concurrency to an existing refinement tower. The given approach allows to add concurrency by enhancing some of the components of the refinement tower. Abstract interfaces are extended with acquire and release operations, that specify allowed concurrency. In our case study concurrent writes on different blocks are possible, while concurrent writes on the same block are disallowed. Concurrent code using these interfaces is then possible, that enhances the existing sequential code with suitable locking strategies. We have evaluated this strategy of \"shifting parts of the refinement\" tower by making wear-leveling concurrent in the Flashix file system. Specifications using the same concept have been defined for concurrent garbage collection, with executable code already running. Verification is work in progress. We also work on a allowing concurrent calls for POSIX file system operations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The existence of refinement mappings",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Abadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Lamport",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Theoret. Comput. Sci",
+            "volume": "2",
+            "issn": "",
+            "pages": "253--284",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Modeling in Event-B -System and Software Engineering",
+            "authors": [
+                {
+                    "first": "J.-R",
+                    "middle": [],
+                    "last": "Abrial",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "A method for refining atomicity in parallel algorithms",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "J R"
+                    ],
+                    "last": "Back",
+                    "suffix": ""
+                }
+            ],
+            "year": 1989,
+            "venue": "PARLE 1989",
+            "volume": "366",
+            "issn": "",
+            "pages": "199--216",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-51285-3_42"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Abstract State Machines-A Method for High-Level System Design and Analysis",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "B\u00f6rger",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "St\u00e4rk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-18216-7"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Checking interference with fractional permissions",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Boyland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "SAS 2003",
+            "volume": "2694",
+            "issn": "",
+            "pages": "55--72",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-44898-5_4"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "VCC: a practical system for verifying concurrent C",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "TPHOLs 2009",
+            "volume": "5674",
+            "issn": "",
+            "pages": "23--42",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-03359-9_2"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Applying event and machine decomposition to a flashbased filestore in Event-B",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Damchoom",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Butler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "SBMF 2009",
+            "volume": "5902",
+            "issn": "",
+            "pages": "134--152",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-10452-7_10"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Data Refinement: Model-Oriented Proof Methods and their Comparison",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "De Roever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Engelhardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Cambridge Tracts in Theoretical Computer Science",
+            "volume": "47",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Refinement in Z and in Object-Z: Foundations and Advanced Applications. FACIT",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Derrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Boiten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-1-4471-5355-9"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A calculus of atomic actions",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Elmas",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Qadeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Tasiran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceeding POPL",
+            "volume": "",
+            "issn": "",
+            "pages": "2--15",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "KIV -overview and verifythis competition",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Haneberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Softw. Tools Techn. Transf",
+            "volume": "17",
+            "issn": "6",
+            "pages": "677--694",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Inside a verified flash file system: transactions & garbage collection",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "VSTTE 2015",
+            "volume": "9593",
+            "issn": "",
+            "pages": "73--93",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-29613-5_5"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Modular. Crash-Safe Refinement for ASMs with Submachines",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Science of Computer Programming (SCP)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Data refinement refined resume",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "A R"
+                    ],
+                    "last": "Hoare",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Sanders",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "ESOP 1986",
+            "volume": "213",
+            "issn": "",
+            "pages": "187--196",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/3-540-16442-1_14"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Linearizability: a correctness condition for concurrent objects",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Herlihy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Wing",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "ACM Trans. Program. Lang. Syst. (TOPLAS)",
+            "volume": "12",
+            "issn": "3",
+            "pages": "463--492",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Safe concurrency for aggregate objects with invariants",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jacobs",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R M"
+                    ],
+                    "last": "Leino",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Piessens",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Schulte",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Software Engineering and Formal Methods (SEFM) 2005",
+            "volume": "",
+            "issn": "",
+            "pages": "137--146",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "VeriFast: a powerful, sound, predictable, fast verifier for C and Java",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jacobs",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Smans",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Philippaerts",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Vogels",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Penninckx",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Piessens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "NASA Formal Methods",
+            "volume": "6617",
+            "issn": "",
+            "pages": "41--55",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Reduction: a method of proving properties of parallel programs. Commun",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lipton",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "ACM",
+            "volume": "18",
+            "issn": "12",
+            "pages": "717--721",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Also: Technical Memo MIT/LCS/TM-486.b, Laboratory for Computer Science",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Lynch",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Vaandrager",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Inf. Comput",
+            "volume": "121",
+            "issn": "2",
+            "pages": "214--233",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A modular verification methodology for caching and lock-based concurrency in file systems",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Modular verification of order-preserving write-back caches",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bodenm\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IFM 2017",
+            "volume": "10510",
+            "issn": "",
+            "pages": "375--390",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-66845-1_25"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Formal specification of an erase block management layer for flash memory",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Haneberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "HVC 2013",
+            "volume": "8244",
+            "issn": "",
+            "pages": "214--229",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-03077-7_15"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Separation logic: a logic for shared mutable data structures",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Reynolds",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of 17th Annual IEEE Symposium on Logic in Computer Science",
+            "volume": "",
+            "issn": "",
+            "pages": "55--74",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "A sound and complete proof technique for linearizability of concurrent data structures",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Derrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wehrheim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "ACM Trans. Comput. Logic",
+            "volume": "15",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Development of a verified flash file system",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ernst",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pf\u00e4hler",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Haneberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "LNCS",
+            "volume": "8477",
+            "issn": "",
+            "pages": "9--24",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-662-43652-3_2"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Towards a thread-local proof technique for starvation freedom",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Travkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wehrheim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IFM 2016",
+            "volume": "9681",
+            "issn": "",
+            "pages": "193--209",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-33693-0_13"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Formal verification of a lock-free stack with hazard pointers",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Tofan",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Reif",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ICTAC 2011",
+            "volume": "6916",
+            "issn": "",
+            "pages": "239--255",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-23283-1_16"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Two approaches for proving linearizability of multiset",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Tofan",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Travkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Schellhorn",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wehrheim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Sci. Comput. Program",
+            "volume": "96",
+            "issn": "P3",
+            "pages": "297--314",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "The rely-guarantee method for verifying shared variable concurrent programs",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-P",
+                    "middle": [],
+                    "last": "De Roever",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Formal Aspects Comput",
+            "volume": "9",
+            "issn": "2",
+            "pages": "149--174",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "data header = mapped(blockno : nat) | \u22a5 data block = mkb(header : header , content : content)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Sequential specification of the physical block layer (Blocks)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Sequential implementation of the wear leveling layer (WL)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "blocks write h blocks write wl write(lnum 1 , c 1 ) wl write(lnum 2 , c 2 )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "wl write(lnum, c)let pnum = 0 in mutex lock(Lock ); mutex lock(Locks(lnum)); if LMap(lnum) = \u22a5 then blocks acquire h(); blocks map(; pnum); blocks acquire(pnum); blocks write h(pnum, mapped(lnum)); blocks write(pnum, empty); blocks release(pnum); LMap(lnum) mapped(pnum); blocks release h(); LMap(lnum).blockno; mutex unlock(Lock ); blocks acquire(pnum); blocks write(pnum, c); blocks release(pnum); mutex unlock(Locks(lnum)); read(lnum; c) mutex lock(Locks(lnum)); if LMap(lnum) = \u22a5 then c emptyR1 R2 R3 else let pnum = LMap(lnum).blockno in blocks acquire(pnum); blocks read(pnum; c); blocks release(pnum); mutex unlock(Locks(lnum)); wear leveling() internal let h = \u22a5, c = empty, WL1 from = 0, to = 0 in mutex lock(Lock ); blocks acquire h(); blocks get wl(; from, to); blocks read h(from; h);if h = \u22a5 then let lnum = h .blockno in mutex lock(Locks(lnum)); blocks acquire(from); blocks read(from; c); blocks acquire(to); blocks write h(to, h); blocks write(to, c); LMap(lnum) mapped(to); blocks write h(from; \u22a5); blocks release(to); blocks release(from); mutex unlock(Locks(lnum)); blocks release h(); mutex unlock(Lock ); Concurrent implementation of the wear leveling layer (WLConc) Concurrency refinement of the erase-block-manager",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Splitting the refinement",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "AtL1 commutes to the right of environment step AtM ; AtN",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "tid \u2208 OHeaders.readers \u2192 \u2200 m. Blocks(m).header = Blocks (m).header tid \u2208 OBlocks(m).readers \u2192 Blocks(m) = Blocks (m) Lock = locked(tid) \u2192 LMap = LM ap Locks(n) = locked(tid) \u2192 LMap (n) = LMap(n) Locks(n) = locked(tid) \u2192 \u2200 m. Blocks(m).header = mapped(n) \u2194 Blocks (m).header = mapped(n)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "For simplicity, we do not specify content , except for a default value empty. The interface of EBM shown inFig. 2allows to read and to write the content of logical blocks. The operations use a semicolon to separate input and output parameters.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "state Blocks : nat \u2192 block initial state Blocks = \u03bb m. mkb(\u22a5, empty)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "state LMap : nat \u2192 header initial state LMap = \u03bb n. \u22a5",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "data mutex = free locked(tid : threadid)Fig. 6. Atomic specification of the physical block layer with ownership (BlocksOwns)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Conc has taken the header lock. Second, the three global invariants of the sequential code are relevant. Dropping them completely would result in illegal states where e.g. the block mapping is no longer injective. However, the invariants of the sequential verification are only guaranteed to hold in idle states, where no thread is running. So it is necessary to give weaker assertions for intermediate states, that are still sufficient to avoid illegal ones.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

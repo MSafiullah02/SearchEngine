@@ -1,0 +1,3866 @@
+{
+    "paper_id": "d66ec4e2e2d7fbcacc3bdf7908968f7e39d959d4",
+    "metadata": {
+        "title": "A Spatiotemporal Epidemic Model to Quantify the Effects of Contact Tracing, Testing, and Containment",
+        "authors": [
+            {
+                "first": "Lars",
+                "middle": [],
+                "last": "Lorch",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "ETH Z\u00fcrich",
+                    "location": {}
+                },
+                "email": "llorch@student.ethz.ch"
+            },
+            {
+                "first": "William",
+                "middle": [],
+                "last": "Trouleau",
+                "suffix": "",
+                "affiliation": {},
+                "email": "william.trouleau@epfl.ch"
+            },
+            {
+                "first": "Stratis",
+                "middle": [],
+                "last": "Tsirtsis",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Aron",
+                "middle": [],
+                "last": "Szanto",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Bernhard",
+                "middle": [],
+                "last": "Sch\u00f6lkopf",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Manuel",
+                "middle": [],
+                "last": "Gomez-Rodriguez",
+                "suffix": "",
+                "affiliation": {},
+                "email": "manuelgr@mpi-sws.org4zerobasefoundation"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Motivated by the current COVID-19 outbreak, we introduce a novel epidemic model based on marked temporal point processes that is specifically designed to make fine-grained spatiotemporal predictions about the course of the disease in a population. Our model can make use and benefit from data gathered by a variety of contact tracing technologies and it can quantify the effects that different testing and tracing strategies, social distancing measures, and business restrictions may have on the course of the disease. Building on our model, we use Bayesian optimization to estimate the risk of exposure of each individual at the sites they visit, the percentage of symptomatic individuals, and the difference in transmission rate between asymptomatic and symptomatic individuals from historical longitudinal testing data. Experiments using real COVID-19 data and mobility patterns from T\u00fcbingen, a town in the southwest of Germany, demonstrate that our model can be used to quantify the effects of tracing, testing, and containment strategies at an unprecedented spatiotemporal resolution. To facilitate research and informed policy-making, particularly in the context of the current COVID-19 outbreak, we are releasing an open-source implementation of our framework. 1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The novel coronavirus disease COVID-19 has spread from Wuhan, China to the rest of the world in a matter of months [1, 49] . As a result, an increasing number of countries have introduced travel restrictions, imposed social distancing measures, and even confined their citizens in their houses to slow and ideally halt the spread of Against this backdrop, we see burgeoning efforts to introduce contact tracing technologies, which aim to identify and characterize disease-spreading human interactions, ultimately allowing both individuals and policymakers to make more effective decisions. Amongst them, we can distinguish between location-based systems 2 such as GPS, WiFi triangulation or QR code \"check-ins\", and proximity-based systems 3 such as Bluetooth. The promise of these contact tracing systems is that automated and fine-grained contact monitoring of individuals may allow for:",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 119,
+                    "end": 122,
+                    "text": "49]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "I. More accurate predictions: New data sources may allow us to predict the spread of COVID-19 at an unprecedented spatiotemporal resolution. This includes when and where new individual infections may happen and how likely these events are to occur.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "II. More effective containment and mitigation: Tracing systems may help us design more effective strategies to slow down or even prevent the spread of COVID-19, thus allowing authorities to gradually lift the most restrictive measures with more precision and confidence.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "III. Data-driven insights into disease parameters: Accurate contact tracing may yield insights into the relative importance of different modalities of disease transmission and allow inference of the unknown parameters of the transmission and course of COVID-19.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To fulfill this promise, we need to utilize data-driven models and inference algorithms that can operate at a high spatiotemporal resolution and make use of contact tracing data of individuals. Unfortunately, most of the classical epidemiological literature [4, 13, 23, 37, 38] has primarily focused on developing models for general population dynamics rather than the infectious state of any given individual in the population. More recently, there has been research on modeling individual dynamics of epidemics [2, 7, 8, 43, 44] . However, this work typically resorts to mean-field theory and thus does not characterize the dynamic infectious state of each individual over time. The work closest in spirit to ours is by Ferguson et al. [14, 15] , who use a stochastic model of individuals situated at random locations in space to analyze strategies for preventing and containing influenza. However, they use ad-hoc assumptions about individual mobility patterns and cannot characterize the functioning of modern contact tracing systems. Finally, in the context of the current COVID-19 outbreak, there has been a flurry of work contemporary to ours [3, 11, 12, 16, 17, 27, 28, 31, 45, 47] , including research in which Ferguson et al. [16] re-use the above mentioned influenza models [14, 15] . However, none of these papers can characterize the fine-grained effects of testing, contact tracing, and containment interventions over time at a local level. The present work attempts to fill this gap.",
+            "cite_spans": [
+                {
+                    "start": 258,
+                    "end": 261,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 262,
+                    "end": 265,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 266,
+                    "end": 269,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 270,
+                    "end": 273,
+                    "text": "37,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 274,
+                    "end": 277,
+                    "text": "38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 513,
+                    "end": 516,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 517,
+                    "end": 519,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 520,
+                    "end": 522,
+                    "text": "8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "43,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 527,
+                    "end": 530,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 738,
+                    "end": 742,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 743,
+                    "end": 746,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1150,
+                    "end": 1153,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1154,
+                    "end": 1157,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1158,
+                    "end": 1161,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1162,
+                    "end": 1165,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1166,
+                    "end": 1169,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1170,
+                    "end": 1173,
+                    "text": "27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1174,
+                    "end": 1177,
+                    "text": "28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 1178,
+                    "end": 1181,
+                    "text": "31,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1182,
+                    "end": 1185,
+                    "text": "45,",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1186,
+                    "end": 1189,
+                    "text": "47]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 1236,
+                    "end": 1240,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1285,
+                    "end": 1289,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1290,
+                    "end": 1293,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We introduce a novel modeling framework that is expressive enough to make fine-grained spatiotemporal predictions and make use of contact tracing data of individuals. Our model uses marked temporal point processes [10] to represent events in which. . . . . . individuals are exposed, asymptomatic, presymptomatic, symptomatic, hospitalized, recovered, or deceased (Epidemiology).",
+            "cite_spans": [
+                {
+                    "start": 214,
+                    "end": 218,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ". . . individuals check in at different points of interest, such as supermarkets, pharmacies, or testing site locations, and meet (and possibly infect) each other (Mobility).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ". . . health authorities test individuals and individuals receive the outcome of a test (Testing).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ". . . individuals follow social distancing measures, including quarantines and curfews (Social distancing).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": ". . . points of interest implement hygienic and capacity-limiting measures or closures (Business restrictions).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Within this paradigm, our model can be fully defined by way of a set of conditional intensity functions, or hazard functions. Our model is agnostic to the particular choice of conditional intensity function for mobility patterns. We further introduce a new intensity function that is able to characterize the influence that mobility patterns, as well as social distancing measures and business restrictions, have on the risk that each individual with the virus poses on their community. Moreover, we follow the recent literature on COVID-19 [17, 27] to define the specific functional form of the intensity functions that characterize the times when individuals become asymptomatic, presymptomatic, symptomatic, hospitalized, recovered, or deceased, and specify their parameter values accordingly. For testing, social distancing, and business restrictions, our model expresses a variety of real-world interventions. In addition, our model is also able to characterize the functioning of both location-based and proximity-based contact tracing systems under different contact tracing algorithms. Given a fixed set of individual mobility patterns, we design an efficient sampling algorithm for our model, summarized in Algorithm 1, that is able to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures, and business restrictions using Monte Carlo roll-outs. One of the key components of our sampling algorithm is the use of the superposition principle and thinning to generate faithful simulations. Ultimately, this allows us to accurately estimate the effect of a variety of interventions and what-if scenarios given a fixed set of location traces. Moreover, if in addition to the set of individual mobility patterns, we also have access to historical aggregate longitudinal testing data, we introduce an inference procedure that uses our sampling algorithm and Bayesian Optimization (BO) [39] to estimate: (i) the parameters of the intensity function that characterizes the risk of exposure of each individual; (ii) the percentage of asymptomatic individuals among those infected; and (iii) the relative difference in transmission rate between asymptomatic and (pre)symptomatic individuals.",
+            "cite_spans": [
+                {
+                    "start": 541,
+                    "end": 545,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 546,
+                    "end": 549,
+                    "text": "27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1937,
+                    "end": 1941,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Finally, we validate our modeling framework using COVID-19 data from T\u00fcbingen, a town in the southwest of Germany, and demonstrate that it can be used to estimate the effect of testing & tracing, social distancing, and business restrictions at an unprecedented spatiotemporal resolution. To enable further research in this area as well as to facilitate scientifically informed policymaking, we release an open-source implementation of our framework at https://github.com/covid19-model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Given a set of individuals V, we track the current state of each single individual i \u2208 V using a collection of state variables, which determine her mobility pattern, epidemiological condition and degree of testing under different social distancing and business restriction measures. We use stochastic differential equations (SDE) to realistically model (i) the stochastic nature of mobility patterns and infection events, (ii) events in continuous time, i.e. not in aggregate over days, and (iii) discrete transitions between different statesan individual either does or does not get infected, visits a site, or is selected for quarantine. To ease the exposition, we describe different types of state variables separately.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Spatiotemporal Model of Epidemics"
+        },
+        {
+            "text": "Let S be the set of sites individuals can visit. For each individual i, let the indicator P i,k (t) = 1 if the individual is at site k \u2208 S at time t and P i,k (t) = 0 otherwise. We characterize the value of the states P i,k (t) = 1 using the following stochastic differential equation (SDE) with jumps:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mobility"
+        },
+        {
+            "text": "where U i,k (t) and V i,k (t) are counting processes indicating when individual i arrives at and leaves site k \u2208 S, respectively. Moreover, we define the intensity (or rates) of these counting processes as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mobility"
+        },
+        {
+            "text": "where \u03bb i,k (t) is the (arbitrary) rate at which the individual visits site k and 1/v k is the average duration of a visit to site k.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Mobility"
+        },
+        {
+            "text": "We build on recent variations of the Susceptible-Exposed-Infected-Resistant (SEIR) compartment models, which have been introduced in the context of COVID-19 modeling [27, 17] . More specifically, we define the epidemiological condition of each individual i \u2208 V using the indicator state variables",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 170,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 171,
+                    "end": 174,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": ", whose meaning is specified in Table 1 . Then, we characterize their values ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 32,
+                    "end": 39,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "and state transitions using the following stochastic differential equations (SDE) with jumps:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "where a \u2208 {0, 1} \u223c Bernoulli(\u03b1) indicates whether an infected individual is asymptomatic, h \u2208 {0, 1} \u223c Bernoulli(\u03b7) indicates whether a symptomatic individual eventually requires hospitalization, b \u2208 {0, 1} \u223c Bernoulli(\u03be) indicates whether a symptomatic individual eventually dies. The counting processes Y i (t), W i (t), and Z i (t) indicate when individual i transitions from susceptible to exposed (Y i (t)), from exposed to infected (W i (t)), from pre-symptomatic infected to symptomatic infected (Z i (t)), from asymptomatic infected to resistant (R a i (t)), from symptomatic infected to resistant (R s i (t)), and from symptomatic infected to deceased (D i (t)).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "At the core of our modeling framework, we define the conditional intensity function \u03bb * i (t) of the exposure counting process Y i (t) as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "with E[dY i (t)|H(t)] = \u03bb * i (t) dt and where:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "(i) \u03b2 k \u2265 0 is the transmission rate due to any type of infectious individuals at site k. Depending on the availability of labeled and unlabeled data, one may consider different settings, such as all sites sharing the same parameter \u03b2 or sites of different types t sharing the same parameter \u03b2 t ;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "(ii) \u00b5 \u2208 [0, 1] is the relative difference in transmission rate between asymptomatic and (pre)symptomatic individuals; and (iii) t t\u2212\u03b4 . . . P j,k (\u03c4 )e \u2212\u03b3(t\u2212\u03c4 ) d\u03c4 accounts for environmental transmission, i.e., it accounts the fact that SARS-CoV2 may survive for some period of time on surfaces or in the air after an infected individual has left a site [42] .",
+            "cite_spans": [
+                {
+                    "start": 355,
+                    "end": 359,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "In the above, note that the conditional intensity of each individual i only depends on the individual's contacts, not the contact of others. Other infection sources, such as infections within households, can be characterized by adding an additional base rate \u03bb 0,i (t) to the intensity \u03bb * i (t). Refer to Appendix B for more details. We define the remaining conditional intensity functions of the counting processes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Epidemiology"
+        },
+        {
+            "text": ", and D i (t) following the recent literature on COVID-19 modeling [27, 17] . More specifically, we consider the functional form of the intensity functions to be those of log-normal time-to-event distributions (log N ) shifted to start at the time E i (t), I p i (t), I a i (t) or I s i (t) become one, respectively. Table 2 gives more details about each these distributions, including the specific study to which we refer for the distribution parameters. Whenever literature results on COVID-19 were only reported using mean or median estimates of times with confidence intervals, we use log-normal distributions with corresponding normal parameters to define an approximate distribution, often consulting various sources, denoted by * in Table 2 . The log-normal is commonly used to model event times in this context [26, 29] .",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 71,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 819,
+                    "end": 823,
+                    "text": "[26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 824,
+                    "end": 827,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 317,
+                    "end": 324,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 740,
+                    "end": 747,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Epidemiology"
+        },
+        {
+            "text": "This section describes the testing procedure implemented in our model to match reality as close as possible, though in principle amendable. We assume there exists a health authority that maintains a corresponding priority queue Q of individuals to be tested. Over time, it decides who to add to the queue according to a testing policy \u03c0 Q , e.g., adding only symptomatic people to the queue. It tests individuals from the queue at an arbitrary rate \u03bb Q (t). Moreover, every time an individual is tested, the outcome of the test is only known after a reporting delay \u2206 Q .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Testing"
+        },
+        {
+            "text": "Let T (t) record the number of known test outcomes by time t and, for each individual i \u2208 V, let T + i (t) and T \u2212 i (t) be the number of times the individual has been tested positive and negative, respectively, by time t. Then, we characterize the counting processes T + i (t) and T \u2212 i (t) using the following SDE with jumps:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Testing"
+        },
+        {
+            "text": "where E[dT (t)|H(t)] = \u03bb Q (t) dt and d i (t) \u2208 {0, 1} \u223c \u03c0 Q indicates whether an individual i is tested at time t according to the policy \u03c0 Q .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Testing"
+        },
+        {
+            "text": "Continuing the setting from above, the corresponding governmental authority may decide to implement a variety of social distancing measures, from less restrictive (e.g., isolate individuals who have tested positive) to more restrictive (e.g., bring the entire population in a state of \"lock-down\" via curfews). In our model, the effect of social distancing can be faithfully characterized at an individual level by modifying the individual mobility model introduced in Section 2.1. More specifically, if the authority decides to isolate a group W for example based on age for a period of time [t 0 , t 1 ], then it corresponds to setting the intensity \u03bb i,k (t) = 0 for all i \u2208 W and t \u2208 [t 0 , t 1 ] in Eq. 2. By doing so, we will modify the conditional intensity function \u03bb * (t) of the counting process Y i (t), given by Eq. 4, which essentially influences the spread of COVID-19 over time. Furthermore, our model can faithfully characterize the effect of business restrictions that the governmental authority may also decide to impose. For instance, if the authority asks supermarkets to implement hygienic measures to reduce the probability of customers infecting each other, it is straightforward to reduce the value of the corresponding transmission rates \u03b2 k in the conditional intensity function \u03bb * (t) of the counting process Y i (t), given by Eq. 4. Alternatively, if the authority asks bars to shut down for a period of time [t 0 , t 1 ], we set their corresponding transmission rates \u03b2 k = \u03b2 k (t) = 0 as long as t \u2208 [t 0 , t 1 ].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Social Distancing & Business Restrictions"
+        },
+        {
+            "text": "Finally, note that both for social distancing and business restrictions, the times t 0 and t 1 may be set dynamically based on other events of interest or for various cyclic schedules. For example, t 0 may be the time when an individual is tested positive and t 1 \u2212 t 0 may be the time the authority decides positively tested individuals should stay in isolation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Social Distancing & Business Restrictions"
+        },
+        {
+            "text": "Building on the spatiotemporal epidemic model defined in Section 2, health authorities may decide to implement contact tracing when an individual i is tested positive. To track down an individual's contacts in the last T days, an authority may resort to location-based systems such as GPS, WiFi triangulation or QR code \"check-ins\", or proximity-based tracing systems using Bluetooth.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "Under our model, a location-based contact tracing system records the times when an individual i checks in at different sites k \u2208 S, i.e., it observes P i,k (t). Therefore, it can identify the set of individuals",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "where the integral accounts for environmental transmissions in each site [42] , similarly as in the exposure rate defined in Eq.4. In contrast, a proximity-based contact tracing system only records the times when a pair of individuals i and j have met, i.e., have been physically close to each other, during a time window [t 0 , t f ]. For simplicity, we overload the notation and define P i,j (t) := k\u2208S P i,k (t)P j,k (t) \u2208 {0, 1} as the indicator of contact between individuals i and j. Observing P i,j (t), the authority can again identify the set of individuals",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "where, in contrast with Eq. 6, environmental transmissions cannot be tracked down. To overcome this limitation, in principle, the authority could resort to data from proximity-based contact tracing systems if Bluetooth beacons are in place, as noted by Langford [25] . Once any of the above contact tracing system has identified the contacts C [t0,t f ] (i) of individual i, authorities may decide to apply different contact tracing policies in various contexts. For instance, when individual i is tested positive at time t, a subset of individuals previously in contact with i could be isolated or advised to seek testing. In this work, we consider two different policies:",
+            "cite_spans": [
+                {
+                    "start": 262,
+                    "end": 266,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "(i) Basic contact tracing policy: The authority picks k individuals j from C [t0,t f ] (i) at random.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "(ii) Advanced contact tracing policy: The authority picks the top k individuals j from C [t0,t f ] (i) ranked by their empirical probability of exposure associated with i in the process Y \u0135",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "Disregarding second order effects and inaccuracies in estimating the empirical probability of exposure, the advanced contact tracing policy can be interpreted as a greedy allocation of tests under limited resources. We leave the consideration of more sophisticated contact tracing policies for future work. Contact tracing for narrowcasting. As recently noted by Chan et al. [9] , health authorities may like to use contact tracing data of individuals who has been tested positive to narrowcast messages to the population, i.e., make public service announcements which are highly tailored to a location or to a subset of individuals who have been in a certain location during a specific period of time. For example, the health authorities may like to inform the population about the risk of infection for individuals who visited a specific site in a certain period of time.",
+            "cite_spans": [
+                {
+                    "start": 375,
+                    "end": 378,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "To implement narrowcasting, the health authority needs to estimate the empirical probability of exposure of an individual caused by positively tested individuals i that visited site k during a time window",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "Perhaps surprisingly, the above computation does not suffer from the \"x 2 adoption problem\" of social distancing via contact tracing [17, 25] because it only requires P i,k (t) of positively tested individuals i, rather than both P i,k (t) and P j,k (t). However, for the same reason it requires data from location-based contact tracing systems where P i,k (t) is observed. As noted above, one could also resort to data from proximity-based contact tracing systems if Bluetooth beacons are in place [25] .",
+            "cite_spans": [
+                {
+                    "start": 133,
+                    "end": 137,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 138,
+                    "end": 141,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 499,
+                    "end": 503,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Contact Tracing"
+        },
+        {
+            "text": "In this section, we first introduce an efficient algorithm for generating simulations of our model under a given set of parameters. This sampler adheres to our model definition of section 2 and efficiently simulates the spread of COVID-19 given a fixed set of individual mobility patterns. This allows us to estimate the efficacy of various strategies of testing, contact tracing, and containment using repeated Monte Carlo roll-outs. Afterwards, we present an inference procedure that uses our sampling algorithm and Bayesian Optimization [39, 21, 6 ] to fit the model parameters \u03b2 k , \u03b1 and \u00b5, given a set of mobility traces and longitudinal testing data.",
+            "cite_spans": [
+                {
+                    "start": 540,
+                    "end": 544,
+                    "text": "[39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 545,
+                    "end": 548,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 549,
+                    "end": 550,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Simulation and Inference"
+        },
+        {
+            "text": "Given a fixed set of general individual mobility patterns defined via P i,k (t) and an initial set of exposed individuals I, our algorithm simulates the state of each individual in the population over a time window of interest [0, T ] under a given testing and tracing strategy, social distancing measures and business restrictions. The challenge of simulating realizations from our model is the generation of valid samples from the exposure processes Y i (t) given the location patterns of each individual, which may dynamically change due to social distancing measures and business restrictions. In particular, once individual i becomes infectious, their state changes to one of I a i (t) = 1 or I p i (t) = 1, thereby changing the intensities \u03bb * j of the exposure processes Y j (t) of other individuals j who have contact with i in the future. That means, previous timings sampled for Y j might become invalid as the intensities of the point processes change.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Sampling Algorithm"
+        },
+        {
+            "text": "As a result, sound simulations have to apply the principles of superposition and thinning [10] to generate valid samples of Y i (t) as states change over time. Algorithms 1 and 2 in Appendix A implement these principles efficiently in a global context by using a priority queue of temporal events for all individuals in the model.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Sampling Algorithm"
+        },
+        {
+            "text": "Given a fixed set of individual mobility patterns and historical testing data, we use Bayesian optimization (BO) [39, 34] to infer the model parameters \u03b2 k , \u03b1 and \u00b5 that best fit the historical testing data. BO techniques are some of the most efficient approaches in terms of the number of function evaluations required for optimization [21, 6] , making them very suitable for the large-scale simulations used in our model.",
+            "cite_spans": [
+                {
+                    "start": 113,
+                    "end": 117,
+                    "text": "[39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 118,
+                    "end": 121,
+                    "text": "34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 338,
+                    "end": 342,
+                    "text": "[21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 343,
+                    "end": 345,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "Given L Monte Carlo roll-outs of our model, we consider two types of loss functions to be minimized in the context of point process modeling for epidemics. Their applicability depends on the availability of either aggregate or fine-grained testing data. More specifically:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "I. Cumulative Daily Squared Error: Let c t be the cumulative number of real positive cases by day t and let T + i,l (t) be the corresponding state variables of the l-th simulation. Given a time horizon T in days, the loss is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "II. Total Personalized Reporting Distance: Let T r be the set of individuals for whom we have real positive testing reports and T l s be the set of individuals i that tested positive according to the l-th Monte Carlo roll-out. Let t",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "i,l be the times such that dT + i (t) = 1 for i \u2208 T r \u2229 T l s , respectively. Then, inspired by previous likelihood-free inference approaches in the temporal point process literature [51] , given a time horizon T in days, the loss is given by",
+            "cite_spans": [
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[51]",
+                    "ref_id": "BIBREF50"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "In the absence of more fine-grained longitudinal testing for our experiments [36] , we use the cumulative daily squared error definition in Eq. 9 and point to the second loss function for applications with contact tracing data. Furthermore, note that the BO literature typically considers the setting of function maximization, which is why we will equivalently maximize the negative of (I) , (II) , respectively. Bayesian optimization is a search method that models the objective function as being sampled from a Gaussian process (GP) prior, using function evaluations as observations to update the posterior of the objective given the evaluations [6] . At each iteration of the procedure, an acquisition function defined over the current GP posterior is cheaply optimized to determine the next point of function evaluation. L random realizations of our model for the proposed settings are generated in a distributed fashion, and the observed loss from Equation 9 or 10 is used to update the GP posterior by an additional observation. The acquisition function guides the search for an optimum, typically defined in such a way that high acquisition corresponds to potential improvement of the objectives, either via areas of high uncertainty or high objectives. For inference of \u03b2 k , \u03b1, \u00b5, we used the upper confidence bound (UCB) heuristic [6] with parameter \u03ba = 1.0.",
+            "cite_spans": [
+                {
+                    "start": 77,
+                    "end": 81,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 648,
+                    "end": 651,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1341,
+                    "end": 1344,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Inference Using Bayesian Optimization"
+        },
+        {
+            "text": "In this section, we showcase our modeling framework using real COVID-19 data from T\u00fcbingen, a town in the Southwest of Germany, and demonstrate that it can be used to estimate the effect of testing & tracing, social distancing and business restrictions at an unprecedented spatiotemporal resolution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Case Study Using Real COVID-19 Data and Mobility Patterns"
+        },
+        {
+            "text": "While we focused on T\u00fcbingen, the open-source implementation of our modeling framework includes a collection of auxiliary functions and notebooks that can be used to mimic our experimental setup from publicly available data at any desired location. Mobility patterns. In the absence of individual mobility data, which may become available once contact tracing systems are widely deployed, we set the value of the intensities \u03bb i,k (t) and v k in our mobility model, described in Section 2.1, using the following demographic and geolocation data: -Demographic data: We use publicly available high-resolution population density data provided by Facebook in the context of the COVID-19 outbreak 6 . The data contains temporal values of population density per geographical map tile both during the spread of COVID-19 and an average over the last 90 days before the outbreak, serving as a baseline. For our experiments, we use measurements of density per tile by nighttime snapshots before the spread of the pandemic and average over the week days to determine the density of home locations in each map tile. We randomly distribute the individuals of each tile to six age groups according to the real demographics of the province, thereby matching the age groups of the COVID-19 case data collected by the national authorities in Germany [36] . The generated spatial population distribution in the town is presented in Figure 1 (a).",
+            "cite_spans": [
+                {
+                    "start": 1333,
+                    "end": 1337,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1414,
+                    "end": 1422,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "-Geolocation data: We use publicly available geolocation data provided by OpenStreetMap, which contains the specific location of educational institutions (e.g., schools, universities), social places (e.g., restaurants, bars, cafes), bus stops, offices and supermarkets in T\u00fcbingen, as shown in Figure 1(b) . Here, we would like to highlight that one could consider other types of sites available through the OpenStreetMap API. More specifically, each individual i visits a constrained set of sites per type with probability inversely proportional to its distance from home (e.g., 1 school, 2 supermarkets), considering the fact that people have formed habits and keep revisiting places. Then, for each of these sites k, we set the intensity \u03bb i,k (t) to a constant value that depends on the individual's age and the site type (e.g., children visit educational sites five times a week in average) and set the mean duration 1/v k of any visit to the site according to the site type (e.g., any visit to a supermarket takes 30 minutes in average). Appendix C contains more detailed information about our experimental setup. COVID-19 data. We use publicly available COVID-19 data of daily cases and mortality rate per age group in the region of T\u00fcbingen, as reported by the national health authorities [36] . Moreover, we use COVID-19 hospitalization rate per age group reported by previous studies [16] . Testing. To abstract away from variable criteria implemented in different regions, we use publicly available national testing data to approximate the testing capacity during the simulated time period [35] . Specifically, ",
+            "cite_spans": [
+                {
+                    "start": 1297,
+                    "end": 1301,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 1394,
+                    "end": 1398,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1601,
+                    "end": 1605,
+                    "text": "[35]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 294,
+                    "end": 305,
+                    "text": "Figure 1(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "We use Bayesian optimization to estimate the epidemic parameters \u03b2, \u03b1 and \u00b5 using real COVID-19 case data from T\u00fcbingen in a time window when the spread of COVID-19 occurred at a comparably uncontrolled rate. We select the period from March 10, 2020 until March 25, 2020 under the assumption that, except for the isolation of positive cases, neither social distancing measures nor business closures took measurable effect on case counts yet after two days. Officially, restrictions on free movement and business closures within the country came into effect starting March 23, 2020 [24] . Following the inference procedure outlined in Section 4.2, we ran 100 simulations of twenty random realizations (L = 20) until observed convergence, proposing new parameters in BO after each batch of simulations. Every realization was also randomized across realizations of the synthetic mobility traces and infection seeds. We faithfully set the seed counts to approximately match the observed COVID-19 cases in T\u00fcbingen on March 10, 2020. Table 3 summarizes the inferred epidemic parameters. The estimate \u00b5 = 0.2072 indicates that the observed COVID-19 cases in T\u00fcbingen are likely to have followed an epidemic where asymptomatic individuals where significantly less infectious than symptomatic individuals. This approximately aligns with other recent estimates on the range of 0.1 to 0.55 [27, 17] . In addition, optimization revealed that the number of asymptomatic infections account for over a third of all infections. This is slightly below recent estimates in the range of 0.4 -0.5 [33, 16, 17] . Without further mentioning, all experiments in the remainder of this work are conducted using the optimized parameters listed in Table 3 . Worst-case projections for observed period of March 23 -April 12, 2020. The above conclusions were drawn as a result of inferring the parameters \u03b2, \u00b5, \u03b1 that likely underlie the current COVID-19 epidemic. When simulating 40 random realizations of the model using the inferred parameters, yet continue the simulation until April 12, i.e., the present day, the reproduction number R t is greater than one for most of the 20-day period and, as a consequence, the mean number of infections observed at the end of simulation is 1,465. With only averaging 76 infected individuals on March 23, this is an approximate increase by a factor of 20 in only a 20-day period. However, the variance in these estimates is significant with standard deviations of both values of 579 and 57 people, respectively. These deviations can be expected to be reduced by eliminating the source of randomness from the random mobility traces in simulations, for instance by using real data from contact tracing technologies.",
+            "cite_spans": [
+                {
+                    "start": 581,
+                    "end": 585,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1380,
+                    "end": 1384,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1385,
+                    "end": 1388,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1578,
+                    "end": 1582,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1583,
+                    "end": 1586,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1587,
+                    "end": 1590,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1029,
+                    "end": 1036,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 1722,
+                    "end": 1729,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Model Inference"
+        },
+        {
+            "text": "Scaled from the down-sampled version of the city used for inference to its real size, this would imply approximate total infection numbers in T\u00fcbingen of 29,000 individuals on April 12. In addition, we note , the effective reproduction number is estimated using the Bayesian approach in Bettencourt et al. [5, 40] , the line represents the most likely estimate and shading represents high density areas. In panels (c) and (d), lines represent means and error bars represent the standard deviation of total infections as given by the top line. In each panel, we run 40 independent realizations of the model.",
+            "cite_spans": [
+                {
+                    "start": 306,
+                    "end": 309,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 310,
+                    "end": 313,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Inference"
+        },
+        {
+            "text": "that the number of positively tested individuals in this setting would not have deviated as extremely as the underlying true infection counts, matching the observed COVID-19 data. The illustration of this worst-case scenario is depicted in Figure 2 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 240,
+                    "end": 248,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Model Inference"
+        },
+        {
+            "text": "In the next sections, we will focus on the period of time after March 23, 2020 and investigate how our modeling framework can be used to quantify the effect of different social distancing measures, business restrictions and testing & tracing strategies. In all experiments, we performed 40 independent simulations and randomized also over initially seeded infected as well as synthetic mobility traces.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Inference"
+        },
+        {
+            "text": "Starting on March 23, 2020, highly restrictive measures were implemented by the German government all across Germany and specifically also in T\u00fcbingen by its local authorities [24] . These include the closure , the effective reproduction number is estimated using the Bayesian approach in Bettencourt et al. [5, 40] , the line represents the most likely estimate and shading represents high density areas. In panels (c) and (d), lines represent means and error bars represent the standard deviation of total infections as given by the top line. In each panel, we run 40 independent realizations of the model. of schools, universities, and social sites, as well as several sanitary measures in public locations such as supermarkets. In addition, individuals were asked to follow a series of social distancing measures, e.g., that only groups of two people or when living in the same household were allowed to meet in public. As a result, the accelerating number of new confirmed COVID-19 cases slowed down until the present day, as shown in red in Figure 2a . The informally often so-called \"lockdown\" was at least effective in flattening the curve of infections. In our model, the above measures can be implemented in a straightforward manner. In particular, when (i) setting \u03b2 = 0 for any social place or educational institution, (ii) reducing the inferred parameter \u03b2 by 50% for all remaining sites, and (iii) reducing the check-in intensities \u03bb i,k (t) by an (unknown) percentage p \u00d7 100% for all individuals i in the population, the effects of the implemented state measures after March 23 can be estimated from Monte Carlo simulations. If we simulate the epidemic with the estimated parameters in Section 5.2 under the implemented restrictions (i)-(iii), one would intuitively expect that there is a value of p such that the number of simulated positive cases match the real positive cases also after March 23, 2020, until today. Figure 3 confirms this intuition, showing that the closest match occurs for p = 0.2, in agreement with the latest Google COVID-19 community mobility report for Baden-W\u00fcrtemberg [18] . Moreover, our results also revealed that, shortly after March 23, the reproduction number R t decrease to values below one. However, it is clear that maintaining business closures and social distancing measures for an extended period of time may have undesirable economic and social consequences. Using our model simulations, we will now attempt to answer several questions. How long should the current measures continue to be in place to halt the spread of COVID-19? Can less restrictive, time-varying measures that only apply to parts of the population succeed at halting the spread? Projections of current restrictions for various periods starting April 12, 2020. Figure 4 illustrates four scenarios, where the above-mentioned restrictions, which match the course of the epidemic in T\u00fcbingen until April 12, are extended for one, two, four, or eight weeks into the future. We observe that the measures in place up until April 12 were effective in slowing down the case counts to a point where the immediately subsequent weeks little new true infections occurred in the population. Noticeably, when extending the measures currently in place for only one or two weeks, a significant re-surge in infections starts to occur approximately one month after lifting the measures. In this scenario, infection counts would start growing again starting at the beginning of May, reaching peak infection counts in June 2020. Most importantly, we also note that when extending the current restrictions for at least one or two additional months, it is unlikely to observe another surge in infections at all across simulations. That being said, one should carefully consider the possibility that new imported cases from other locations, which are not accounted for by the specific instance of the model we used, would initiate a re-surge in infections. In the following sections, we will investigate to what extent two different social distancing strategies that only apply to parts of the population can achieve the same or similar effects as those that apply to everyone. Social distancing of the elderly population. Since people older than 60 years of age are expected to suffer more complications from COVID-19 [36] , it has been suggested that only the people who are most endangered should be isolated, allowing the rest of the population to slowly develop herd immunity [20] . Motivated by this suggestion, we only implement social distancing measures for people in the age groups older than 60 years, and lift all restrictions previously found to have matched the observed case development between March 23 and April 12, 2020, as for example used in the above experiments and Figures 3 and 4 More specifically, we enforce that the check-in activity at sites of the elderly population is reduced by 90% for a period of either one or two months. The results are depicted in Figure 5 and shown compared to a set of baseline simulation results without restrictions.",
+            "cite_spans": [
+                {
+                    "start": 176,
+                    "end": 180,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 308,
+                    "end": 311,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 312,
+                    "end": 315,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 2112,
+                    "end": 2116,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 4321,
+                    "end": 4325,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 4483,
+                    "end": 4487,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1047,
+                    "end": 1056,
+                    "text": "Figure 2a",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 1935,
+                    "end": 1943,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 2786,
+                    "end": 2794,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 4790,
+                    "end": 4805,
+                    "text": "Figures 3 and 4",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 4986,
+                    "end": 4994,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF9"
+                }
+            ],
+            "section": "Social Distancing & Business Restrictions"
+        },
+        {
+            "text": "We observe that this concept of containment can be very effective in avoiding large number of hospitalizations and fatalities across the entire population, in particular when the social distancing measures of older citizens is enforced for at least eight weeks. In this simulated setting, peak number of hospitalizations were approximately halved and fatalities at least reduced by two-thirds across the entire population, showing the promise of the strategy (Figure 5(a) ). In addition, we find that the number of overall infections does not change significantly under these strategies ( Figure 5(b) ). This implies that herd immunity could be developed at a pace that is qualitatively comparable to an uncontrolled pandemic. In doing so, the peak and overall burden on the health care system are significantly lower, making social distancing for the elderly an effective mitigation strategy. Alternating curfews for random subgroups. Rather than implementing measures for specific demographic groups, we analyze an alternative approach of dividing the population into equal subgroups with the goal of reducing both intra-and inter-group exposure events, as suggested by recent work [22, 30] . Specifically, we consider a setting where the population is randomly split into K disjoint subsets. For instance, for K = 2, the population could be divided into groups of even and odd birth dates. Every day, the containment strategy prescribes curfews to K \u2212 1 of the random groups and only one is allowed to follow their usual daily activities. After K days, every group will have been allowed to follow a regular schedule exactly once. Our findings are summarized in Figure 6 . The scale is chosen to highlight a re-surge in observed daily infected individuals that is observed when the population is split in only two random groups. Conversely, we note that for the settings of three and four disjoint groups, the goals of significantly reducing both the intra-group contact exposures between individuals at sites as well as the inter-group exposures were achieved. We do not observe a re-surge in infection counts over a twelve week window of simulations in these settings.",
+            "cite_spans": [
+                {
+                    "start": 1184,
+                    "end": 1188,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1189,
+                    "end": 1192,
+                    "text": "30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 459,
+                    "end": 471,
+                    "text": "(Figure 5(a)",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 589,
+                    "end": 600,
+                    "text": "Figure 5(b)",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 1665,
+                    "end": 1673,
+                    "text": "Figure 6",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "Social Distancing & Business Restrictions"
+        },
+        {
+            "text": "In this section, we explore the use of contact tracing to implement highly granular social distancing. We start the simulation on April 12, 2020 and isolate both individuals who have tested positive, as done in all experiments of this work, and individuals who have been in contact with positively tested individuals and are identified using contact tracing. Here, we use the average population states observed at the end of the simulations summarized in Figure 3 as starting conditions and experiment with two different contact tracing policies as described in Section 3. Moreover, to avoid any obfuscation in estimating the true effect of social distancing via contact tracing, we do not implement any of the additional social distancing measures described in Section 5.3 and we lift all business restrictions. The above findings demonstrate the feasibility of individual tracing technologies for highly granular social distancing. In the following, we investigate to what extent these findings are robust to the individuals' compliance with the use of the prescribed contact tracing technologies. Effect of compliance on the effectiveness of contact tracing. We simulate various scenarios assuming that a given percentage of the population can neither be isolated using contact tracing nor their contacts be traced if tested positively because they elect not to comply with the implemented contact tracing system. These scenarios isolate the addition of contact tracing as a public health intervention, simulating the adoption of contact tracing at various rates of compliance with no other interventions active during the time of measurement. Figure 7b summarizes the results, which show that the effectiveness of social distancing via contact tracing gradually degrades as the compliance lowers due to the \"x 2 problem\" of adoption [17, 25] , i.e., two parties having to adopt contact tracing technology for the infection chain to be tracked. Below, we explore a potential strategy to circumvent the x 2 problem by means of using narrowcasting, i.e., making public service announcement which are highly tailored to a location or to a subset of individuals who may have been in a certain location during a specific period of time. Refer to Section 3 for model details. Narrowcasting by contact tracing. While some individuals may be reluctant to adopt or comply with contact tracing technology due to privacy violations concerning their personal data, they may still be willing to follow public service announcements. For example, an individual may be willing to self-isolate or seek testing if they are notified via narrowcasting that they recently visited a location with empirically high probability of exposure by other infected individuals. As discussed in Section 3, narrowcasting does not suffer from requiring pairs of compliant individuals in order to be effective for mitigation of COVID-19. Figure 8 presents an example of narrowcasting the empirical exposure probability of individuals at sites during a specific time window on an exposure map. Here, we have used contact data from one realization of the same baseline simulations as used in Figures 7a and 7b. As long as the level of compliance is uniformly distributed across the individuals who visit each site, the ranking of sites in terms of empirical probability of exposure will be invariant and not differ in expectation. In this case, the absolute value of empirical probability of exposure can be corrected for the level of compliance. In practice, it would be important to correct for compliance disparities across sites and site types, which are likely to occur due to differences in demographics and visiting patterns at certain sites.",
+            "cite_spans": [
+                {
+                    "start": 1837,
+                    "end": 1841,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1842,
+                    "end": 1845,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 455,
+                    "end": 463,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 1647,
+                    "end": 1656,
+                    "text": "Figure 7b",
+                    "ref_id": "FIGREF12"
+                },
+                {
+                    "start": 2906,
+                    "end": 2914,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF13"
+                },
+                {
+                    "start": 3158,
+                    "end": 3176,
+                    "text": "Figures 7a and 7b.",
+                    "ref_id": "FIGREF12"
+                }
+            ],
+            "section": "Testing & Tracing"
+        },
+        {
+            "text": "Due to the time-sensitive nature of COVID-19 research, we have decided to downsample the population, sites, and the real case numbers of T\u00fcbingen in our experiments. However, we believe it will be possible to reproduce our results without downsampling as well as to apply our framework to other towns or cities, given sufficient computational resources. To enable this, our open-source implementation includes scripts to automate the generation of the data that our modeling framework needs from external data sources.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Apart from a few notable exceptions such as South Korea and Singapore, contact tracing technology is not yet widely deployed. Therefore, we have used high-resolution population density data, site locations, and some assumptions on the weekly frequency of check-ins by individuals from different age group to generate realistic individual mobility traces. Once contact tracing contact technology becomes more popular, we believe our predictions will have lower variance and it will be possible to use our framework to identify areas with higher risk of infection in real time. In this context, we would like to highlight that, in the absence of Bluetooth beacons, proximity-based contact data will compare unfavorably with spatial-based contact data since it will only record contacts where two individuals have been near at the same point in time and, as a result, we will not capture environmental transmissions through aerosol or surfaces nor distinguish among different transmission rates across sites.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Beyond legal compliance and gaining societal acceptance, the use of epidemic models with high spatiotemporal resolution such as ours, as well as contact tracing technology, should respect each individual's privacy. In this context, it is important to highlight that, both during inference and contact tracing, we only need to compute the duration of contact that each individual had with an infected person. The identity of the infected person is not required. As a result, there are reasons to believe that such computations can be made in a decentralized and privacy-preserving manner [32, 41] .",
+            "cite_spans": [
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 592,
+                    "end": 595,
+                    "text": "41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Finally, the predictions made by our model can only be faithfully considered when being aware of the high variance observed across random realizations. We advise against the implementation of testing & tracing strategies, social distancing measures, or business closures based solely on the predictions made by our model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Motivated by the rapid development of contact tracing technology and the current COVID-19 outbreak, we have introduced a spatiotemporal epidemic model that uses marked temporal processes to represent individual mobility patterns and the course of the disease for each individual in a population. Moreover, through a detailed use case using real COVID-19 data and mobility patterns of T\u00fcbingen, Germany, we have demonstrated that our model can be used to predict the spread of COVID-19 under a variety of testing & tracing strategies, social distancing measures and business restrictions at an unprecedented spatiotemporal resolution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "We hope that the release of an easy-to-use open-source implementation of our modeling framework will further facilitate research and informed policy making in the context of the current COVID-19 outbreak and help prevent the emergence of pandemics in the future. Although our model has significantly greater spatial resolution than many of those currently in use today, we recommend to exercise caution when interpreting or using its results and raise awareness of the high variance observed across random realizations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The algorithms presented in this section simulates the state of each individual in the population over a time window of interest [0, T ] under a given testing and tracing strategy, social distancing measures and business restrictions. As introduced in the main body, given the location patterns of each individual, the challenge of simulating realizations our model is the generation of valid samples from the exposure processes Y i (t). Once individual i becomes infectious, their change in state affects the rates of exposure of other individuals j that i will have contact with in the future. This can cast previous timings sampled for Y j invalid.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Algorithms 1 and 2 implement the principles of superposition and thinning [10] by using a priority queue of temporal events for all individuals. For simplicity, we omit details about the procedure Interventions(i, j, t) which applies thinning due to social distancing and business restrictions, and point the reader to our publicly available implementation for details 9 .",
+            "cite_spans": [
+                {
+                    "start": 74,
+                    "end": 78,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Algorithm 1 Sampling algorithm for model simulation Input: Initially exposed individuals I, location traces P i,k (t), parameters \u03b3, \u03b4, \u03b1, \u03be, \u00b5 and \u03b2 k , hazard functions \u03bb_(t) 1: tnow \u2190 0, S i \u2190 1, Q \u2190 priority queue processing in temporal order of events 2: for all initially exposed i \u2208 I do 3:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Push (0, dE, i, \u22121) to Q 4: while Q not empty do 5:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "(tnow, e, i, j) \u2190 pop earliest from Q 6:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "if e is dE and R j (tnow) = 0 and B j (tnow) = 0 and S i = 1 then Person i exposed by infector j 7:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "if Interventions(i, j, tnow) then 8:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Call Algorithm 2 with (P, j, i, tnow, r = 1 \u2212 (1 \u2212 \u00b5)I a j (tnow)) 9: else 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "E i \u2190 1, S i \u2190 0, \u2206 W \u223c Expo(\u03bb W (tnow)) , u \u223c Unif(0, 1) 11:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "if u \u2264 \u03b1 then 12:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Push (tnow + \u2206 W , dI a , i, \u22121) event to Q 13: else 14:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Push (tnow + \u2206 W , dI p , i, \u22121) event to Q 15:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "else if e is dI p then Person i pre-symptomatic 16:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "I p i \u2190 1, E i \u2190 0, \u2206 Z \u223c Expo(\u03bb Z (tnow)) 17:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Push (tnow + \u2206 Z , dI s , i, \u22121) event to Q 18:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "for u such that Su = 1 do 19:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "Call Algorithm 2 with (P, i, u, tnow, r = 1) 20:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "else if e is dI s then Person i symptomatic 21:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "I s i \u2190 1, I p i \u2190 0, u, v \u223c Unif(0, 1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Sampling Algorithm"
+        },
+        {
+            "text": "if u \u2264 \u03b7 then 23:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "\u2206 M \u223c Expo(\u03bb H (tnow)), Push (tnow + \u2206 M , dH, i, \u22121) 24:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "if v \u2264 \u03be then 25:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "\u2206 B \u223c Expo(\u03bb B (tnow)), Push (tnow + \u2206 B , dB, i, \u22121) event to Q 26: else 27:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "\u2206 R \u223c Expo(\u03bb R s (tnow)), Push (tnow + \u2206 R , dR, i, \u22121) event to Q 28:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "else if e is dI a then Person i asymptomatic 29:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "I a i \u2190 1, E i \u2190 0, \u2206 R \u223c Expo(\u03bb R a (tnow)) 30:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "Push (tnow + \u2206 R , dR, i, \u22121) event to Q 31:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "for u such that Su = 1 do 32:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "Call Algorithm 2 with (P, i, u, tnow, r = \u00b5) 33:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "else if e is dH then Person i hospitalized 34:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "else if e is dR then Person i resistant 36:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "R i \u2190 1, I a i \u2190 0, I s i \u2190 0, H i \u2190 0 37:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "else if e is dD then Person i deceased 38:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "22:"
+        },
+        {
+            "text": "D i \u2190 1, I s i \u2190 0, H i \u2190 0 probability inversely proportional to the distance from the individual's home, where u c = 1 for education, u c = 10 for social, u c = 5 for transportation, u c = 1 for work, and u c = 2 for groceries. Moreover, for each individual i and site k \u2208 S i , we set the intensity \u03bb i,k (t) = r a(i),c(k) /u c(k) , where r a(i),c(k) is a constant value that depends on the individual's age a(i) and the site type c(k), as shown in the table below. Here, we assume people of younger ages spend most of their time in school and social sites, middle-age Table 4 : Average number r a(i),c(k) of visits per week to sites of type c(k) by individuals of age a(i). people spend most of their time at work and elderly people have lower activity over all. Finally, for each site k \u2208 S, we set the mean duration 1/v k = 1/v c(k) of any visit to the site according to the site type c(k), as shown in Table 5 . In the above, note that the duration of visits to sites within the categories education and work are set to lower values than one would expect as real visit durations. This accounts for the fact that people are neither exposed to all others at the site nor continually exposed during the visit. For instance, an office worker mainly interacts with a specific subset other people during lunch or group meetings, and students mainly interact with other students of their class during breaks and study sessions.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 572,
+                    "end": 579,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 909,
+                    "end": 916,
+                    "text": "Table 5",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "22:"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The COVID tracking project",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Global dynamics of epidemic spread over complex networks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Ahn",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hassibi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CDC",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Rationing social contact during the covid-19 pandemic: Transmission risk and social benefits of us locations",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Benzell",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Collis",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Nicolaides",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Social Science Research Network",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Essai d'une nouvelle analyse de la mortalit\u00e9 caus\u00e9e par la petite v\u00e9role, et des avantages de l'inoculation pour la pr\u00e9venir",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bernoulli",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Histoire de l'Acad",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Real time bayesian estimation of the epidemic potential of emerging infectious diseases",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "M A"
+                    ],
+                    "last": "Bettencourt",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "PLOS ONE",
+            "volume": "3",
+            "issn": "5",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A tutorial on bayesian optimization of expensive cost functions, with application to active user modeling and hierarchical reinforcement learning",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Brochu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Cora",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "De Freitas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Second-order mean-field susceptible-infected-susceptible epidemic threshold",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Cator",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Van Mieghem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Physical review E",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Epidemic thresholds in real networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chakrabarti",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Privacy sensitive protocols and mechanisms for mobile contact tracing",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gollakota",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Horvitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jaeger",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kakade",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kohno",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Langford",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Larson",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singanamalla",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sunshine",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.03544"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Temporal point processes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "De",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Upadhyay",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gomez-Rodriguez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Inferring covid-19 spreading rates and potential change points for case number forecasts",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dehning",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zierenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Spitzner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wibral",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Neto",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wilczek",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Priesemann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.01105"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Expected impact of school closure and telework to mitigate covid-19 epidemic in france",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "Di"
+                    ],
+                    "last": "Domenico",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Pullano",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Coletti",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Hens",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Colizza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Daniel Bernoulli's epidemiological model revisited",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Dietz",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Heesterbeek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Mathematical biosciences",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Strategies for containing an emerging influenza pandemic in Southeast Asia",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ferguson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Cummings",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Cauchemez",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fraser",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Riley",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Meeyai",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Iamsirithaworn",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Burke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Nature",
+            "volume": "437",
+            "issn": "7056",
+            "pages": "209--214",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Strategies for mitigating an influenza pandemic",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ferguson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A T"
+                    ],
+                    "last": "Cummings",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fraser",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Cajka",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Cooley",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Burke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Nature",
+            "volume": "442",
+            "issn": "7101",
+            "pages": "448--452",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Impact of non-pharmaceutical interventions (npis) to reduce COVID-19 mortality and healthcare demand. London: Imperial College COVID-19 Response Team",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ferguson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Laydon",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Nedjati-Gilani",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Imai",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ainslie",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Baguelin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bhatia",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Boonyasiri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cucunub\u00e1",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cuomo-Dannenburg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Quantifying dynamics of sars-cov-2 transmission suggests that epidemic control and avoidance is feasible through instantaneous digital contact tracing",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ferretti",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wymant",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kendall",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Nurtay",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Bonsall",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fraser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Science",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Covid-19 community mobility report",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Google",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Temporal dynamics in viral shedding and transmissibility of COVID-19. medRxiv",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Lau",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Lau",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Mo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Liao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cowling",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Leung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Protecting older adults during social distancing",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jawaid",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Science",
+            "volume": "368",
+            "issn": "6487",
+            "pages": "145--145",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Efficient global optimization of expensive black-box functions",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schonlau",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Welch",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Journal of Global optimization",
+            "volume": "13",
+            "issn": "4",
+            "pages": "455--492",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Adaptive cyclic exit strategies from lockdown to suppress covid-19 and allow economic activity. medRxiv",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Karin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bar-On",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Milo",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Katzir",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mayo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Korem",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Dudovich",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Yashiv",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Zehavi",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Davidovich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "A contribution to the mathematical theory of epidemics",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Kermack",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mckendrick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proc. R. Soc",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Verordnung der Landesregierung \u00fcber infektionssch\u00fctzende Massnahmen gegen die Ausbreitung des Virus SARS-Cov",
+            "authors": [
+                {
+                    "first": "Land",
+                    "middle": [],
+                    "last": "Baden-W\u00fcrttemberg",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Critical issues in digital contract tracing",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Langford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "The Incubation Period of Coronavirus Disease 2019 (COVID-19) From Publicly Reported Confirmed Cases: Estimation and Application",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lauer",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Grantz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Bi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Meredith",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Azman",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Reich",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lessler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Annals of Internal Medicine",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Substantial undocumented infection facilitates the rapid dissemination of novel Coronavirus (SARS-CoV2)",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shaman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Science",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "A conceptual model for the coronavirus disease 2019 (covid-19) outbreak in wuhan, china with individual reaction and governmental action",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Musa",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International journal of infectious diseases",
+            "volume": "93",
+            "issn": "",
+            "pages": "211--216",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Incubation period and other epidemiological characteristics of 2019 novel Coronavirus infections with right truncation: A statistical analysis of publicly available case data",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Linton",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kobayashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hayashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Akhmetzhanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jung",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kinoshita",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Nishiura",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Journal of Clinical Medicine",
+            "volume": "9",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "An alternating lock-down strategy for sustainable mitigation of covid-19",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Meidan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Haber",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Barzel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2004.01453"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Projecting hospital utilization during the covid-19 outbreaks in the united states",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Moghadas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shoukat",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Fitzpatrick",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Wells",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sah",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pandey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sachs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Meyers",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Singer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Give more data, awareness and control to individual citizens",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nanni",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Andrienko",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Boldrini",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Bonchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Cattuto",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chiaromonte",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Comand\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Conti",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cot\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Dignum",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Dignum",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Domingo-Ferrer",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Giannotti",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Guidotti",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Helbing",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kertesz",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lepri",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lukowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Monreale",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Morik",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Oliver",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Passarella",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Passerini",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Pedreschi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pentland",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Pratesi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rinzivillo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruggieri",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Siebes",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Trasarti",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Van Den Hoven",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vespignani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Estimation of the asymptomatic ratio of novel coronavirus infections",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Nishiura",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kobayashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Miyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Suzuki",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jung",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hayashi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kinoshita",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Akhmetzhanov",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Linton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Bayesian Optimization: Open source constrained global optimization tool for Python",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nogueira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "dl-de/by-2-0. RKI COVID19 data set",
+            "authors": [],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "An application of the theory of probabilities to the study of a priori pathometry. part i",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ross",
+                    "suffix": ""
+                }
+            ],
+            "year": 1916,
+            "venue": "Proc. R. Soc",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "An application of the theory of probabilities to the study of a priori pathometry. part iii",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ross",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Hudson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1917,
+            "venue": "Proc. R. Soc",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Practical bayesian optimization of machine learning algorithms",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Snoek",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Larochelle",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Adams",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2951--2959",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Estimating covid-19's r t in real-time",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Systrom",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Decentralized privacy-preserving proximity tracing",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Troncoso",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Aerosol and surface stability of HCoV-19 (SARS-CoV-2)",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Van Doremalen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Bushmaker",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Morris",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Holbrook",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gamble",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Williamson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tamin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Harcourt",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Thornburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gerber",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lloyd-Smith",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "De Wit",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Munster",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "The N-intertwined SIS epidemic network model. Computing",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Van Mieghem",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Virus spread in networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Van Mieghem",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Omic",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kooij",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "IEEE/ACM TON",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "An agent-based policy laboratory for COVID-19 containment strategies",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Vermeulen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pyka",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Clinical Characteristics of 138 Hospitalized Patients With 2019 Novel Coronavirus-Infected Pneumonia in",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "323",
+            "issn": "",
+            "pages": "1061--1069",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Impact of international travel and border control measures on the global spread of the novel 2019 coronavirus outbreak",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Wells",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sah",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Moghadas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pandey",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shoukat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Meyers",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Singer",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Galvani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the National Academy of Sciences",
+            "volume": "117",
+            "issn": "13",
+            "pages": "7504--7509",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Clinical presentation and virological assessment of hospitalized cases of Coronavirus disease",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Woelfel",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Corman",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Guggemos",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Seilmaier",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zange",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Mueller",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Niemeyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vollmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Rothe",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hoelscher",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Bleicker",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bruenink",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schneider",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zwirglmaier",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Drosten",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wendtner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "World Health Organization. Coronavirus disease (covid-2019) situation reports",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Report of the who-china joint mission on Coronavirus disease",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Wasserstein learning of deep generative point process models",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Farajtabar",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zha",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "3247--3257",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "Spatial distribution of home locations and sites. Panel (a) shows the distribution of homes in T\u00fcbingen where purple and orange colors correspond to low and high density respectively. Panel (b) depicts schools, universities and research institutes (blue), offices (red), bus stops (green), social places (orange) and supermarkets (purple) in T\u00fcbingen.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Predictions by our model using the parameters optimized to match COVID-19 case data before the introduction of restrictive measures. The simulation continued until April 12, 2020 with no further restrictions other than the isolation of the positively tested. The linear growth of positive test results in (a) is explained by the test capacity assumed during simulation. In panel (a), lines represent means and shading represents the standard deviation. In panel (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "number of infected individuals (d) Cumulative number of infected individuals",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Predictions by our model using the parameters optimized to match COVID-19 case data before the introduction of restrictive measures by the government. Starting March 23, 2020, the model simulation implemented: social places and educational institutions close; public transport, supermarkets, offices reduce the rate of contamination by 50%; individuals reduce their check-in intensities by 20%. In panel (a), lines represent means and shading represents the standard deviation. In panel (b)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Predictions of the outbreak with the measures matching the observed COVID-19 case counts between March 23 and April 12, 2020 extended for various durations into the future. The line represents the mean and the error bars the standard deviation. In both panels, we run 40 independent realizations of the model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Predictions of the outbreak with social distancing of the elderly population using the optimized model settings. In panel (a), full lines denote mean hospitalized individuals over time and dashed lines denote mean total fatalities observed. In panel (b), lines denote the mean total number of infected individuals in the population. In each panel, error bars indicate the standard deviations over 40 independent simulations.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Predictions of the total number of infected individuals per day for the scenario of prescribing curfews for random subgroups of the population. Lines and error bars indicate the mean and standard deviations over 40 random realizations. The lines K = 3 and K = 4 approximately align with the time axis.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "10 individuals isolated per positive case 25 individuals isolated per positive case (a) Contact tracing for social distancing Basic contact tracing policy Advanced contact tracing policy (b) Robustness of contact tracing across compliance levels",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": "Predictions of daily infected individuals under the assumption that contact tracing is deployed for social distancing. As in all experiments, we use the parameters optimized to follow observed COVID-19 case data from March 10 until March 23, 2020, In all panels, lines represent mean total number of infected individuals and error bars indicate standard deviation computed using 40 random realizations.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF13": {
+            "text": "Figure 7a summarizes the results for both contact tracing policies, namely the basic and the advanced contact tracing policy defined earlier. For each positively tested individual in the population, 10 or 25 Narrowcasting of exposure probabilities at sites during a week-long window of a baseline simulation. Circles represent sites and the size of each circle is proportional to the site's empirical probability of exposure of an individual. Colors represent site types as defined in Figure 1. individuals get selected for isolation and are subsequently kept in isolation for seven days. The window considered for contacts between individuals and the positively tested was three days and the contact tracing policies were implemented over the entire twelve weeks of simulation. The results reveal several interesting empirical findings: (i.) Both basic and advanced contact tracing show a significant reduction in total infected individuals compared to the baseline (i.e., no contact tracing). (ii.) Contact tracing is effective even when the number of isolated contacts are low. Refer to the left panel of Figure 7a, depicting the scenario when only 10 individuals with exposure contact are isolated.(iii.) Advanced contact tracing based on the empirical probability of exposure of individuals clearly outperforms basic contact tracing, indicating that greedy allocation is favorable.8",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Epidemiological state variables",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Epidemiological distributions and model parameters in units of days.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Epidemiological parameters inferred using Bayesian optimization we consider the reported capacity of 100,000 tests per day during calendar week 13 in Germany, roughly corresponding to 100 tests per day in T\u00fcbingen. During simulation, we assume for simplicity that only true symptomatic individuals are selected for testing. Due to delay in testing as well as self-reporting at the onset of symptoms, we assume a two-day lag in observing the test results at simulation time. Plots showing the observed positive cases in simulation correct for this delay. While the choice of testing parameters is not relevant for infection numbers, it should be noted that they play a significant role for the observed positive cases and thus during inference. Scaling. We decided to use a smaller representation of T\u00fcbingen for efficiency reasons, where population and sites were down-sampled by factors of 20x and 10x, respectively. To account for an urban accumulation of COVID-19 cases, we down-sampled real case numbers as well as the corresponding test capacity by 10x.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Average duration 1/v c(k) of visits to sites of type c(k).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The authors would like to thank the Robert Koch Institute, OpenStreetMaps and Facebook for providing data to make this work possible and Yannik Schaelte for useful comments on a preliminary version of this manuscript. The work presented in this paper was supported in part by the Swiss National Science Foundation under grant number 200021-182407.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements"
+        },
+        {
+            "text": "Algorithm 2 Pushes next exposure event of individual i infecting individual j in time window [t, T ] . This procedure considers the contribution of i to rate \u03bb * j (t) in the summation of Equation 4 alone. The superposition induced by Q is ultimately used to obtain a correct sample of Y j (t) in Algorithm 1.if not b then 13:if u \u2264 p then 21:Push (\u03c4, dY, j, i) event to Q 22: break",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 100,
+                    "text": "[t, T ]",
+                    "ref_id": null
+                },
+                {
+                    "start": 188,
+                    "end": 198,
+                    "text": "Equation 4",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "annex"
+        },
+        {
+            "text": "If information about the households H that each individual i \u2208 V belongs to is available, then one can account for infections within the households by adding the following base rate \u03bb 0,i (t) to the conditional intensity function \u03bb * i (t) of the exposure counting process Y i (t):where \u03be \u2265 0 is the transmission rate due to any type of infectious individuals within households. We assume that individuals within a household are in contact as long as they are not visiting any site.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B Accounting for Infections Within Households"
+        },
+        {
+            "text": "Using the public API of OpenStreetMap, we retrieve the location of all sites S within five site categories: We assume that each individual i \u2208 V visits only a constrained set of sites S i \u2286 S. This reflects the fact that individuals typically study or work in only one place and form habits regarding the bus stops, social places or supermarkets they visit. To construct S i , we sample u c different sites from each site category c with",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C Additional Details on the Experimental Setup"
+        }
+    ]
+}

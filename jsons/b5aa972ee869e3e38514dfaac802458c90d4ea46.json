@@ -1,0 +1,1316 @@
+{
+    "paper_id": "b5aa972ee869e3e38514dfaac802458c90d4ea46",
+    "metadata": {
+        "title": "Adversarial Autoencoder and Multi-Task Semi-Supervised Learning for Multi-stage Process",
+        "authors": [
+            {
+                "first": "Andre",
+                "middle": [],
+                "last": "Mendes",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "New York University",
+                    "location": {
+                        "settlement": "New York City",
+                        "region": "NY",
+                        "country": "USA"
+                    }
+                },
+                "email": "andre.mendes@nyu.edu"
+            },
+            {
+                "first": "Julian",
+                "middle": [],
+                "last": "Togelius",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "New York University",
+                    "location": {
+                        "settlement": "New York City",
+                        "region": "NY",
+                        "country": "USA"
+                    }
+                },
+                "email": "julian.togelius@nyu.edu"
+            },
+            {
+                "first": "Leandro",
+                "middle": [],
+                "last": "Dos",
+                "suffix": "",
+                "affiliation": {},
+                "email": "leandro.coelho@pucpr.br"
+            },
+            {
+                "first": "Santos",
+                "middle": [],
+                "last": "Coelho",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Pontifical Catholic University of Parana",
+                    "location": {
+                        "settlement": "Curitiba",
+                        "region": "PR",
+                        "country": "Brazil"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In selection processes, decisions follow a sequence of stages. Early stages have more applicants and general information, while later stages have fewer applicants but specific data. This is represented by a dual funnel structure, in which the sample size decreases from one stage to the other while the information increases. Training classifiers for this case is challenging. In the early stages, the information may not contain distinct patterns to learn, causing underfitting. In later stages, applicants have been filtered out and the small sample can cause overfitting. We redesign the multi-stage problem to address both cases by combining adversarial autoencoders (AAE) and multi-task semi-supervised learning (MTSSL) to train an end-to-end neural network for all stages together. The AAE learns the representation of the data and performs data imputation in missing values. The generated dataset is fed to an MTSSL mechanism that trains all stages together, encouraging related tasks to contribute to each other using a temporal regularization structure. Using real-world data, we show that our approach outperforms other state-ofthe-art methods with a gain of 4x over the standard case and a 12% improvement over the second-best method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In many applications including network intrusion detection [15] and medical diagnosis [1] , decision systems are composed of an ordered sequence of stages, which can be referred to as a multi-stage process. For selection processes (such as hiring or student intake), for instance, the applicants submit general information in the initial stages, such as resumes. The evaluator screens trough the resumes and selects applicants to move on to the next round. In each following stage, applicants are filtered out until the final pool is selected. In terms of information, the initial stages have general data about the applicants and for each subsequent round, more and specific information is gathered. As the process continues, the cost to acquire and evaluate new data increases, which is an incentive to decrease the pool of applicants. Hence, in the final stages, the evaluator has a smaller pool with much more information about each applicant.",
+            "cite_spans": [
+                {
+                    "start": 59,
+                    "end": 63,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 86,
+                    "end": 89,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Training classifiers for a multi-stage process can be challenging because of the dual funnel structure as shown in Fig. 1(a) . During the initial stages, the number of applicants decreases whereas the data about them increases. Therefore, the dataset grows in dimensionality but decreases in terms of sample size. Classifiers trained in initial stages have sufficiently large samples to generalize, but the available features might not contain enough information to differentiate applicants, causing high bias and underfitting. In the final stages, there is more information for each applicant, but the sample size is reduced significantly, causing classifiers to suffer from high variance and overfitting. To address this problem, we redesign the multi-stage problem and present a framework with two components.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 115,
+                    "end": 124,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the first part of our framework, we use an adversarial autoencoder (AAE) [19] that learns the data representation and is able to generate synthetic data for data imputation in missing values. This component makes possible for our framework to fill the data for an applicant in all the stages that he has not reached. Therefore, we can generate a complete dataset with data for all applicants in all stages.",
+            "cite_spans": [
+                {
+                    "start": 76,
+                    "end": 80,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the second part of our framework, we use multi-task learning to train a single classifier that can learn different tasks together. We introduce a temporal regularization structure so that related tasks can share information, and we adopt a semi-supervised approach to handle the newly generated samples from AAE, which don't have labels. This results in the aDversarial autoEnCoder and multI-task SemI-superVised lEarning (DECISIVE) framework. The main contributions of this paper are: 1. We adapted an adversarial auto-encoder to perform data imputation and generate a complete dataset to be shared in different stages. 2. We redesign the multi-stage problem and present a temporal multi-task semisupervised framework that allows knowledge from all stages to be shared. 3. The effectiveness of the proposed model is demonstrated by extensive longitudinal experiments on real data from 3 different selection processes. Our model is able to outperform other single-task and multi-task frameworks particularly in the later stages where the sample size is significantly reduced.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our method builds on three subfields of machine learning, namely data imputation [3] , multi-task learning [20] and multi-stage or decision cascades [15, 17] . Data Imputation with Autoencoders -Many methods for data imputation have been proposed, ranging from simple column average to complex imputations based on statistical and machine learning models. Such methods can be categorized in discriminative [14] , or generative [16] . Missing data is a special case of noisy input and deep architectures such as denoising autoencoders (DAE) [16] have performed well due to their capability to automatically learn latent representations. The work presented in [5] uses an overcomplete DAE as a base model to create a multiple imputation framework, which simulates multiple predictions by initializing the model with random weights at each run. Our AAE component is based on the framework proposed in [19] , which explores the generative adversarial network (GAN) [6] approach to create: a generator to accurately impute missing data; a discriminator to distinguish between observed and imputed components; and a hint mechanism to help generate samples according to the true underlying data distribution.",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 84,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 154,
+                    "end": 157,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 406,
+                    "end": 410,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 427,
+                    "end": 431,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 540,
+                    "end": 544,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 658,
+                    "end": 661,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 898,
+                    "end": 902,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 961,
+                    "end": 964,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Multi-Task and Semi-Supervised Learning -The goal of multi-task learning (MTL) is to learn multiple related tasks simultaneously so that knowledge obtained from each task can be re-used by the others. This can increase the sample size for each task, making MTL beneficial for tasks with small training sample. MTL has been applied in different approaches including neural nets (NN) and kernel methods [1, 7] . More recent methods have explored the application of MTL to deep neural nets (DNN) [11] . The regularization parameters in MTL control how information is shared between tasks and prevents overfitting. The framework proposed in [7] enables information to be selectively shared across tasks by placing a structure constrain on the learned weights. Our framework builds on [21] , in which temporal information is encoded using regularization terms. MTL can also be combined with semi-supervised learning (SSL) to create classifiers coupled by a joint prior distribution over the parameters of all classifiers [4] .",
+            "cite_spans": [
+                {
+                    "start": 401,
+                    "end": 404,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 405,
+                    "end": 407,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 493,
+                    "end": 497,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 637,
+                    "end": 640,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 780,
+                    "end": 784,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1016,
+                    "end": 1019,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Multi-stage Classification -Multi-stage and cascade classifiers share many similarities, however, an important difference between cascade [17] and multi-stage can be defined as the system architecture. Detection cascades make partial decisions, delaying a positive decision until the final stage. In contrast, multi-stage classifiers shown in Fig. 1(b) , can deal with multi-class problems and can make classification decisions at any stage [15] . The approach proposed in [12] explores the connection between deep models and multi-stage classifiers such that classifiers can be jointly optimized and they can cooperate across the stages. This structure is similar to ours, but in our case, the algorithm only has access to the original information in a specific stage.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 473,
+                    "end": 477,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 343,
+                    "end": 352,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Let's define s = {0, 1, ...S} as a single stage in a multi-stage process. Every stage has a dataset with training examples {x s i , y s i } m s i=0 , where m s refers to the number of samples. The number of features is given by n s , the features are given by X s \u2208 R m s \u00d7n s and the labels by Y s \u2208 R m s \u00d71 . Let's also define A \u2208 R m\u00d71 as the vector of applicants, where m represents the total number and a \u2208 A represents a single applicant. The feature vector for a single applicant a in stage s are given by the vector x s a \u2208 R 1\u00d7n s . A prediction matrixP \u2208 R m\u00d7S can be defined, where p a \u2208 R 1\u00d7S is the prediction vector for an applicant a in all stages, and p s a \u2208 [\u22121, 1] represents the prediction for a single stage s. Underfitting in Earlier Stages -In each stage s, only features x s up to that stage are available. Therefore, a prediction for an applicant with data up to s is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "is a classification function. For example, for an applicant with information in s = 0, all predictions will be made using x 0 a . Since the features in early stages are more general and less discriminative, models trained in these stages have poor performance predicting the applicant's future in the process. A method to address this problem could incorporate future features in the early stages. More specifically, a data imputation process can be used to fill missing information and generate a complete dataset for all stages. In other words,X = g(X s ), where X s is the input features in stage s and g(\u00b7) is a data imputation function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "Overfitting in Later Stages -For each new stage, new data is received while the number of samples decrease, which means X s+1 = X s , m s+1 < m s and n s+1 > n s . As m s gets significantly smaller in absolute value and in comparison to n s , classifiers trained on the specific stage data tend to overfit. One possible way to address this problem is to use the generated complete datasetX. Since any stage X s can be mapped toX, more training samples can be used to train classifiers in later stages. However,X s+1 = g(X s ) only generate new samples but no labels, since the applicants in s were not evaluated in s+1. Hence, Y s+1 = Y s and m s+1 < m s for the label matrix. In this case, semi-supervised learning can be applied so that labeled and unlabelled data are combined to create a better classifier than by just using the labeled data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "Finally, with S stages, the traditional way would be to construct S classifiers to predict the outcomes in each stage. However, we believe that these tasks in each stage are related and they could be combined to share knowledge during training. This problem can be addressed by an MTL that seeks to improve the generalization performance of multiple related tasks by learning them jointly.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Statement"
+        },
+        {
+            "text": "Our method is based on two components: data imputation using adversarial autoencoders (AAE) and multi-task semi-supervised learning (MTSSL). Here we explain each of these components as well as the combination of them to form our approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods"
+        },
+        {
+            "text": "In each stage, we have a combination of numerical and categorical features (encoded using one-hot encode). For data imputation, our method is based on [19] and it is shown in Fig. 2 . We use an adversarial approach in which the generator G receives as input features X \u2208 R m\u00d7n , a binary mask B indicating the positions of the missing data in X, and a source of noise. We create the datasetX by filling the missing positions in X with the random noise. The goal of G is to generate the dataX with values as close as possible to the original values X. We also have a discriminator D that receivesX and tries to guess if each variable value is either original or imputed.",
+            "cite_spans": [
+                {
+                    "start": 151,
+                    "end": 155,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 175,
+                    "end": 181,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "Additionally, a hint mechanism is added by using a random variable H to depend on B. For each (imputed) sample (x, b), we draw h according to the distribution H|B = b, and h is passed as an additional input to the D. The hint H provides information about B so that we can reduce the number of optimal distributions with respect to D that G could reproduce. Therefore, the discriminator tries to predict a binary maskB = D(X, H) that is as close as possible to B. We define the cross-entropy loss function as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "In the adversarial approach, D maximizes the probability of correctly predicting B while G minimizes the probability of D predicting B, which is given by:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "where G influences the loss by generatingX in the termB = D(X, H). To solve this problem, we first optimize the discriminator D with a fixed generator G.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "Second, we optimize the generator G with the newly updated discriminator D using",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "where z \u2208 Z and Z \u2208 {0, 1} n is a random variable defined by first sampling k from {1, ..n} uniformly at random. The reconstruction error for the non-missing values is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "The final equation for G in a mini-batch k G and a hyperparameter \u03b1 is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data Imputation Using Adversarial Autoencoders (AAE)"
+        },
+        {
+            "text": "In this component, we use a SSL approach to create a model that can use both the labeled and unlabeled data together for model training. We combine SSL and MTL, so that different tasks can be learned simultaneously in a joint framework. Let's define the input feature X \u2208 R m\u00d7n with labeled samples, X L \u2208 R mL\u00d7n with corresponding labels Y \u2208 R mL\u00d71 and unlabeled samples X U \u2208 R mU \u00d7n . Let's define a task t as the task to predict the label for a applicant in a given stage. For S stages, we have T tasks, hence T = S. For supervised learning in a task t, we use the cross-entropy loss",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "To achieve semi-supervised learning, we rely on the common assumption that if two feature vectors x i and x j are close in a weighted graph, their predictions f (x i ) and f (x j ) should be similar [4] . Therefore, we can use a graph regularization term that depends on the affinity similarity matrix O, where the affinity similarity between x i and x j is given by",
+            "cite_spans": [
+                {
+                    "start": 199,
+                    "end": 202,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "where N K (x i ) denotes the K nearest neighborhood set of x i . The tuning parameters \u03c3 i and \u03c3 j can be set as the standard deviation of the related K nearest neighbor set. By using the affinity matrix, we can calculate the semi-supervised term as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "As shown in [4] , Eq. 10 can be simplified in a closed form solution as",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 15,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "where \u03b3 1 0 is a model tuning hyperparameter; \u0394 t = D t \u2212 O t is the graph Laplacian Matrix and D t is a diagonal matrix with d ii = j o t ij and t = {0, 1, ..., T }. For regularization, we introduce a temporal structure to encourage sequential tasks to share knowledge. This is achieved with a graph regularization similar to the affinity matrix but applied to tasks. An edge r \u2208 R can be defined as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "Putting everything together, the multi-task semi-supervised loss function is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "where x t j denotes sample j of the t-th task, y t j denotes its corresponding label, X t U is the unlabeled dataset, W are the model parameters, \u03bb 1 controls the l 2 -norm penalty to prevent overfitting, \u03bb 2 is the regularization parameter for temporal smoothness and \u03bb 3 controls group sparsity for joint feature selection. and unlabeled {X t U } T t=0 datasets for each task as well as an affinity matrix O to train the classifier for all tasks. The weights W are regularized using a temporal graph R that enforces temporal smoothness. On the bottom, the prediction flow uses WAAE to generate the complete datasetX and WMT SSL to generate the prediction matrixP . Figure 2 shows our entire method. We first use the AAE component to generat\u00ea X, which will be the input in the MTSSL component to obtain the predictions. This framework allows us to (1) create a dataset common to all stages that can be used for other tasks and (2) train a single classifier for all stages promoting contribution among correlated tasks and better generalization using labeled and unlabeled data.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 667,
+                    "end": 675,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Multi-Task Semi-Supervised Learning (MTSSL)"
+        },
+        {
+            "text": "To demonstrate the application of our method in a real-world setting, we perform experiments using 3 datasets from 3 different multi-stage selection processes. Datasets -For privacy requirements, we are going to refer to the companies with indexes such that C 1 refers to Company 1. The companies have a similar process but they have distinct goals: C 1 is an organization that selects students for a fellowship; C 2 is a big retail company and its process focus on their recentgrad hire program; C 3 is a governmental agency that select applicants to work in the public administration.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Each dataset contains sub-datasets. For example, in C 1 , the process happens annually and we have data for three years, year 1 C1 , year 2 C1 , year 3 C1 . The dual funnel structure from this process is shown in Fig. 1 . The process in C 2 happens every semester and data for 6 semesters is available, on average, 13000 applicants start the process and 300 are selected. The process in C 3 happens annually and data from 2 years are available. In this case, 5000 applicants start the process and 35 are selected.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 213,
+                    "end": 219,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Each stage in the process contains its own set of variables. For example, in the stage Demographics, information about state and city is collected. Therefore, we refer to Demographics features for those collected in the Demographics stage. The data collected in each process is very similar in stages such as Demographics and Education, both in the form of content and structure. For stages with open questions such as Video, each process has its own specific questions (See Table 1 for details). Additionally, in all datasets, the Video stage marks the last part where data is collected automatically.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 475,
+                    "end": 482,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Feature Preparation -Early stages have structured data in a tabular format. Categorical variables are converted to numerical values using a standard one-hot encode transformation. In the later stages, such as video, the speech is extracted and the data is used as a text. To convert this data to numerical values, we create word embeddings using Word2Vec [9] , where we assign highdimensional vectors (embeddings) to words in a text corpus but preserving their syntactic and semantic relationships.",
+            "cite_spans": [
+                {
+                    "start": 355,
+                    "end": 358,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Validation and Performance Metrics -We perform longitudinal experiments, in which we use a previous year as a training and test set and the following year as a validation set. For C 1 for example, we split the dataset from year 1 C1 in train and test, find the best model and validate its results using the dataset from year 2 C1 . The model is trained in year 1 C1 and has never seen any data in year 2 C1 . We repeat the process for all other years. Finally, we also combine the datasets from year 1 C1 and year 2 C1 and validate the results in year 3 C1 , which results in 4 groups. For the train and test split, we also perform 10-fold cross-validation resulting in a total of 40 runs. In C 2 , we obtain 33 groups (330 runs) and for C 3 we have only 1 group (10 runs). In all experiments, we compare the models in terms of F1-score for the positive class, which balances precision and recall specific for the applicants that are selected in each stage.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Benchmark Methods -We compare the results with other established methods such as: Support Vector Machines (SVM) [2] with C = 0.1; and neural networks (NN) with dropout regularization, p = 0.5 [13] . We apply them in the standard setting, i.e. without AAE (N), Single Task Learning (STL) and Supervised Learning (SL), N-STL-SL. In our second setting, we add data imputation and run experiments with semi-supervised learning, AAE-STL-SSL. For this setting we use: Laplacian Support Vector Machines (LapSVM) [8] with Gaussian kernel, \u03c3 = 9.4, nn = 10, p = 2, \u03b3 A = 10 \u22124 , \u03b3 I = 1; and DNN with Virtual Adversarial Training (VAT) [10] with K = 1, = 2, \u03b1 = 1. For NN methods, we use dense NNs with fully connected layers and the structure is chosen such that the number of parameters is similar in all settings.",
+            "cite_spans": [
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 192,
+                    "end": 196,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 505,
+                    "end": 508,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 627,
+                    "end": 631,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Our third setting uses the MTL component in the SL case, hence AAE-MTL-SL. We use: Infinite Latent SVM (MT-iLSVM) [22] with \u03b1 = 0.5, C = 1, \u03c3 2 m0 = 1; and Deep Multi-Task Representation Learning with tensor factorization (DMTRL) with Tucker method [18] . Finally, in the fourth setting, AAE-MTL-SSL, we use DMTRL in the SSL setting and Semi-Supervised Multi-task Learning (S2MTL) [4] with \u03bb 1 = 10, \u03bb 2 = 10, k = 4. For our approach, DECISIVE, we use \u03bb 1 = 0.1, \u03bb 2 = 1, \u03bb 3 = 10 and \u03b3 1 = 10. All hyperparameters are found using cross-validation and the performance is robust for values chosen in the interval [10 \u22122 , 10 \u22121 , 1, 10, 100].",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 118,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 249,
+                    "end": 253,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 381,
+                    "end": 384,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "In this section we present the results obtained in all experiments, which can be seen in Fig. 3 for C 1 and in Table 2 and Table 3 for C 2 and C 3 , respectively. Data refers to the number of features in each stage compared to the final dataset. App refers to the number of applicants in each stage compared to the number in the first stage.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 89,
+                    "end": 95,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 111,
+                    "end": 118,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 123,
+                    "end": 130,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "We investigate the general results in all experiments. SVM achieved the best result in the N-STL-SL (to save space we omit NN), however, this group had the worst performance mostly due to overfitting, since each classifier is trained individually and knowledge across stages is not shared. The second-best group is VAT and LapSVM in AAE-STL-SSL. Classifiers in this group are still trained individually, but the additions of data imputation and unsupervised data help the classifier to better generalize in the later stages. SVM methods (LapSVM) have better performance than NN (VAT) especially when the sample size is relatively small. When MTL is introduced in the third setting, AAE-MTL-SL, results are improved since knowledge is shared in all tasks. The parameters for the multitask classifier are updated based on the loss for all predictions which helps mitigate the challenge of small sample size in the later stages (Video E. to Final). In this setting, the NN-based method (DMTRL), can perform similar to the SVMbased method (iLSVM), since the NN can learn more complicated patterns and decision boundaries without overfitting as in previous cases. However, the best results for DMTRL are in the SSL case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General Results Across Companies"
+        },
+        {
+            "text": "The best performing methods are in the AAE-MTL-SSL setting. DMTLR performs slightly better than the S2MTL method, in which, knowledge is shared at the feature level. In general, our method (DECISIVE) can outperform the other methods and the difference is higher in later stages (see Sect. 6.2). Comparing to DMTRL and S2MTL, the temporal regularization introduced in our method enforces tasks close together in time to contribute more with each other. This allows our model to share knowledge among all tasks in the multi-task framework, but still, preserve some of the temporal components of the process. Figure 3 -left shows that the results among methods are consistent for C 1 as we vary the training data. Interestingly, predicting the data in year 3 C1 using year 1 C1 is better than using year 2 C1 . This shows that the profile for applicants changes from year to year and the applicants approved in year 3 C1 are more similar to the ones approved in year 1 C1 . Therefore, it is important to have data from different years to improve generalization. When we combine data from year 1 C1 and year 2 C1 , the results improved due to the increase in sample size and the combination of profiles from different years. In terms of stages, it is clear from the right figure that algorithms can perform well while there is enough data to generalize. However, in later stages, there is a drop in performance caused by the small sample size. Algorithms based on AAE-MTL-SSL perform significantly better than others. They achieved a gain of 4x compared to the best standard case (SVM) for later stages. Additionally, our method outperforms the second best with a 12% gain. Results for C 2 are shown in Table 2 . This process contains more longitudinal data (6 semesters), which makes our model more robust to changes across years. Additionally, the number of applicants is more evenly distributed and more applicants reach the final stages, which causes the average performance to be more similar across all stages. In other words, the drop in performance is less steep for later stages compared to C 1 . We also see that learning from unsupervised samples is less impactful, as methods from AEE-MTL-SL (MT-iLSVM) have similar performance to methods in AEE-MTL-SSL (DMTRL, DECISIVE). Our method outperforms the other methods in this case (16% gain), which shows the importance of the multi-task and regularization in our structure. Compared to SVM, the gain is about 3.46x. Both gains related to the later stages. Table 3 shows the results for C 3 . This process has an overall smaller sample size and only two years are available. We reason that the methods could overfit the training set and not generalize so well to the validation set. Nevertheless, the algorithms in the AAE-MTL-SSL setting still have the best performance, but the difference from the standard case is smaller when compared to the other experiments in later stages (80% gain). Our approach can outperform the other methods with a 13% gain over DMTRL.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 606,
+                    "end": 614,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1699,
+                    "end": 1706,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 2511,
+                    "end": 2518,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "General Results Across Companies"
+        },
+        {
+            "text": "We presented a framework that combines adversarial autoencoders (AAE) and multi-task semi-supervised learning (MTSSL) to train an end-to-end neural network for all stages of a selection problem. We showed that the AAE makes it possible to create a complete dataset using data imputation, which allows downstream models to be trained in SL and SSL settings. We also introduced a temporal regularization on the model to use information from different stages but still conserve the temporal structure of the process. By combining MTL and SSL, our method can outperform other STL and SL methods. Our validation includes real-world data and our method is able to achieve a gain of 4x over the standard case and a 12% improvement over the second best method. For future research, we want to introduce interpretability techniques to understand the profiles learned by the model and investigate the effect of bias. We also want to apply the framework to other multi-stage processes in different fields.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Multitask learning",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Mach. Learn",
+            "volume": "28",
+            "issn": "1",
+            "pages": "41--75",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "LIBSVM: a library for support vector machines",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ACM Trans. Intell. Syst. Technol. (TIST)",
+            "volume": "2",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Optimization algorithms on subspaces: revisiting missing data problem in low-rank matrix",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Int. J. Comput. Vis",
+            "volume": "80",
+            "issn": "1",
+            "pages": "125--142",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "User attribute discovery with missing labels",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cong",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Pattern Recognit",
+            "volume": "73",
+            "issn": "",
+            "pages": "33--46",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "MIDA: multiple imputation using denoising autoencoders",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gondara",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Phung",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Tseng",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Webb",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ho",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ganji",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PAKDD 2018",
+            "volume": "10939",
+            "issn": "",
+            "pages": "260--272",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-93040-4_21"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Generative adversarial nets",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2672--2680",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Learning task grouping and overlap in multi-task learning",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iii",
+                    "middle": [],
+                    "last": "Daum\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 29th International Conference on International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1723--1730",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Laplacian support vector machines trained in the primal",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Melacci",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Belkin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "12",
+            "issn": "",
+            "pages": "1149--1184",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Efficient estimation of word representations in vector space",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1301.3781"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Virtual adversarial training: a regularization method for supervised and semi-supervised learning",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Miyato",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Maeda",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Koyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ishii",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Pattern Anal. Mach. Intell",
+            "volume": "41",
+            "issn": "8",
+            "pages": "1979--1993",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "An overview of multi-task learning in deep neural networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ruder",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1706.05098"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Deep-cascade: cascading 3D deep neural networks for fast anomaly detection and localization in crowded scenes",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sabokrou",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fayyaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fathy",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Klette",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Image Process",
+            "volume": "26",
+            "issn": "4",
+            "pages": "1992--2004",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Dropout: a simple way to prevent neural networks from overfitting",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "15",
+            "issn": "1",
+            "pages": "1929--1958",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Missforest-non-parametric missing value imputation for mixed-type data",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Stekhoven",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "B\u00fchlmann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Bioinformatics",
+            "volume": "28",
+            "issn": "1",
+            "pages": "112--118",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Multi-stage classifier design",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Trapeznikov",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Saligrama",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Casta\u00f1\u00f3n",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Asian Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "459--474",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Extracting and composing robust features with denoising autoencoders",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vincent",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Larochelle",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Manzagol",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 25th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1096--1103",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Robust real-time object detection",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Viola",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Int. J. Comput. Vis",
+            "volume": "4",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Deep multi-task representation learning: a tensor factorisation approach",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Hospedales",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1605.06391"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Gain: missing data imputation using generative adversarial nets",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jordon",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Van Der Schaar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1806.02920"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A survey on multi-task learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1707.08114"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Modeling disease progression via fused sparse group Lasso",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Narayan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 18th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1095--1103",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Infinite latent SVM for classification and multi-task learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Xing",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1620--1628",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Dual funnel structure (a); multi-stage architecture (b). In (a), the left funnel shows the number of applicants decreasing, whereas the right funnel shows the data (in terms of variables) increasing. In (b), for every stage {s} S 0 , a classifier fs make decisions\u0176 s using features X s .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "DECISIVE framework. On top-left, input features {X t } T t=0 are concatenated to form the general matrix X, which is fed to the Adversarial Autoencoder (AAE) component. Inside AAE, A generator G, a discriminator D and a hint generator HG are trained to learn the representation of the data and produce the weights WAAE for data imputation. On top-right, AAE produces the complete datasetX, which is fed to the multi-task semi-supervised (MTSSL) component. MTSSL uses labeled {X t L , Y t L } T t=0",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "LEFT -Averaged results for C1 in later stages (Video E. to Final); RIGHT -Results for a single year in all stages for C1. On the right, for each new stage, the number of applicants drops while more data is obtained. Methods perform better while the number of samples is relatively high but the performance worsens drastically in the later stages (Video E. to Final).",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Stages in the multi-stage selection process",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Average results for each stage in terms of F1 for C2.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Average results for each stage in terms of F1 for C3. N-STL-SLAAE-STL-SLAAE-MTL-SL AAE-MTL-SSL Data (%)App (%) SVM VATLapSVM MT-iLSVM S2MTLDMTRLDECISIVEMEAN",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

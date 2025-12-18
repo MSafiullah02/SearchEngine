@@ -1,0 +1,2259 @@
+{
+    "paper_id": "c24d9c392878bffd8ee4c7992af967c524786cdb",
+    "metadata": {
+        "title": "Multi-components System for Automatic Arabic Diacritization",
+        "authors": [
+            {
+                "first": "Hamza",
+                "middle": [],
+                "last": "Abbad",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Wuhan University of Technology",
+                    "location": {
+                        "settlement": "Wuhan",
+                        "region": "Hubei",
+                        "country": "China"
+                    }
+                },
+                "email": "hamza.abbad@whut.edu.cn"
+            },
+            {
+                "first": "Shengwu",
+                "middle": [],
+                "last": "Xiong",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Wuhan University of Technology",
+                    "location": {
+                        "settlement": "Wuhan",
+                        "region": "Hubei",
+                        "country": "China"
+                    }
+                },
+                "email": "xiongsw@whut.edu.cn"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this paper, we propose an approach to tackle the problem of the automatic restoration of Arabic diacritics that includes three components stacked in a pipeline: a deep learning model which is a multi-layer recurrent neural network with LSTM and Dense layers, a character-level rule-based corrector which applies deterministic operations to prevent some errors, and a word-level statistical corrector which uses the context and the distance information to fix some diacritization issues. This approach is novel in a way that combines methods of different types and adds edit distance based corrections.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We used a large public dataset containing raw diacritized Arabic text (Tashkeela) for training and testing our system after cleaning and normalizing it. On a newly-released benchmark test set, our system outperformed all the tested systems by achieving DER of 3.39% and WER of 9.94% when taking all Arabic letters into account, DER of 2.61% and WER of 5.83% when ignoring the diacritization of the last letter of every word.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Processing 1 The letter has another form represented as , and the letter has the following forms: , depending on its pronunciation and position in the word.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Arabic is the largest Semitic language today, used by more than 422 millions persons around the world, as a first or second language, making it the fifth most spoken language in the world.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The Arabic language uses a writing system consisted of 28 letters but represented by 36 characters due to 2 letters which have more than one form 1 . Unlike Latin, Arabic is always written in a cursive style where most of the letters are joined together with no upper case letters, from right to left (RTL).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The writing system is composed of letters and other marks representing phonetic information, known as diacritics, which are small marks that should be placed above or below most of the letters. They are represented as additional Arabic characters in UTF-8 encoding. There are eight diacritics in the Modern Standard Arabic (MSA), arranged into three main groups: Short vowels. Three marks: Fatha, Damma, Kasra. Doubled case endings (Tanween). Three marks: Tanween Fath (Fathatan), Tanween Damm (Dammatan), Tanween Kasr (Kasratan). Syllabification marks. Two marks: Sukoon and Shadda [46] .",
+            "cite_spans": [
+                {
+                    "start": 583,
+                    "end": 587,
+                    "text": "[46]",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Shadda is a secondary diacritic indicating that the specified consonant is doubled, rather than making a primitive sound. The Tanween diacritics can appear only at the end of the word, and Sukoon cannot appear in the first letter. Besides, short vowels can be placed in any position. Furthermore, some characters cannot accept any diacritics at all (ex: ), and some others cannot do that in specified grammatical contexts (ex: the definitive at the beginning of the word). The diacritics are essential to indicate the correct pronunciation and the meaning of the word. They are all presented on the letter in Table 1 . These marks are dropped from almost all the written text today, except the documents intolerant to pronunciation errors, such as religious texts and Arabic teaching materials. The native speakers can generally infer the correct diacritization from their knowledge and the context of every word. However, this is still not a trivial task for a beginner learner or NLP applications [12] .",
+            "cite_spans": [
+                {
+                    "start": 999,
+                    "end": 1003,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 609,
+                    "end": 616,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "The automatic diacritization problem is an essential topic due to the high ambiguity of the undiacritized text and the free word order nature of the grammar. Table 2 illustrates the differences made by the possible diacritizations of the word . As one might see, the diacritization defines many linguistic features, such as the part-of-speech (POS), the active/passive voice, and the grammatical case.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 158,
+                    "end": 165,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "The full diacritization problem includes two sub-problems: morphological diacritization and syntactic diacritization. The first indicates the meaning of the word, and the second shows the grammatical case.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Two metrics are defined to calculate the quantitative performance of an automated diacritics restoration system: Diacritization Error Rate (DER) and Word Error Rate (WER). The first one measures the ratio of the number of incorrectly diacritized characters to the number of all characters. The second metric applies the same principle considering the whole word as a unit, where a word is considered incorrect if any of its characters has a wrong diacritic. Both metrics have two variants: One includes the diacritics of all characters (DER1 and WER1), and another excludes the diacritics of the last character of every word (DER2 and WER2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We propose a new approach to restore the diacritics of a raw Arabic text using a combination of deep learning, rule-based, and statistical methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Many works were done in the automatic restoration of the Arabic diacritics using different techniques. They can be classified into three groups.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "Finite-State Transducers [33] , lexicon retrieval and rule-based morphological analysis [7] . One other particular work [9] used diacritized text borrowing from other sources to diacritize a highly cited text. Statistical approaches. This type of approaches includes using Hidden Markov Models both on word level and on character level [8, 18, 21] , N-grams models on word level and on character level as well [10] , Dynamic Programming methods [24] [25] [26] , classical Machine learning models such as Maximum-entropy classifier [46] , and Deep Learning methods like the Deep Neural Networks, both the classical Multi-Layer Perceptron and the advanced Recurrent Neural Networks [6, 14, 32, 36] . Hybrid approaches. They are a combination of rule-based methods and statistical methods in the same system. They include hybridization of rules and dictionary retrievals with morphological analysis, N-grams, Hidden Markov Models, Dynamic Programming and Machine Learning methods [5, 15, 17, 20, 23, 31, 35, [37] [38] [39] 42] . Some Deep Learning models improved by rules [2, 3] have been developed as well.",
+            "cite_spans": [
+                {
+                    "start": 25,
+                    "end": 29,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 88,
+                    "end": 91,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 336,
+                    "end": 339,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 340,
+                    "end": 343,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 344,
+                    "end": 347,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 410,
+                    "end": 414,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 445,
+                    "end": 449,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 450,
+                    "end": 454,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 455,
+                    "end": 459,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 531,
+                    "end": 535,
+                    "text": "[46]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 680,
+                    "end": 683,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 684,
+                    "end": 687,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 688,
+                    "end": 691,
+                    "text": "32,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 692,
+                    "end": 695,
+                    "text": "36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 977,
+                    "end": 980,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 981,
+                    "end": 984,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 985,
+                    "end": 988,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 989,
+                    "end": 992,
+                    "text": "20,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 993,
+                    "end": 996,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 997,
+                    "end": 1000,
+                    "text": "31,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1001,
+                    "end": 1004,
+                    "text": "35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1005,
+                    "end": 1009,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 1010,
+                    "end": 1014,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1015,
+                    "end": 1019,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1020,
+                    "end": 1023,
+                    "text": "42]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 1070,
+                    "end": 1073,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1074,
+                    "end": 1076,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Rule-based approaches. The used methods include cascading Weighted"
+        },
+        {
+            "text": "Despite a large number of works done on this topic, the number of available tools for Arabic diacritization is still limited because most researchers do not release their source code or provide any practical application. Therefore, we will compare the performance of our system to these available ones:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rule-based approaches. The used methods include cascading Weighted"
+        },
+        {
+            "text": "Farasa [4] is a text processing toolkit which includes an automatic diacritics restoration module, in addition to other tools. It is based on the segmentation of the words based on separating the prefixes and suffixes using SVM-ranking and performing dictionary lookups. MADAMIRA [34] is a complete morphological analyser that generates possible analyses for every word with their diacritization and uses an SVM and n-gram language models to select the most probable one. Mishkal [44] is an application which diacritize a text by generating the possible diacritized word forms through the detection of affixes and the use of a dictionary, then limiting them using semantic relations, and finally choosing the most likely diacritization. Tashkeela-Model [11] uses a basic N-gram language model on character level trained on the Tashkeela corpus [45] . Shakkala [13] is a character-level deep learning system made of an embedding, three bidirectional LSTM, and dense layers. It was trained on Tashkeela corpus as well. To the best of our knowledge, this is the system that achieves state-of-the-art results.",
+            "cite_spans": [
+                {
+                    "start": 7,
+                    "end": 10,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 280,
+                    "end": 284,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 480,
+                    "end": 484,
+                    "text": "[44]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 753,
+                    "end": 757,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 844,
+                    "end": 848,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 860,
+                    "end": 864,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Rule-based approaches. The used methods include cascading Weighted"
+        },
+        {
+            "text": "In this work, the Tashkeela corpus [45] was mainly used for training and testing our model. This dataset is made of 97 religious books written in the Classical Arabic style, with a small part of web crawled text written in the Modern Standard Arabic style. The original dataset has over 75.6 million words, where over 67.2 million are diacritized Arabic words. The structure of the data in this dataset is not consistent since its sources are heterogeneous. Furthermore, it contains some diacritization errors and some useless entities. Therefore, we applied some operations to normalize this dataset and keep the necessary text:",
+            "cite_spans": [
+                {
+                    "start": 35,
+                    "end": 39,
+                    "text": "[45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset"
+        },
+        {
+            "text": "1. Remove the lines which do not contain any useful data (empty lines or lines without diacritized Arabic text). 2. Split the sentences at XML tags and end of lines, then discard these symbols.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataset"
+        },
+        {
+            "text": "After that, split the new sentences at some punctuation symbols: dots, commas, semicolons, double dots, interrogation, and exclamation marks without removing them. 3. Fix some diacritization errors, such as removing the extra Sukoon on the declarative , reversing the + Tanween Fath and diacritic + Shadda combinations, removing any diacritic preceded by anything other than Arabic letter or Shadda, and keeping the latest diacritic when having more than one (excluding Shadda + diacritic combinations). 4. Any sentence containing undiacritized words or having less than 2 Arabic words is discarded.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Dataset"
+        },
+        {
+            "text": "After this process, the resulted dataset will be a raw text file with one sentence per line and a single space between every two tokens. This file is further shuffled then divided into a training set containing 90% of the sentences, and the rest is distributed equally between the validation and the test sets 2 . After the division, we calculated some statistics and presented them in Table 3 . We note that the train-test Out-of-Vocabulary ratio for the unique Arabic words is 9.53% when considering the diacritics and 6.83% when ignoring them.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 386,
+                    "end": 393,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Dataset"
+        },
+        {
+            "text": "Our approach is a pipeline of different components, where each one does a part of the process of the diacritization of the undiacritized Arabic text of the input sentence. Only a human-readable, fully diacritized Arabic text is needed to train this architecture, without any additional morphological or syntactic information.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposed Method"
+        },
+        {
+            "text": "At first, only the necessary characters of the sentence which affect the diacritization are kept. These are Arabic characters, numbers, and spaces. The numbers are replaced by 0 since their values will most likely not affect the diacritization of the surrounding words. The other characters are removed before the diacritization process and restored at the end.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing"
+        },
+        {
+            "text": "Every filtered sentence is then separated into an input and an output. The input is the bare characters of the text, and the output is the corresponding diacritics for every character. Considering that an Arabic letter can have up to two diacritics where one of them is Shadda, the output is represented by two vectors; one indicates the primary diacritic corresponding to every letter, and the other indicates the presence or the absence of the Shadda. Figure 1 illustrates this process.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 454,
+                    "end": 462,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Preprocessing"
+        },
+        {
+            "text": "The input is mapped to a set of 38 numeric labels representing all the Arabic characters in addition to 0 and the white space. It is transformed into a 2D one-hot encoded array, where the size of the first dimension equals the length of the sentence, and the size of the second equals the number of the labels. After that, this array is extended to 3 dimensions by inserting the time steps dimension as the second dimension and moving the dimension of the label into the third position. The time steps are generated by a sliding window of size 1 on the first dimension. The number of time steps is fixed to 10 because this number is large enough to cover most of the Arabic words, along with a part of their previous words. The output of the primary diacritics is also transformed from a vector of labels to a 2D one-hot array. The output of Shadda marks is left as a binary vector. Figure 2 shows a representation of the input array and the two output arrays after the preprocessing of the previous example. The \u2205 represents a padding vector (all zeros), and the numbers in the input and the second output indicate the indexes of the cells of the one-hot vectors set to 1. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 883,
+                    "end": 891,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Preprocessing"
+        },
+        {
+            "text": "The following component in this system is an RNN model, composed from a stack of two bidirectional LSTM [22, 28] layers of 64 cells in each direction, and parallel dense layers of sizes 8 and 64. All of the previous layers use hyperbolic tangent (Tanh) as an activation function. The first parallel layer is connected to a single perceptron having the sigmoid activation function, while the second is connected to 7 perceptrons having softmax as an activation function. The first estimates the probability that the current character has a Shadda, and the second generates the probabilities of the primary diacritics for that character. A schema of this network is displayed in Fig. 3 . The size, type, and number of layers were determined empirically and according to the previous researches that used deep learning approaches [2, 13, 14, 27, 32] . ",
+            "cite_spans": [
+                {
+                    "start": 104,
+                    "end": 108,
+                    "text": "[22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 827,
+                    "end": 830,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 831,
+                    "end": 834,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 835,
+                    "end": 838,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 839,
+                    "end": 842,
+                    "text": "27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 843,
+                    "end": 846,
+                    "text": "32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 677,
+                    "end": 683,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Deep Learning Model"
+        },
+        {
+            "text": "Rule-based corrections are linked to the input and output of the RNN to apply some changes to the output. These rules can select the appropriate diacritic for some characters in some contexts, or exclude the wrong choices in other contexts by nullifying their probabilities. Different sets of rules are applied to the outputs to eliminate some impossible diacritizations according to Arabic rules. Shadda Corrections. The first output of the DL model representing the probability of the Shadda diacritic is ignored by nullifying its value if any of these conditions are met for the current character:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rule-Based Corrections"
+        },
+        {
+            "text": "-It is a space, 0 or one of the following:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rule-Based Corrections"
+        },
+        {
+            "text": ". -It is the first letter of the Arabic word. -It has Sukoon as a predicted primary diacritic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rule-Based Corrections"
+        },
+        {
+            "text": "The probabilities of the second output of the DL model are also altered by these rules when their respective conditions are met for the current character:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is , set the current diacritic to Kasra, by setting the probability of its class to 1 and the others to 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is or , set the diacritic of the previous character to Fatha.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is and the last letter of the word, allow only Fatha, Fathatan, or nodiacritic choices by zeroing the probabilities of the other classes. -If it is and not the last letter of the word, set Fatha on the previous character.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is the first letter in the word, forbid Sukoon.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is not the last character of the word, prohibit any Tanween diacritic from appearing on it. -If it is the last letter, prohibit Fathatan unless this character is or .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "-If it is a space, 0 or any of the following characters:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": ", set the choice to no-diacritic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Primary Diacritics Corrections."
+        },
+        {
+            "text": "The output and the input of the previous phase are transformed and merged to generate a standard diacritized sentence. The sentence is segmented into spacedelimited words and augmented by unique starting and ending entities. Every word in the sentence is checked up to 4 times in the levels of correction using the saved training data. If any acceptable correction is found at any level, the word will be corrected. Otherwise, it will be forwarded to the next level. In the case where many corrections get the same score in a single level, the first correction is chosen. If no correction is found, the predicted diacritization of the previous component is not changed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Statistical Corrections"
+        },
+        {
+            "text": "In the first stage, trigrams are extracted from the undiacritized sentence and checked whether a known diacritization for its core word is available. The core word is the second one in the trigram, while the first and the third are considered previous and following contexts, respectively. If such a trigram is found, the most frequent diacritization for the core word in that context is selected. Despite its high accuracy, especially for the syntactic part, this correction rarely works since having the exact surrounding words in the test data is not common. This correction is entirely independent of the output of the DL model and the rule-based corrections. An example is shown in Fig. 4.   Fig. 4 . Selecting the diacritization using the trigrams Word Bigram Correction. In the second stage, the same processing as the previous one is applied for the remaining words but considering bigrams where the core word is the second one, and the first one represents the previous context. This correction works more often than the trigram-based one since it depends only on the previous word. Similarly, it does not depend on the output of the previous components.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 687,
+                    "end": 703,
+                    "text": "Fig. 4.   Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Word Trigram Correction."
+        },
+        {
+            "text": "In the third stage, when the undiacritized word has known compatible diacritizations, the Levenshtein distance [29] is calculated between the predicted diacritization and every saved diacritization for that word. The saved diacritization corresponding to the minimal edit distance is chosen, as shown in Fig. 5 . Most predictions are corrected at this stage when the vocabulary of the test set is relatively similar to the training set. Pattern Minimum Edit Distance Correction. Finally, if the word was never seen, the pattern of the predicted word is extracted and compared against the saved diacritized forms of that pattern. To generate the word pattern, the following substitutions are applied: are all replaced by . is replaced by . The rest of the Arabic characters except and the long vowels ( ) are substituted by the character . The diacritics and the other characters are not affected. The predicted diacritized pattern is compared to the saved diacritization forms of this pattern when available, and the closest one, according to the Levenshtein distance, is used as a correction, following the same idea of the previous stage. This correction is effective when the test data contains many words not seen in the training data.",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 304,
+                    "end": 310,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Word Minimum Edit Distance Correction."
+        },
+        {
+            "text": "The described architecture was developed using Python [41] 3.6 with NumPy [40] 1.16.5 and TensorFlow [1] 1.14.",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[41]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "The training data was transformed into NumPy arrays of input and output. The DL model was implemented using Keras, and each processed sentence of text is considered a single batch of data when fed into the DL model. The optimizer used for adjusting the model weights is ADADELTA [43] with an initial learning rate of 0.001 and \u03c1 of 0.95.",
+            "cite_spans": [
+                {
+                    "start": 279,
+                    "end": 283,
+                    "text": "[43]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "The rule-based corrections are implemented as algebraic operations working on the arrays of the input and the output.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "The statistical corrections use dictionaries as data structures, where the keys are the undiacritized n-grams/patterns, and the values are lists of the possible tuples of the diacritized form along with their frequencies in the training set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "The DL model is trained for a few iterations to adjust its weights, while the dictionaries of the statistical corrections are populated while reading the training data in the first pass.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "System Evaluation"
+        },
+        {
+            "text": "We report the accuracy of our system using the variants of the metrics DER and WER as explained in the introduction. These metrics do not have an agreed exact definition, but most of the previous works followed the definition of Zitouni et al. [46] which takes non-Arabic characters into account, while some of the new ones tend to follow the definition of Alansary et al. [7] and Fadel et al. [19] which excludes these characters. In our work, we chose the latter definition since the former can be significantly biased, as demonstrated in [19] . The calculation of these metrics should include the letters without diacritics, but they can be excluded as well, especially when the text is partially diacritized.",
+            "cite_spans": [
+                {
+                    "start": 244,
+                    "end": 248,
+                    "text": "[46]",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 373,
+                    "end": 376,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 394,
+                    "end": 398,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 541,
+                    "end": 545,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "System Evaluation"
+        },
+        {
+            "text": "First, we used our testing set to measure the performances of our system. We got DER1 = 4.00%, WER1 = 12.08%, DER2 = 2.80%, and WER2 = 6.22%. The same testing data and testing method of Fadel et al. [19] were used as well in order to compare our system to the others evaluated in that work. The results are summarized in Table 4 .",
+            "cite_spans": [
+                {
+                    "start": 199,
+                    "end": 203,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 321,
+                    "end": 328,
+                    "text": "Table 4",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "System Evaluation"
+        },
+        {
+            "text": "Results show that our system outperforms the best-reported system (Shakkala). These results can be justified as Shakkala does not perform any corrections on the output of the deep learning model, while ours includes a cascade of corrections that fix many of its errors.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "System Evaluation"
+        },
+        {
+            "text": "When training and testing our system on the text extracted from the LDC's ATB part 3 [30] , it archives DER1 = 9.32%, WER1 = 28.51%, DER2 = 6.37% and WER2 = 12.85%. Its incomplete diacritization mainly causes the higher error rates for this dataset in a lot of words, in addition to its comparatively small size, which prevents our system from generalizing well.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                }
+            ],
+            "ref_spans": [],
+            "section": "System Evaluation"
+        },
+        {
+            "text": "To get a deeper understanding of the system performances, we study the effect of its different components and record the errors committed at each level. We performed the tests taking all and only Arabic characters into account on our test part of the Tashkeela dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "Contribution of the Components. In order to show the contribution in error reduction of every component, two evaluation setups were used.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "Firstly, only the DL model and the static rules are enabled at first, then the following component is enabled at every step, and the values of the metrics are recalculated. Table 5a shows the obtained results.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 173,
+                    "end": 181,
+                    "text": "Table 5a",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "Secondly, all the components are enabled except one at a time. The same calculations are done and displayed in Table 5b . The contributions of the unigram and bigram corrections are the most important considering their effect on the error rates in both setups. The effect of the trigram correction is more visible on the syntactic diacritization rather than the morphological diacritization since the former is more dependant on the context. The contribution of the pattern corrections is not very noticeable due to the position of this component in the pipeline, limiting its effect only to the OoV words.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 111,
+                    "end": 119,
+                    "text": "Table 5b",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "Error Types. We use our system to generate diacritization for a subset of the sentences of our testing set. We limit our selection to 200 sentences where there is at least one word wrongly diacritized. We counted and classified a total of 426 errors manually. We present the results in Table 6 . We found that 52.58% of the mistakes committed by our diacritization system are caused by the syntactic diacritization, which specify the role of the word in the sentence. The syntactic diacritization is so hard that even the Arabic native speakers often commit mistakes of this type when speaking. Since this is manual verification, we do not just suppose that the diacritic of the last character of the Arabic word is the syntactic one as what is done in the calculations of DER2 and WER2, but we select the diacritics which have a syntactic role according to Arabic rules, no matter where they appear.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 286,
+                    "end": 293,
+                    "text": "Table 6",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "A replacement error is when the system generates a diacritization that makes a valid Arabic word, but it is wrong according to the test data. 24.18% of the errors of our system are considered in this type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "Non-existence error happens when the diacritization system generates a diacritization making a word that does not exist in the standard Arabic. 11.27% of our system's errors are in this type.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "The remaining error types are prediction missing and label missing, which indicate that the system has not predicted any diacritic where it should do, and the testing set has missing/wrong diacritics, respectively. These types are generally caused by the mistakes of diacritization in training and testing sets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "In this work, we developed and presented our automatic Arabic diacritization system, which follows a hybrid approach combining a deep learning model, rule-based corrections, and two types of statistical corrections. The system was trained and tested on a large part of the Tashkeela corpus after being cleaned and normalized. On our test set, the system scored DER1 = 4.00%, WER1 = 12.08%, DER2 = 2.80% and WER2 = 6.22%. These values were calculated when taking all and only Arabic words into account.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Our method establishes new state-of-the-art results in the diacritization of raw Arabic texts, mainly when the classical style is used. It performs well even on the documents that contain unseen words or non-Arabic words and symbols. We made our code publicly available as well 3 .",
+            "cite_spans": [
+                {
+                    "start": 278,
+                    "end": 279,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "In the next work, we will focus on improving the generalization of the system to better handle the out-of-vocabulary words, while reducing the time and memory requirements.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "TensorFlow: a system for large-scale machine learning",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Abadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "12th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 2016)",
+            "volume": "",
+            "issn": "",
+            "pages": "265--283",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Investigating hybrid approaches for Arabic text diacritization with recurrent neural networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Abandah",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arabiyat",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Jordan Conference on Applied Electrical Engineering and Computing Technologies (AEECT)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Automatic diacritization of Arabic text using recurrent neural networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Abandah",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Al-Shagoor",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arabiyat",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Jamour",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Al-Taee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Int. J. Doc. Anal. Recogn. (IJDAR)",
+            "volume": "18",
+            "issn": "2",
+            "pages": "183--197",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Farasa: a fast and furious segmenter for Arabic",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abdelali",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Darwish",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Durrani",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Mubarak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 Conference of the North American Chapter of the Association for Computational Linguistics: Demonstrations",
+            "volume": "",
+            "issn": "",
+            "pages": "11--16",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A layered language model based hybrid approach to automatic full diacritization of Arabic",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Al-Badrashiny",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hawwari",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Diab",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Third Arabic Natural Language Processing Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "177--184",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Automatic Arabic diacritics restoration based on deep nets",
+            "authors": [
+                {
+                    "first": "Al",
+                    "middle": [],
+                    "last": "Sallab",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rashwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Raafat",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rafea",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the EMNLP 2014 Workshop on Arabic Natural Language Processing (ANLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "65--72",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Alserag: an automatic diacritization system for Arabic",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Alansary",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hassanien",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shaalan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gaber",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Azar",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tolba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "AISI 2016. AISC",
+            "volume": "533",
+            "issn": "",
+            "pages": "182--192",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-48308-5_18"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Automatic restoration of Arabic diacritics: a simple, purely statistical approach. Arab",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alghamdi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Muzaffar",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Alhakami",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "J. Sci. Eng",
+            "volume": "35",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Diacritization of a highly cited text: a classical Arabic book as a case",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alosaimy",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Atwell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "2018 IEEE 2nd International Workshop on Arabic and Derived Script Analysis and Recognition (ASAR)",
+            "volume": "",
+            "issn": "",
+            "pages": "72--77",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Automatic diacritization of Arabic transcripts for automatic speech recognition",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ananthakrishnan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Narayanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bangalore",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 4th International Conference on Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "47--54",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Tashkeela-model",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Anwar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A survey of automatic Arabic diacritization techniques",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Azmi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Almajed",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nat. Lang. Eng",
+            "volume": "21",
+            "issn": "3",
+            "pages": "477--495",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Shakkala, Arabic text vocalization",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Barqawi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zerrouki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Arabic diacritization with recurrent neural networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Belinkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Glass",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "2281--2285",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Morphological, syntactic and diacritics rules for automatic diacritization of Arabic sentences",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Chennoufi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mazroui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "J. King Saud Univ. Comput. Inf. Sci",
+            "volume": "29",
+            "issn": "2",
+            "pages": "156--163",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Arabic diacritization: stats, rules, and hacks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Darwish",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Mubarak",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abdelali",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Third Arabic Natural Language Processing Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "9--17",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Statistical methods for automatic diacritization of Arabic text",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elshafei",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Al-Muhtaseb",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alghamdi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "The Saudi 18th National Computer Conference. Riyadh",
+            "volume": "18",
+            "issn": "",
+            "pages": "301--306",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Arabic text diacritization using deep neural networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fadel",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Tuffaha",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Al-Jawarneh",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Al-Ayyoub",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1905.01965"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Shakkil: an automatic diacritization system for modern standard Arabic texts",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fashwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Alansary",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the Third Arabic Natural Language Processing Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "84--93",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "An hmm approach to vowel restoration in Arabic and Hebrew",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the ACL-02 Workshop on Computational Approaches to Semitic Languages",
+            "volume": "",
+            "issn": "",
+            "pages": "1--7",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Framewise phoneme classification with bidirectional LSTM and other neural network architectures",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Neural Networks",
+            "volume": "18",
+            "issn": "5-6",
+            "pages": "602--610",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Arabic diacritization through full morphological tagging",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Habash",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Rambow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Human Language Technologies 2007: The Conference of the North American Chapter of the Association for Computational Linguistics; Companion Volume",
+            "volume": "",
+            "issn": "",
+            "pages": "53--56",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Restoration of Arabic diacritics using a multilevel statistical model",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Hadj Ameur",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Moulahoum",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Guessoum",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Amine",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bellatreche",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Elberrichi",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Neuhold",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Computer Science and Its Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "181--192",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-19578-0_15"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Open vocabulary arabic diacritics restoration",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hifny",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Signal Process. Lett",
+            "volume": "26",
+            "issn": "10",
+            "pages": "1421--1425",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/LSP.2019.2933721"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Higher order n-gram language models for Arabic diacritics restoration",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hifny",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "The Twelfth Conference on Language Engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Hybrid LSTM/MaxEnt networks for Arabic syntactic diacritics restoration",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hifny",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Signal Process. Lett",
+            "volume": "25",
+            "issn": "10",
+            "pages": "1515--1519",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Long short-term memory",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hochreiter",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Neural Comput",
+            "volume": "9",
+            "issn": "8",
+            "pages": "1735--1780",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Binary codes capable of correcting deletions, insertions and reversals",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Levenshtein",
+                    "suffix": ""
+                }
+            ],
+            "year": 1966,
+            "venue": "Soviet Physics Doklady",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Arabic treebank: Part 3 (full corpus) v 2.0 (mpg+ syntactic analysis)",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Maamouri",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bies",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Buckwalter",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Mekki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "A multi-layered approach for Arabic text diacritization",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Metwally",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rashwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Atiya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE International Conference on Cloud Computing and Big Data Analysis (ICCCBDA)",
+            "volume": "",
+            "issn": "",
+            "pages": "389--393",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Arabic diacritization with gated recurrent unit",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Moumen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Chiheb",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Faizi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "El Afia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the International Conference on Learning and Optimization Algorithms: Theory and Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Arabic diacritization using weighted finite-state transducers",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nelken",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Shieber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the ACL Workshop on Computational Approaches to Semitic Languages",
+            "volume": "",
+            "issn": "",
+            "pages": "79--86",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "MADAMIRA: a fast, comprehensive tool for morphological analysis and disambiguation of Arabic",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pasha",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "LREC",
+            "volume": "14",
+            "issn": "",
+            "pages": "1094--1101",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "A stochastic Arabic diacritizer based on a hybrid of factorized and unfactorized textual features",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rashwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Al-Badrashiny",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Attia",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Abdou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rafea",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "IEEE Trans. Audio Speech Lang. Process",
+            "volume": "19",
+            "issn": "1",
+            "pages": "166--175",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Deep learning framework with confused sub-set resolution architecture for automatic Arabic diacritization",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rashwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Sallab",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Raafat",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rafea",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "A hybrid approach for Arabic diacritization",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Said",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "El-Sharqwi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Chalabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kamal",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "M\u00e9tais",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Meziane",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Saraee",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sugumaran",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "NLDB 2013",
+            "volume": "7934",
+            "issn": "",
+            "pages": "53--64",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-38824-8_5"
+                ]
+            }
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "A hybrid approach for building Arabic diacritizer",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Shaalan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Abo Bakr",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ziedan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the EACL 2009 Workshop on Computational Approaches to Semitic Languages",
+            "volume": "",
+            "issn": "",
+            "pages": "27--35",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Improving Arabic diacritization through syntactic analysis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shahrour",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Khalifa",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Habash",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "1309--1315",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "The numpy array: a structure for efficient numerical computation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Van Der Walt",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Colbert",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Varoquaux",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Comput. Sci. Eng",
+            "volume": "13",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "The Python Language Reference Manual",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Van Rossum",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Drake",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Network Theory Ltd",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Automatic diacritics restoration for modern standard Arabic text",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Zayyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elmahdy",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Binti Husni",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE Symposium on Computer Applications & Industrial Electronics (ISCAIE)",
+            "volume": "",
+            "issn": "",
+            "pages": "221--225",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Adadelta: an adaptive learning rate method",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Zeiler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1212.5701"
+                ]
+            }
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Mishkal, Arabic text vocalization software",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zerrouki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Tashkeela: novel corpus of Arabic vocalized texts, data for auto-diacritization systems",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zerrouki",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Balla",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Data Brief",
+            "volume": "11",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "Maximum entropy based restoration of Arabic diacritics",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Zitouni",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Sorensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sarikaya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 21st International Conference on Computational Linguistics and the 44th Annual Meeting of the Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "577--584",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Transformation of the diacritized text to the input and output labels",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Input and output arrays after the transformations",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Architecture of the Deep Learning model",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Selecting the diacritization according to the minimal edit distance",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "The diacritics of the Modern Standard Arabic",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "The diacritizations of and their meanings",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Statistics about the processed Tashkeela dataset",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Comparison of the performances of our system to the available baselines",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Reduction of the error rates according to the enabled components (a) Incremental enabling Components Metrics DER1 WER1 DER2 WER2 DL + rules 23.20% 59.32% 23.75% 51.52% +Trigrams 12.99% 32.25% 13.19% 27.46% +Bigrams 7.09% 17.54% 6.69% 13.20% +Unigrams 4.06% 12.18% 2.87% 6.35% All enabled 4.00% 12.08% 2.80% 6.22% (b) One disabled at a time Components Metrics DER1 WER1 DER2 WER2 No trigrams 4.38% 13.39% 2.97% 6.65% No bigrams 6.44% 19.53% 4.88% 11.46% No unigrams 6.51% 16.57% 5.88% 11.87% No patterns 4.06% 12.18% 2.87% 6.35% All enabled 4.00% 12.08% 2.80% 6.22%",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Diacritization errors count from 200 wrong test sentences Error Syntactic Replacement Non-existence Prediction missing Label missing Total",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments. To Dr. Yasser Hifny for his help concerning the train and the test of our system on the diacritized text of the ATB part 3 dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

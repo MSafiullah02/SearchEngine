@@ -1,0 +1,2490 @@
+{
+    "paper_id": "b216f710cf7a8d27ebb94fccf7da7650456d3eab",
+    "metadata": {
+        "title": "Linear Time Construction of Indexable Founder Block Graphs",
+        "authors": [
+            {
+                "first": "Veli",
+                "middle": [],
+                "last": "M\u00e4kinen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": "veli.makinen@helsinki.fi"
+            },
+            {
+                "first": "Bastien",
+                "middle": [],
+                "last": "Cazaux",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Massimo",
+                "middle": [],
+                "last": "Equi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": "massimo.equi@helsinki.fi"
+            },
+            {
+                "first": "Tuukka",
+                "middle": [],
+                "last": "Norri",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": "tuukka.norri@helsinki.fi"
+            },
+            {
+                "first": "Alexandru",
+                "middle": [
+                    "I"
+                ],
+                "last": "Tomescu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Helsinki",
+                    "location": {
+                        "country": "Finland"
+                    }
+                },
+                "email": "alexandru.tomescu@helsinki.fi"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We introduce a compact pangenome representation based on an optimal segmentation concept that aims to reconstruct founder sequences from a multiple sequence alignment (MSA). Such founder sequences have the feature that each row of the MSA is a recombination of the founders. Several linear time dynamic programming algorithms have been previously devised to optimize segmentations that induce founder blocks that then can be concatenated into a set of founder sequences. All possible concatenation orders can be expressed as a founder block graph. We observe a key property of such graphs: if the node labels (founder segments) do not repeat in the paths of the graph, such graphs can be indexed for efficient string matching. We call such graphs segment repeat-free founder block graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "We give a linear time algorithm to construct a segment repeat-free founder block graph given an MSA. The algorithm combines techniques from the founder segmentation algorithms (Cazaux et al. SPIRE 2019) and fully-functional bidirectional Burrows-Wheeler index (Belazzougui and Cunial, CPM 2019). We derive a succinct index structure to support queries of arbitrary length in the paths of the graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "Experiments on an MSA of SAR-CoV-2 strains are reported. An MSA of size 410 \u00d7 29811 is compacted in one minute into a segment repeat-free founder block graph of 3900 nodes and 4440 edges. The maximum length and total length of node labels is 12 and 34968, respectively. The index on the graph takes only 3% of the size of the MSA.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Computational pangenomics [26] ponders around the problem of expressing a reference genome of a species in a more meaningful way than as a string of symbols. The basic problem in such generalized representations is that one should still be able to support string matching type of operations on the content. Another problem is that any representation generalizing set of sequences also expresses sequences that may not be part of the real pangenome. That is, a good representation should have a feature to control over-expressiveness and simultaneously support efficient queries.",
+            "cite_spans": [
+                {
+                    "start": 26,
+                    "end": 30,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we develop the theory around one promising pangenome representation candidate, the founder block graph. This graph is a natural derivative of segmentation algorithms [28, 13] related to founder sequences [34] .",
+            "cite_spans": [
+                {
+                    "start": 181,
+                    "end": 185,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 186,
+                    "end": 189,
+                    "text": "13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 219,
+                    "end": 223,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "Consider a set of individuals represented as lists of variations from a common reference genome. Such a set can be expressed as a variation graph or as a multiple sequence alignment. The former expresses reference as a backbone of an automaton, and adds a subpath for each variant. The latter inputs all variations of an individual to the reference, creating a row for each individual into a multiple alignment. Figure 1 shows an example of both structures with 6 very short genomes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 412,
+                    "end": 420,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "A multiple alignment of much fewer founder sequences can be used to approximate the input represented as a multiple alignment as well as possible, meaning that each original row can be mapped to the founder multiple alignment with a minimum amount of row changes (discontinuities). Finding an optimal set of founders is NP-hard [29] , but one can solve relaxed problem statements in linear time [28, 13] , which are sufficient for our purposes. As an example on the usefulness of founders, Norri et al. [28] showed that, on a large public dataset of haplotypes of human genome, the solution was able to replace 5009 haplotypes with only 130 founders so that the average distance between row jumps was over 9000 base pairs [28] . This means that alignments of short reads (e.g. 100 bp) very rarely hit a discontinuity, and the space requirement drops from terabytes to just tens of gigabytes. Figure 1 shows such a solution on our toy example.",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 395,
+                    "end": 399,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 400,
+                    "end": 403,
+                    "text": "13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 503,
+                    "end": 507,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 892,
+                    "end": 900,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "A block graph is a labelled directed acyclic graph consisting of consecutive blocks, where a block represents a set of sequences of the same length as parallel (unconnected) nodes. There are edges only from nodes of one block to the nodes of the next block. A founder block graph is a block graph with blocks representing the segments of founder sequences corresponding to the optimal segmentation [28] . Fig. 1 visualises such a founder block graph: There the founder set is divided into 3 blocks with the first, the second, and the third containing sequences of length 4, 4, and 3, respectively. The coloured connections between sequences in consecutive blocks define the edges. Such graphs interpreted as automata recognise the input sequences just like variation graphs, but otherwise recognise a much smaller subset of the language. With different optimisation criteria to compute the founder blocks, one can control the expressiveness of this pangenome representation.",
+            "cite_spans": [
+                {
+                    "start": 398,
+                    "end": 402,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 405,
+                    "end": 411,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "In this paper, we show that there is a natural subclass of founder block graphs that admit efficient index structures to be built that support exact string matching on the paths of such graphs. Moreover, we give a linear time algorithm to construct such founder block graphs from a given multiple alignment. The construction algorithm can also be adjusted to produce a subclass of elastic degeneralized strings [9] , which also support efficient indexing.",
+            "cite_spans": [
+                {
+                    "start": 411,
+                    "end": 414,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "The founder block graph definition given above only makes sense if we assume that our input multiple alignment is gapless, meaning that the alignment is simply produced by putting strings of equal length under each other, like in Figure 1 . We develop the theory around founder block graphs under gapless multiple alignments. However, most of the results can be easily extended to handle gaps properly.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 230,
+                    "end": 238,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "We start in Sect. 2 by putting the work into the context of related work. In Sect. 3 we introduce the basic notions and tools. In Sect. 4 we study the property of founder block graphs that enable indexing. In Sect. 5 we give the linear time construction algorithm. In Sect. 6 we develop a succinct index structure that supports exact string matching in linear time. In Sect. 7 we consider the general case of having gap symbols in multiple alignment. We report some preliminary experiments in Sect. 8 on the construction and indexing of founder block graphs for a collection of SARS-CoV-2 strains. We consider future directions in Sect. 9.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A T A T C G T A T A T T T A C G A T T A T C C A T G T C G A G"
+        },
+        {
+            "text": "Indexing directed acyclic graphs (DAGs) for exact string matching on its paths was first studied by Sir\u00e9n et al. in WABI 2011 [32] . A generalization of Burrows-Wheeler transform [12] was proposed that supported near-linear time queries. However, the proposed transformation can grow exponential size in the worst case. Many practical solutions have been proposed since then, that either limit the search to short queries or use more time on queries [33, 22, 24, 31, 19] .",
+            "cite_spans": [
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 450,
+                    "end": 454,
+                    "text": "[33,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 455,
+                    "end": 458,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 459,
+                    "end": 462,
+                    "text": "24,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 463,
+                    "end": 466,
+                    "text": "31,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 467,
+                    "end": 470,
+                    "text": "19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "More recently, such approaches have been captured by the theory on Wheeler graphs [18, 20, 2] .",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 86,
+                    "text": "[18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 87,
+                    "end": 90,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 91,
+                    "end": 93,
+                    "text": "2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Since it is NP-hard to recognize if a given graph is Wheeler [20] , it is of interest to look for other graph classes that could provide some indexability functionality. Unfortunately, quite simple graphs turn out to be hard to index [15, 16] (under the Strong Exponential Time Hypothesis). In fact, the reductions by Equi et al. [15, 16] can be adjusted to show that block graphs cannot be indexed in polynomial time to support fast string matching. But as we will later see, further restrictions on block graphs change the situation.",
+            "cite_spans": [
+                {
+                    "start": 61,
+                    "end": 65,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 239,
+                    "end": 242,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 330,
+                    "end": 334,
+                    "text": "[15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 335,
+                    "end": 338,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Block graphs have also tight connection to generalized degenerate (GD) strings and their elastic version. These can also be seen as DAGs with a very specific structure. Matching a GD string is computationally easier and even linear time online algorithms can be achieved to compare two such strings, as analyzed by Alzamel et al. [3] . The elastic counterpart requires more care, as studied by Bernardini et al. [9] . Our results on founder block graphs can be casted on GD strings and elastic strings, as we will show later.",
+            "cite_spans": [
+                {
+                    "start": 330,
+                    "end": 333,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 412,
+                    "end": 415,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Finally, our indexing solution has connections to succinct representations of de Bruijn graphs [11, 10, 8] . Compared to de Bruijn graphs that are cyclic and have limited memory (k-mer length), our solution retains the linear structure of the block graph.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[11,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 104,
+                    "end": 106,
+                    "text": "8]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Definitions and basic tools",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "3"
+        },
+        {
+            "text": "We ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Strings"
+        },
+        {
+            "text": "As mentioned in the introduction, our goal is to compactly represent a gapless multiple sequence alignment (MSA) using a founder block graph. In this section we formalize these concepts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Founder block graphs"
+        },
+        {
+            "text": "A gapless multiple sequence alignment MSA[1..m, 1..n] is a set of m strings drawn from \u03a3, each of length n. Intuitively, it can be thought of as a matrix in which each row is one of the m strings. Such a structure can be partitioned into what we call a segmentation, that is, a collection of sets of shorter strings that can represent the original alignment. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Founder block graphs"
+        },
+        {
+            "text": "A segmentation of a MSA can naturally lead to the construction of a founder block graph. Let us first introduce the definition of a block graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Founder block graphs"
+        },
+        {
+            "text": "A block graph is a graph G = (V, E, ) where : V \u2192 \u03a3 + is a function that assigns a string label to every node and for which the following properties hold.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 2 (Block Graph)."
+        },
+        {
+            "text": "As a convention we call every V i a block and every (v) a segment.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 2 (Block Graph)."
+        },
+        {
+            "text": "Given a segmentation S of a MSA, we can define the founder block graph as a block graph induced by S. The idea is to have a graph in which the nodes represents the strings in S while the edges retain the information of how such strings can be recombined to spell any sequence in the original MSA. We regard the edges of (founder) block graphs to be directed from left to right. Consider a path P in G(S) between any two nodes. The label (P ) of P is the concatenation of labels of the nodes in the path. Let Q be a query string. We say that Q occurs in G(S) if Q is a substring of (P ) for any path P of G(S). Figure 2 illustrates such queries.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 610,
+                    "end": 618,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Definition 2 (Block Graph)."
+        },
+        {
+            "text": "In our example in Figure 1 , segmentation S would be [1.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 18,
+                    "end": 26,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Definition 3 (Founder Block Graph). A founder block graph is a block graph"
+        },
+        {
+            "text": ".4], [5. .8], [9..11] , and the induced founder block graph has thus 3 blocks with 9 nodes and 11 edges in total.",
+            "cite_spans": [
+                {
+                    "start": 5,
+                    "end": 8,
+                    "text": "[5.",
+                    "ref_id": null
+                },
+                {
+                    "start": 14,
+                    "end": 21,
+                    "text": "[9..11]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Definition 3 (Founder Block Graph). A founder block graph is a block graph"
+        },
+        {
+            "text": "A trie [14] of a set of strings is a rooted directed tree with outgoing edges of each node labeled by distinct characters such that there is a root to leaf path spelling each string in the set; shared part of the root to leaf paths to two different leaves spell the common prefix of the corresponding strings. Such a trie can be computed in O(N log \u03c3) time, where N is the total length of the strings, and it supports string queries that require O(q log \u03c3) time, where q is the length of the queried string.",
+            "cite_spans": [
+                {
+                    "start": 7,
+                    "end": 11,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Basic tools"
+        },
+        {
+            "text": "An Aho-Corasick automaton [1] is a trie of a set of strings with additional pointers (fail-links). While scanning a query string, these pointers (and some shortcut links on them) allow to identify all the positions in the query at which a match for any of the strings occurs. Construction of the automaton takes the same time as that of the trie. Queries take O(q log \u03c3 + occ) time, where occ is the number of matches.",
+            "cite_spans": [
+                {
+                    "start": 26,
+                    "end": 29,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Basic tools"
+        },
+        {
+            "text": "A suffix array [25] A bidirectional BWT index [30, 7] is a succinct index structure based on some auxiliary data structures on BWT. Given a string T \u2208 \u03a3 n , with \u03c3 \u2264 n, such index occupying O(n log \u03c3) bits of space can be build in O(n) time and it supports finding in O(q) time if a query string Q [1. .q] appears as substring of T [7] . Moreover, such query returns an interval pair ",
+            "cite_spans": [
+                {
+                    "start": 15,
+                    "end": 19,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[30,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 51,
+                    "end": 53,
+                    "text": "7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 298,
+                    "end": 301,
+                    "text": "[1.",
+                    "ref_id": null
+                },
+                {
+                    "start": 332,
+                    "end": 335,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Basic tools"
+        },
+        {
+            "text": "We now show that there exist a family of founder block graphs that admit a polynomial time constructable index structure supporting fast string matching. First, a trivial observation: the input multiple alignment is a founder block graph for the segmentation consisting of only one segment. Such founder block graph (set of sequences) can be indexed in linear time to support linear time string matching [7] . Now, the question is, are there other segmentations that allow the resulting founder block graph to be indexed in polynomial time? We show that this is the case.",
+            "cite_spans": [
+                {
+                    "start": 404,
+                    "end": 407,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Subclass of founder block graphs admitting indexing"
+        },
+        {
+            "text": "Our example graph ( Fig. 1) is not quite segment repeat-free, as TAT occurs also as substring of paths starting with ATAT.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 20,
+                    "end": 27,
+                    "text": "Fig. 1)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Subclass of founder block graphs admitting indexing"
+        },
+        {
+            "text": "To prove the proposition, we construct such an index and show how queries can be answered efficiently.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "Let P (v) be the set of all paths starting from node v and ending in a sink node. Let",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "Then one can binary search any query string Q in P to find out if it occurs in G(S) or not. The problem with this approach is that P is of exponential size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "However, if we know that G(S) is segment repeat-free, we know that the lexicographic order of (L)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "where w is the node following v on the path L. Let P (v, i) denote the set of suffix path labels cut at this manner. Now the corresponding set P = \u222a v\u2208V,1\u2264i\u2264| (v)| P (v, i) is no longer of exponential size. Consider again binary searching a string Q on sorted P . If Q occurs in P then it occurs in G(S). If not, Q has to have some (v) for v \u2208 V as its substring in order to occur in G(S).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "To figure out if Q contains (v) for some v \u2208 V as its substring, we build an Aho-Corasick automaton [1] ",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "To verify such potential match, we need several tries [14] . For each v \u2208 V , we build tries",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "to the leaf we reached in the trie. If the search succeeds after reading Q [1] we have found a path in G(S) spelling Q [1..j] . We repeat the analogous procedure with Q[j..m] starting from trie F(v). That is, we can verify a candidate occurrence of Q in G(S) in O(|Q| log \u03c3) time, as the search in the tries takes O(log \u03c3) time per step. Note however, that there could be several labels (v) occurring as substrings of Q, so we need to do the verification process for each one of them separately. There can be at most |Q| such candidate occurrences, due to the distinctness of node labels in G(S). In total, this search can take at most O(|Q| 2 log \u03c3) time.",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 78,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 119,
+                    "end": 125,
+                    "text": "[1..j]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "We are now ready to specify a theorem that reformulates Proposition 5 in detailed form.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "Theorem 6. Let G = (V, E) be a segment repeat-free founder block graph with blocks To avoid the costly binary search in sorted P , we instead construct the bidirectional BWT index [7] for the concatenation C = i\u2208{1,2,...,b} v\u2208V i ,(v,w)\u2208E (v) (w)0. Concatenation C is thus a string of length O(|E|W ) from alphabet {0, 1, 2, . . . , \u03c3}. The bidirectional BWT index for C can be constructed in O(|C|) time, so that in O(|Q|) time, one can find out if Q occurs in C [7] . This query equals that of binary search in P .",
+            "cite_spans": [
+                {
+                    "start": 180,
+                    "end": 183,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 464,
+                    "end": 467,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "We remark that founder block graphs have a connection with generalized degenerate strings (GD strings) [4] . In a GD string, sets of strings of equal length are placed one after the other to represent in a compact way a bigger set of strings. Such set contains all possible concatenations of those strings, which are obtained by scanning the individual sets from left to right and selecting one string from each set. The length of the strings in a specific set is called width, and sum of all the width of all sets in a GD string is the total width. Given two GD strings of the same total width it is possible to determine if the intersection of the sets of strings that they represent is non empty in linear time in the size of the GD strings [4] . Thus, the special case in which one of the two GD string is just a standard string can be seen also as a special case of a founder block graph in which every segment is fully connected with the next one and the length of the query string is equal to the maximal length of a path in the graph.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 106,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 744,
+                    "end": 747,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "We consider the question of indexing GD strings (fully connected block graphs) to search for queries Q shorter than the total width. We can exploit the segment repeat-free property to yield such an index. Theorem 7. Let G = (V, E) be a segment repeat-free GD string a.k.a. a fully connected segment repeat-free founder block graph with blocks Proof. Recall the index structure of Theorem 6. for the case of GD strings, we can simplify it as follow.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "We keep the same BWT index structure and the Aho-Corasick automaton, but we do not need any tries. After finding at most |Q| occurrences of substrings of Q in the graph using the Aho-Corasick automaton on node labels, we mark the matching blocks accordingly. If 2 marked blocks have exactly one marked neighboring block and |Q| \u2212 2 blocks have 2 marked neighboring blocks, then we have found an occurrence, otherwise not.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "Observe that max(N, W |E|) \u2264 mn, where m and n are the number of rows and number of columns, respectively, in the multiple sequence alignment from where the founder block graph is induced. That is, the index construction algorithms of the above theorems can be seen to be almost linear time in the (original) input size. We study succinct variants of these indexes in Sect. 6, and also improve the construction and query times to linear as side product.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 5. Segment repeat-free founder block graphs can be indexed in polynomial time to support polynomial time string queries."
+        },
+        {
+            "text": "We can adapt the dynamic programming segmentation algorithms for founders [28, 13] to produce segment repeat-free founder block graphs. The idea is as follows. Let S be a segmentation of MSA[1..m, 1..n]. We say S is valid if it induces a segment repeat-free founder block graph G(S) = (V, E). We build such valid S for prefixes of MSA from left to right, minimizing the maximum block length needed.",
+            "cite_spans": [
+                {
+                    "start": 74,
+                    "end": 78,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 79,
+                    "end": 82,
+                    "text": "13]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Construction of segment repeat-free founder block graphs"
+        },
+        {
+            "text": "Proof. To see that this is a necessary condition for the validity of S, notice that each row of MSA can be read through G, so if (v) occurs elsewhere than inside the block, then these extra occurrences make S invalid. To see that this is a sufficient condition for the validity of S, we observe the following: a) For all (v, w) \u2208 E, (v) (w) is a substring of some row of the input MSA. b) Let (x, u), (u, y) \u2208 E be two edges such that U = (x) (u) (y) is not a substring of any row of input MSA. Then any substring of U either occurs in some row of the input MSA or it includes (u) as its substring. c) If (v ) for some v \u2208 V does not occur as substring of some input MSA row, but it occurs as a substring of some path in G, then it includes (u) as its substring for some u \u2208 V , where | (u)| < | (v )|. Such (u) occurs at least once outside the block V i , where u \u2208 V i . That is, if (v ) makes S invalid then also (u) makes it invalid. d) Continuing case c) inductively, at some point there has to be (u ) for some u \u2208 V such that (u ) is substring of (v) (w) for some (v, w) \u2208 E. By a), such (u ) is also a substring of some row of the input MSA. That is, v of case c) cannot exist.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Given a segmentation S and founder block graph G(S) = (V, E) induced by S, we can ensure that it is valid by checking if, for all v \u2208 V , (v) occurs in the rows of the MSA only in the interval of the block"
+        },
+        {
+            "text": "Let s(j ) be the score of an optimal (minimum scoring) valid segmentation S of prefix ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "From characterization to a segmentation"
+        },
+        {
+            "text": "where s(j) . For the former, one can start comparing max(j \u2212 j , s(j )) from j = v(j) decreasing j by one, and then the value j \u2212 j grows bigger than s(j ) at latest after s(j) \u2212 (j \u2212 v(j)) \u2264 s(j) steps. For preprocessing, we build the bidirectional BWT index of the MSA in O(mn) time [7] . At column j, consider the trie containing the reverse of the rows of M [1..m, 1..j]. Search the trie paths from the bidirectional BWT index until the number of leaves in each trie subtree equals the length of the corresponding BWT interval. Let j be the column closest to j where this holds for all trie paths. Then one can set v(j) = j . The O(m(j \u2212 v(j) ) log \u03c3) time construction of the trie has to be repeated for each column. As j \u2212 v(j) \u2264 s(j), the claimed preprocessing time follows.",
+            "cite_spans": [
+                {
+                    "start": 285,
+                    "end": 288,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 6,
+                    "end": 10,
+                    "text": "s(j)",
+                    "ref_id": null
+                },
+                {
+                    "start": 630,
+                    "end": 646,
+                    "text": "The O(m(j \u2212 v(j)",
+                    "ref_id": null
+                }
+            ],
+            "section": "From characterization to a segmentation"
+        },
+        {
+            "text": "We can do the preprocessing in O(mn) time. Proof. Let us build the bidirectional BWT index [7] of MSA rows concatenated into one long string. We will run several algorithms in synchronization over this BWT index, but we explain them first as if they would be run independently. Finally, the running time is O(mn), since each extend-left and contract-right operations take constant time [5] , and since the bitvectors are manipulated locally only on indexes that are maintained as variables during the execution.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 94,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 386,
+                    "end": 389,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Faster preprocessing"
+        },
+        {
+            "text": "Recall Eq. (1). Before proceeding to the involved optimal solution, we give some insights by first improving the running time to logarithmic per entry.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "As it holds v(1) \u2264 v(2) \u2264 \u00b7 \u00b7 \u00b7 \u2264 v(n), the range where the minimum is taken grows as j grows. Now, [j ..j +s(j )] can be seen as the effect range of s(j ): for columns j > j +s(j ) the maximum from the options is j \u2212 j . Consider maintaining (key, value) pairs (s(j ) + j , s(j )) in a binary search tree (BST). When computing s(j) we should have pairs (s(j ) + j , s(j )) for [17] . Alternatively, we can remove elements from the BST once they no longer can be answers to queries, and we can get O(n log s max ) solution. To obtain better running time, we need to exploit more structural properties of the recurrence.",
+            "cite_spans": [
+                {
+                    "start": 378,
+                    "end": 382,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "Cazaux et al. [13] considered a similar recurrence and gave a linear time solution for it. In what follows we modify that technique to work with valid ranges.",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 18,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "For j between 1 and n, we define",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "Lemma 10. For any j \u2208 [1..n \u2212 1], we have x(j) \u2264 x(j + 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "Proof. By the definition of x(.), for any j \u2208 [1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": ".n], we have for j \u2208 [1..x(j) \u2212 1], max(j \u2212 j , s(j )) \u2265 max(j \u2212 x(j), s(x(j))) and for j \u2208 [x(j) + 1..v(j)], max(j \u2212 j , s(j )) > max(j \u2212 x(j), s(x(j))). We assume that there exists j \u2208 [1..n \u2212 1], such that x(j + 1) < x(j). In this case, x(j + 1) \u2208 [1..x(j) \u2212 1] and we have max(j \u2212 x(j + 1), s(x(j + 1))) \u2265 max(j \u2212 x(j), s(x(j))).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "As v(j + 1) \u2265 v(j), x(j) \u2208 [x(j + 1) + 1..v(j + 1)] and thus max(j + 1 \u2212 x(j + 1), s(x(j + 1))) < max(j + 1 \u2212 x(j), s(x(j))). As x(j + 1) < x(j), we have j \u2212 x(j + 1) > j \u2212 x(j). To simplify the proof, we take A = j \u2212 x(j + 1), B = s(x(j + 1)), C = j \u2212 x(j) and D = s(x(j)). Hence Proof. We are going to show by induction. The base case is obvious because s(1) = K \u2264 max(1, K). As s(j) = min j :1\u2264j \u2264v(j) max(j \u2212 j , s(j )), by using induction, s(j) \u2264 min j :1\u2264j \u2264v(j) max(j, K) \u2264 max(j, K) By using K = n + 1, we can have that each s(j) is in O(n).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "Proof. We need just to compare k = max(j \u2212 j , s(j )) and s(j ) where j is in Argmin j \u2208[j +1..v(j)] s(j ). If k is smaller than s(j ), k is smaller than all the s(j ) with j \u2208 [j + 1..v(j)] and thus for all max(j \u2212 j , s(j )). Hence we have .n], we check any j from x(j \u2212 1) to v(j) with the equality of Lemma 12 until one is true. With the property of the equality, we know that this j is x(j). After that we compute s(j) which corresponds to the value max(j \u2212 x(j), s(x(j))), we add s(j) to the constant time semi-dynamic range maximum query and we compute s(j + 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Faster main algorithm"
+        },
+        {
+            "text": "Recall the indexing solutions of Sect. 4 and the definitions from Sect. 3. We now show that explicit tries and Aho-Corasick automaton can be replaced by some auxiliary data structures associated with the Burrows-Wheeler transformation of the concat-",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Succinct index for segment-free founder block graphs"
+        },
+        {
+            "text": "Consider interval SA[i..k] in the suffix array of C corresponding to suffixes having (v) as prefix for some v \u2208 V . From the segment repeat-free property it follows that this interval can be split into two subintervals, SA[i. We are now ready to present the search algorithm that uses only the BWT of C and some small auxiliary data structures. We associate two bitvectors B and E to the BWT of = select(B, rank(B, j ) ) and k = select (E, rank(B, j ) ). If i \u2264 j and k \u2264 k, index j lies inside an interval SA[i..k] where all suffixes start with (v) for some v. We modify the range into SA[i..k], and continue with the backward step on Q[q \u2212 1]. We check the same condition in each step and expand the interval if the condition is met. Let us call this procedure expanded backward search.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 395,
+                    "end": 418,
+                    "text": "= select(B, rank(B, j )",
+                    "ref_id": null
+                },
+                {
+                    "start": 436,
+                    "end": 451,
+                    "text": "(E, rank(B, j )",
+                    "ref_id": null
+                }
+            ],
+            "section": "Succinct index for segment-free founder block graphs"
+        },
+        {
+            "text": "We can now strictly improve Theorems 6 and 7 as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Succinct index for segment-free founder block graphs"
+        },
+        {
+            "text": "Let G = (V, E) be a segment repeat-free founder block graph (or a segment repeat-free GD string) with blocks Proof. (sketch) As we expand the search interval in BWT, it is evident that we still find all occurrences for short patterns that span at most two nodes, like in the proof of Theorem 6. We need to show that a) the expansions do not yield spurious occurrences for such short patterns and b) the expansions yield exactly the occurrences for long patterns that we earlier found with the Aho-Corasick and tries approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 14."
+        },
+        {
+            "text": "In case b), notice that after an expansion step we are indeed in an interval SA[i.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 14."
+        },
+        {
+            "text": ".k] where all suffixes match (v) and thus corresponds to a node v \u2208 V . The suffix of the query processed before reaching interval SA[i..k] must be at least of length | (v)|. That is, to mimic Aho-Corasick approach, we should continue with the trie R(v). This is identical to taking backward step from BWT[i..k], and continuing therein to follow the rest of this implicit trie.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 14."
+        },
+        {
+            "text": "To conclude case b), we still need to show that we reach all the same nodes as when using Aho-Corasick, and that the search to other direction with L(v) can be avoided. These follow from case a), as we see.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 14."
+        },
+        {
+            "text": "In case a), before doing the first expansion, the search is identical to the original algorithm in the proof of Theorem 6. After the expansion, all matches to be found are those of case b). That is, no spurious matches are reported. Finally, no search interval can include two distinct node labels, so the search reaches the only relevant node label, where the Aho-Corasick and trie search simulation takes place. We reach all such nodes that can yield a full match for the query.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 14."
+        },
+        {
+            "text": "We have so far assumed that our input is a gapless multiple alignment. Let us now consider how to extend the results to the general case. The idea is that gaps are only used in the segmentation algorithm to define the valid ranges, and that is the only place where special attention needs to be taken; elsewhere, whenever a substring from MSA rows is read, gaps are treated as empty strings. That is, A-GC-TA-becomes AGCTA. It turns out that allowing gaps in MSA indeed makes the computation of valid ranges more difficult. To see this, consider a segment in MSA containing strings: Pattern location times in milliseconds by index size Figure 3 Running time of querying patterns from the founder block graph. The sample sizes (for MSA row subsets) are shown on the right-hand side of each plot. The plots show averages and distribution over 10 repeats of each search, where one search consist of a set of query patterns of given length randomly sampled from the respective MSA row subset. The pattern set sample size (10, 20, 30, 40 , respectively) grows by the MSA sample size, but the reported numbers are normalized so that the query time (milliseconds) is per pattern. This experiment was run on Intel(R) Core(TM) i5-4308U CPU, 2.80GHz. postprocessed using matching statistics [6] on all pairs of prefixes preceding suffixes causing nested intervals). Initial experiments show very similar behaviour to the gapless case, but we defer further experiments until the implementation is mature enough.",
+            "cite_spans": [
+                {
+                    "start": 1017,
+                    "end": 1021,
+                    "text": "(10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1022,
+                    "end": 1025,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1026,
+                    "end": 1029,
+                    "text": "30,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 1030,
+                    "end": 1032,
+                    "text": "40",
+                    "ref_id": null
+                },
+                {
+                    "start": 1281,
+                    "end": 1284,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 636,
+                    "end": 644,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Gaps in multiple alignment"
+        },
+        {
+            "text": "We implemented the succinct indexing approach of Sect. 6. On the founder block graph of the previous experiment, the index occupied 87 KB. This is 3% of the original input size, as the encoding of the input MSA with 2 bits per nucleotide takes 2984 KB. Figure 3 shows an experiment with indexes built on different size samples of the MSA rows, and with querying patterns of varying length sampled from the same rows. As can be seen, the query times are not affected by the size of the MSA samples (showing independence of the input MSA), but only on their length (showing linear dependency on the query length).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 253,
+                    "end": 261,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Indexing"
+        },
+        {
+            "text": "One characterization of our solution is that we compact those vertical repeats in MSA that are not horizontal repeats. This can be seen as positional extension of variable order de Bruijn graphs. Also, our solution is parameter-free unlike de Bruijn approaches that always need some threshold k, even in the variable order case. The founder block graph concept could also be generalized so that it is not directly induced from a segmentation. One could consider cyclic graphs having the same segment repeat-free property. This could be interesting direction in defining parameter-free de Bruijn graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Future work include a proper extension of the approach to general MSA's containing gaps. Our implementation already contains support for such MSA's, but the theory framework still requires some more work to show that such extension can be done without any effect on the running time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "On the experimental side, there is still much more work to be done. So far, we have not optimized any of the algorithms for multithreading nor for space usage. For example, one could use BWT indexes engineered for highly repetitive text collections to build the founder block graphs in space proportional of the compressed MSA. Such optimizations are essential for applying the approach on e.g. human genome data. Past experience on similar solutions [28] indicate that our approach should easily be applicable to much larger datasets than those we covered in our preliminary experiments.",
+            "cite_spans": [
+                {
+                    "start": 451,
+                    "end": 455,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Finally, this paper only scratches the surface of a new family of pangenome representations. There are myriad of options how to optimize among the valid segmentations [28, 13] , e.g. by optimizing the number of founder segments [28] or controlling the over-expressiveness of the graph, rather than minimizing the maximum block size as studied here.",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 171,
+                    "text": "[28,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 172,
+                    "end": 175,
+                    "text": "13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Efficient string matching: An aid to bibliographic search",
+            "authors": [
+                {
+                    "first": "Alfred",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Aho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Margaret",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Corasick",
+                    "suffix": ""
+                }
+            ],
+            "year": 1975,
+            "venue": "Commun. ACM",
+            "volume": "18",
+            "issn": "6",
+            "pages": "333--340",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Regular languages meet prefix sorting",
+            "authors": [
+                {
+                    "first": "Jarno",
+                    "middle": [],
+                    "last": "Alanko",
+                    "suffix": ""
+                },
+                {
+                    "first": "D&apos;",
+                    "middle": [],
+                    "last": "Giovanna",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alberto",
+                    "middle": [],
+                    "last": "Agostino",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nicola",
+                    "middle": [],
+                    "last": "Policriti",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Prezza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proceedings of the 2020 ACM-SIAM Symposium on Discrete Algorithms",
+            "volume": "2020",
+            "issn": "",
+            "pages": "911--930",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Degenerate String Comparison and Applications",
+            "authors": [
+                {
+                    "first": "Mai",
+                    "middle": [],
+                    "last": "Alzamel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lorraine",
+                    "middle": [
+                        "A K"
+                    ],
+                    "last": "Ayad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giulia",
+                    "middle": [],
+                    "last": "Bernardini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roberto",
+                    "middle": [],
+                    "last": "Grossi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Costas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nadia",
+                    "middle": [],
+                    "last": "Iliopoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pisanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Solon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanna",
+                    "middle": [],
+                    "last": "Pissis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rosone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "18th International Workshop on Algorithms in Bioinformatics (WABI 2018), volume 113 of Leibniz International Proceedings in Informatics (LIPIcs)",
+            "volume": "21",
+            "issn": "",
+            "pages": "1--21",
+            "other_ids": {
+                "DOI": [
+                    "10.4230/LIPIcs.WABI.2018.21"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Degenerate string comparison and applications",
+            "authors": [
+                {
+                    "first": "Mai",
+                    "middle": [],
+                    "last": "Alzamel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lorraine",
+                    "middle": [
+                        "A K"
+                    ],
+                    "last": "Ayad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giulia",
+                    "middle": [],
+                    "last": "Bernardini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roberto",
+                    "middle": [],
+                    "last": "Grossi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Costas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nadia",
+                    "middle": [],
+                    "last": "Iliopoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pisanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Solon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanna",
+                    "middle": [],
+                    "last": "Pissis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rosone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "18th International Workshop on Algorithms in Bioinformatics, WABI 2018",
+            "volume": "113",
+            "issn": "",
+            "pages": "1--21",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Fully-functional bidirectional burrows-wheeler indexes and infinite-order de bruijn graphs",
+            "authors": [
+                {
+                    "first": "Djamal",
+                    "middle": [],
+                    "last": "Belazzougui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fabio",
+                    "middle": [],
+                    "last": "Cunial",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "30th Annual Symposium on Combinatorial Pattern Matching, CPM 2019",
+            "volume": "128",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Linear Time Construction of Indexable Founder Block Graphs",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Fast matching statistics in small space",
+            "authors": [
+                {
+                    "first": "Djamal",
+                    "middle": [],
+                    "last": "Belazzougui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fabio",
+                    "middle": [],
+                    "last": "Cunial",
+                    "suffix": ""
+                },
+                {
+                    "first": "Olgert",
+                    "middle": [],
+                    "last": "Denas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "17th International Symposium on Experimental Algorithms, SEA 2018",
+            "volume": "103",
+            "issn": "",
+            "pages": "1--17",
+            "other_ids": {
+                "DOI": [
+                    "10.4230/LIPIcs.SEA.2018.17"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Linear-time string indexing and analysis in small space",
+            "authors": [
+                {
+                    "first": "Djamal",
+                    "middle": [],
+                    "last": "Belazzougui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fabio",
+                    "middle": [],
+                    "last": "Cunial",
+                    "suffix": ""
+                },
+                {
+                    "first": "Juha",
+                    "middle": [],
+                    "last": "K\u00e4rkk\u00e4inen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "ACM Trans. Algorithms",
+            "volume": "16",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3381417"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Bidirectional variable-order de bruijn graphs",
+            "authors": [
+                {
+                    "first": "Djamal",
+                    "middle": [],
+                    "last": "Belazzougui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Travis",
+                    "middle": [],
+                    "last": "Gagie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marco",
+                    "middle": [],
+                    "last": "Previtali",
+                    "suffix": ""
+                },
+                {
+                    "first": "Simon",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Puglisi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Int. J. Found. Comput. Sci",
+            "volume": "29",
+            "issn": "8",
+            "pages": "1279--1295",
+            "other_ids": {
+                "DOI": [
+                    "10.1142/S0129054118430037"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Even Faster Elastic-Degenerate String Matching via Fast Matrix Multiplication",
+            "authors": [
+                {
+                    "first": "Giulia",
+                    "middle": [],
+                    "last": "Bernardini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pawel",
+                    "middle": [],
+                    "last": "Gawrychowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nadia",
+                    "middle": [],
+                    "last": "Pisanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Solon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanna",
+                    "middle": [],
+                    "last": "Pissis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rosone",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "46th International Colloquium on Automata, Languages, and Programming (ICALP 2019",
+            "volume": "132",
+            "issn": "",
+            "pages": "1--21",
+            "other_ids": {
+                "DOI": [
+                    "10.4230/LIPIcs.ICALP.2019.21"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Variable-order de bruijn graphs",
+            "authors": [
+                {
+                    "first": "Christina",
+                    "middle": [],
+                    "last": "Boucher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Bowe",
+                    "suffix": ""
+                },
+                {
+                    "first": "Travis",
+                    "middle": [],
+                    "last": "Gagie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Simon",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Puglisi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kunihiko",
+                    "middle": [],
+                    "last": "Sadakane",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "2015 Data Compression Conference, DCC 2015",
+            "volume": "",
+            "issn": "",
+            "pages": "383--392",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/DCC.2015.70"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Succinct de bruijn graphs",
+            "authors": [
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Bowe",
+                    "suffix": ""
+                },
+                {
+                    "first": "Taku",
+                    "middle": [],
+                    "last": "Onodera",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kunihiko",
+                    "middle": [],
+                    "last": "Sadakane",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tetsuo",
+                    "middle": [],
+                    "last": "Shibuya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Algorithms in Bioinformatics -12th International Workshop, WABI 2012",
+            "volume": "7534",
+            "issn": "",
+            "pages": "225--235",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-33122-0_18"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "A block-sorting lossless data compression algorithm",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Burrows",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wheeler",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "Digital Equipment Corporation",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Linear time maximum segmentation problems in column stream model",
+            "authors": [
+                {
+                    "first": "Dmitry",
+                    "middle": [],
+                    "last": "Bastien Cazaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "Kosolobov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tuukka",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Norri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "String Processing and Information Retrieval -26th International Symposium",
+            "volume": "11811",
+            "issn": "",
+            "pages": "322--336",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "File searching using variable length keys",
+            "authors": [
+                {
+                    "first": "Rene",
+                    "middle": [],
+                    "last": "De",
+                    "suffix": ""
+                },
+                {
+                    "first": "La",
+                    "middle": [],
+                    "last": "Briandais",
+                    "suffix": ""
+                }
+            ],
+            "year": 1959,
+            "venue": "Western Joint Computer Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "295--298",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/1457838.1457895"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "On the complexity of string matching for graphs",
+            "authors": [
+                {
+                    "first": "Massimo",
+                    "middle": [],
+                    "last": "Equi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roberto",
+                    "middle": [],
+                    "last": "Grossi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexandru",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Tomescu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "46th International Colloquium on Automata, Languages, and Programming, ICALP 2019",
+            "volume": "132",
+            "issn": "",
+            "pages": "1--55",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Graphs cannot be indexed in polynomial time for sub-quadratic time string matching, unless seth fails",
+            "authors": [
+                {
+                    "first": "Massimo",
+                    "middle": [],
+                    "last": "Equi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexandru",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Veli M\u00e4kinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tomescu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2002.00629"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Scaling and related techniques for geometry problems",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Harold",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jon",
+                    "middle": [
+                        "Louis"
+                    ],
+                    "last": "Gabow",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "Endre"
+                    ],
+                    "last": "Bentley",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tarjan",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "Proceedings of the 16th Annual ACM Symposium on Theory of Computing",
+            "volume": "",
+            "issn": "",
+            "pages": "135--143",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/800057.808675"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Wheeler graphs: A framework for bwt-based data structures",
+            "authors": [
+                {
+                    "first": "Travis",
+                    "middle": [],
+                    "last": "Gagie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanni",
+                    "middle": [],
+                    "last": "Manzini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jouni",
+                    "middle": [],
+                    "last": "Sir\u00e9n",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Theor. Comput. Sci",
+            "volume": "698",
+            "issn": "",
+            "pages": "67--78",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Variation graph toolkit improves read mapping by representing genetic variation in the reference",
+            "authors": [
+                {
+                    "first": "Erik",
+                    "middle": [],
+                    "last": "Garrison",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jouni",
+                    "middle": [],
+                    "last": "Sir\u00e3\u00a9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "Novak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Glenn",
+                    "middle": [],
+                    "last": "Hickey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jordan",
+                    "middle": [],
+                    "last": "Eizenga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Dawson",
+                    "suffix": ""
+                },
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "Shilpa",
+                    "middle": [],
+                    "last": "Garg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Charles",
+                    "middle": [],
+                    "last": "Markello",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Benedict",
+                    "middle": [],
+                    "last": "Paten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Nature Biotechnology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nbt.4227"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "On the hardness and inapproximability of recognizing wheeler graphs",
+            "authors": [
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Gibney",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sharma",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Thankachan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "27th Annual European Symposium on Algorithms, ESA 2019",
+            "volume": "144",
+            "issn": "",
+            "pages": "1--51",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Sdsl -succinct data structure library",
+            "authors": [
+                {
+                    "first": "Simon",
+                    "middle": [],
+                    "last": "Gog",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Short read alignment with populations of genomes",
+            "authors": [
+                {
+                    "first": "Lin",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Victoria",
+                    "middle": [],
+                    "last": "Popic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Serafim",
+                    "middle": [],
+                    "last": "Batzoglou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Bioinformatics",
+            "volume": "29",
+            "issn": "13",
+            "pages": "361--370",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Space-efficient static trees and graphs",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Jacobson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1989,
+            "venue": "Proc. FOCS",
+            "volume": "",
+            "issn": "",
+            "pages": "549--554",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "A natural encoding of genetic variation in a Burrows-Wheeler transform to enable mapping and genome inference",
+            "authors": [
+                {
+                    "first": "Sorina",
+                    "middle": [],
+                    "last": "Maciuca",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carlos",
+                    "middle": [],
+                    "last": "Del Ojo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gil",
+                    "middle": [],
+                    "last": "Elias",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zamin",
+                    "middle": [],
+                    "last": "Mcvean",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Iqbal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Algorithms in Bioinformatics -16th International Workshop, WABI 2016",
+            "volume": "9838",
+            "issn": "",
+            "pages": "222--233",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Suffix arrays: A new method for on-line string searches",
+            "authors": [
+                {
+                    "first": "Udi",
+                    "middle": [],
+                    "last": "Manber",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eugene",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Myers",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "SIAM J. Comput",
+            "volume": "22",
+            "issn": "5",
+            "pages": "935--948",
+            "other_ids": {
+                "DOI": [
+                    "10.1137/0222058"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Computational pangenomics: status, promises and challenges",
+            "authors": [
+                {
+                    "first": "Tobias",
+                    "middle": [],
+                    "last": "Marschall",
+                    "suffix": ""
+                },
+                {
+                    "first": "Manja",
+                    "middle": [],
+                    "last": "Marz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Abeel",
+                    "suffix": ""
+                },
+                {
+                    "first": "Louis",
+                    "middle": [],
+                    "last": "Dijkstra",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Bas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ali",
+                    "middle": [],
+                    "last": "Dutilh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Ghaffaari",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wigard",
+                    "middle": [],
+                    "last": "Kersey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "Kloosterman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Novak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "BioRxiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Massively scalable reference-guided multiple sequence alignment of viral genomes. bioRxiv",
+            "authors": [
+                {
+                    "first": "Niema",
+                    "middle": [],
+                    "last": "Moshiri",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Viralmsa",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1101/2020.04.20.052068"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Linear time minimum segmentation enables scalable founder reconstruction",
+            "authors": [
+                {
+                    "first": "Tuukka",
+                    "middle": [],
+                    "last": "Norri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bastien",
+                    "middle": [],
+                    "last": "Cazaux",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dmitry",
+                    "middle": [],
+                    "last": "Kosolobov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Algorithms Mol. Biol",
+            "volume": "14",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Haplotype inference via hierarchical genotype parsing",
+            "authors": [
+                {
+                    "first": "Pasi",
+                    "middle": [],
+                    "last": "Rastas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Esko",
+                    "middle": [],
+                    "last": "Ukkonen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Algorithms in Bioinformatics, 7th International Workshop, WABI",
+            "volume": "",
+            "issn": "",
+            "pages": "85--97",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Bidirectional search in a string with wavelet trees and bidirectional matching statistics",
+            "authors": [
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Schnattinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Enno",
+                    "middle": [],
+                    "last": "Ohlebusch",
+                    "suffix": ""
+                },
+                {
+                    "first": "Simon",
+                    "middle": [],
+                    "last": "Gog",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Inf. Comput",
+            "volume": "213",
+            "issn": "",
+            "pages": "13--22",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Haplotypeaware graph indexes",
+            "authors": [
+                {
+                    "first": "Jouni",
+                    "middle": [],
+                    "last": "Sir\u00e9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "Erik",
+                    "middle": [],
+                    "last": "Garrison",
+                    "suffix": ""
+                },
+                {
+                    "first": "Adam",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Novak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Benedict",
+                    "middle": [],
+                    "last": "Paten",
+                    "suffix": ""
+                },
+                {
+                    "first": "Richard",
+                    "middle": [],
+                    "last": "Durbin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.03834"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Indexing graphs for path queries with applications in genome research",
+            "authors": [
+                {
+                    "first": "Jouni",
+                    "middle": [],
+                    "last": "Sir\u00e9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "Niko",
+                    "middle": [],
+                    "last": "V\u00e4lim\u00e4ki",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veli",
+                    "middle": [],
+                    "last": "M\u00e4kinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE/ACM Transactions on Computational Biology and Bioinformatics",
+            "volume": "11",
+            "issn": "2",
+            "pages": "375--388",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Indexing hypertext",
+            "authors": [
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Thachuk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Journal of Discrete Algorithms",
+            "volume": "18",
+            "issn": "",
+            "pages": "113--122",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Finding founder sequences from a set of recombinants",
+            "authors": [
+                {
+                    "first": "Esko",
+                    "middle": [],
+                    "last": "Ukkonen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Algorithms in Bioinformatics, Second International Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "277--286",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(a) Input multiple alignment, (b) a set of founders with common recombination positions as a solution to a relaxed version of founder reconstruction, (c) a variation graph encoding the input and (d) a founder block graph. Here the input alignment and the resulting variation graph are unrealistically bad; the example is made to illustrate the founders.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Segmentation). Let MSA[1..m, 1..n] be a gapless multiple alignment and let R 1 , R 2 , . . . , R m be the strings in MSA. A segmentation S of MSA is a set of b sets of strings S 1 , S 2 , . . . , S b such that for each 1 \u2264 i \u2264 b there exist j (i) and k (i) such that for each",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "An example of two strings, GCG and ATTCGATA, occurring in G(S).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "of string T is an array SA[1..n + 1] such that SA[i] = j if T [j..n + 1] is the j-th smallest suffix of string T = T 0, where T \u2208 {1, 2, . . . , \u03c3}, and 0 is the end marker. Thus, SA[1] = n + 1. Burrows-Wheeler transform BWT[1..n + 1] [12] of string T is such that BWT[i] = T [SA[i] \u2212 1], where T = T 0 and T [\u22121] is regarded as T [n + 1] = 0.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "such that suffixes of T starting at positions SA[i], SA[i + 1], . . . , SA[j] share a common prefix matching the query. Interval [i ..j ] is the corresponding interval in the suffix array of the reverse of T . Let ([i..j],[i ..j ]) be the interval corresponding to query substring Q[l..r]. A bidirectional backward step updates the interval pair ([i..j],[i ..j ]) to the corresponding interval pair when the query substring Q[l..r] is extended to the left into Q[l \u2212 1..r] or to the right into Q[l..r + 1]. This takes constant time [7]. A fully-functional bidirectional BWT index [5] expands the steps to allow contracting symbols from the left or from the right. That is, substring Q[l..r] can be modified into Q[l + 1..r] or to Q[l..r \u2212 1] and the the corresponding interval pair can be updated in constant time. Among the auxiliary structures used in BWT-based indexes, we explicitly use the rank and select structures: String B[1..n] from binary alphabet is called a bitvector. Operation rank(B, i) returns the number of 1s in B[1..i]. Operationselect(B, j)returns the index i containing the j-th 1 in B. Both queries can be answered in constant time using an index requiring o(n) bits in addition to the bitvector itself[23].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "We can preprocess an index structure for G in O((N +W |E|) log \u03c3) time, where {1, . . . , \u03c3} is the alphabet for node labels, W = max v\u2208V (v), and N = v\u2208V (v). Given a query string Q[1..q] \u2208 {1, . . . , \u03c3} q , we can use the index structure to find out if Q occurs in G. This query takes O(|Q| 2 log \u03c3) time. Proof. With preprocessing time O(N log \u03c3) we can build the Aho-Corasick automaton [1]. The tries can be built in O(log \u03c3)( v\u2208V ( (u,v)\u2208E | (u)|+ (v,w)\u2208E | (w)|)) = O(|E|W log \u03c3) time. The required queries on these structures take O(|Q| 2 log \u03c3) time.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "where {1, . . . , \u03c3} is the alphabet for node labels, W = max v\u2208V (v), and N = v\u2208V (v). Given a query string Q[1..q] \u2208 {1, . . . , \u03c3} q , we can use the index structure to find out if Q occurs in G. This query takes O(|Q| log \u03c3) time.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Given a multiple sequence alignment MSA[1 . . . m, 1 . . . n], values v(j) for each 1 \u2264 j \u2264 n can be computed in O(mn) time, where v(j) is the largest integer such that segment MSA[1..m, v(j) + 1..j] is valid.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Algorithm 1 searches in parallel all rows from right to left advancing each by one position at a time. Let k be the number parallel of steps done so far. It follows that we can maintain a bitvector M that at k-th step stores M [i] = 1 iff BW T [i] is the k-th last symbol of some row. Algorithm 2 uses the variable length sliding window approach of Belazzougui and Cunial [5] to compute values v(j). Let the first row of MSA be T [1..n]. Search T [1..n] backwards in the fully-functional bidirectional BWT index[5]. Stop the search at T [j + 1..n] such that the corresponding BWT interval [i ..i] contains only suffixes originating from column j + 1 of the MSA, that is, spelling MSA[a, j + 1..n]... in the concatenation, for some rows a. Set v 1 (n) = j . Contract T [n] from the search string and modify BWT interval accordingly[5]. Continue the search to find T [j + 1..n \u2212 1] s.t. again the corresponding BWT interval [i ..i] contains only suffixes originating from column j . Update v 1 (n \u2212 1) = j . Continue like this throughout T . Repeat the process for all rows, to computev 2 (j), v 3 (j), . . . , v m (j) for all j. Set v(j) = min i v i (j) for all j.Let us call the instances of the Algorithm 2 run on the rest of the rows as Algorithms 3, 4, . . . , m + 1.Let the current BWT interval in Algorithms 2 to m + 1 be [j + 1..j]. The problematic part in them is checking if the corresponding active BWT intervals [i a ..i a ] for Algorithms a \u2208 {2, 3, . . . , m + 1} contain only suffixes originating from column j + 1. To solve this, we run Algorithm 1 as well as Algorithms 2 to m + 1 in synchronization so that we are at the k-th step in Algorithm 1 when we are processing interval [j + 1..j] in rest of the algorithms, for k = n \u2212 j . In addition, we maintain bitvectors B and E such thatB[i a ] = 1 and E[i a ] = 1 for a \u2208 {2, 3, . . . , m + 1}. For each M [i] that we set to 1 at step k with B[i] = 0 and E[i] = 0, we check if M [i \u2212 1] = 1 and M [i + 1] = 1. If and only if this check fails on any i, there is a suffix starting outside column j + 1. This follows from the fact that each suffix starting at column j + 1 must be contained in exactly one of the distinct intervals of the set I = {[i a ..i a ]} a\u22082,3...m+1 . This is because I cannot contain nested interval pairs as all strings in segment [j + 1..j] of MSA are equal length, and thus their BWT intervals cannot overlap except if the intervals are exactly the same.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "BST. Value s(j) can be computed by taking range minimum on BST values with keys in range [j..\u221e]. Such query is easy to solve in O(log n) time. If there is nothing in the interval, s(j) = j \u2212 v(j). Since this is semi-open interval on keys in range [1 . . . 2n], BST can be replaced by van Emde Boas tree to obtain O(n log log n) time computation of all values",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": ", we have max(A, B) \u2265 max(C, D), max(A + 1, B) < max(C + 1, D) and A > C. Now we are going to prove that this system admits no solution. Case where A = max(A, B) and C = max(C, D). As A > C, we have A + 1 > C + 1 and thus max(A + 1, B) > max(C + 1, D) which is impossible because max(A + 1, B) < max(C + 1, D). Case where B = max(A, B) and C = max(C, D). We can assume that B > A (in the other case, we take A = max(A, B)) and as A > C, we have B > C + 1 and thus max(A + 1, B) > max(C + 1, D) which is impossible because max(A + 1, B) < max(C + 1, D). Case where A = max(A, B) and D = max(C, D). We have A > D and A > C, thus max(A + 1, B) > max(C + 1, D) which is impossible because max(A + 1, B) < max(C + 1, D). Case where B = max(A, B) and D = max(C, D). We have B \u2265 D and A > C, thus max(A + 1, B) \u2265 max(C + 1, D) which is impossible because max(A + 1, B) < max(C + 1, D).Lemma 11. By initialising s(1) to a threshold K, for any j \u2208 [1..n], we have s(j) \u2264 max(j, K).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF11": {
+            "text": "s(j )). By using the constant time semi-dynamic range maximum query by Cazaux et al. [13] on the array s(.), we can obtain in constant time j and thus check the equality in constant time. Theorem 13. We can build all the values s(j) in O(n) time after O(nm) preprocessing. Proof. After preprocessing in O(mn) to compute all the values v(j), we can build all the values s(j) by increasing j and computing the values x(j). For any j \u2208 [1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF12": {
+            "text": ".j] and SA[j + 1..k], such that suffixes in SA[i..j] start with (v)0 and suffixes in SA[j + 1..k] start with (v) (w), where (v, w) \u2208 E. Moreover, BWT[i..j] equals multiset { (u)[| (u)| \u2212 1] | (u, v) \u2208 E}sorted in lexicographic order. This follows by considering the lexicographic order of suffixes (u)[| (u)| \u2212 1] (v)0 . . . for (u, v) \u2208 E. That is, BWT[i..j] (interpreted as a set) represents the children of the root of the trie R(v) considered in Sect. 4.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "The lexicographic order of two strings A and B is naturally defined by the order of the alphabet:A < B iff A[1..i] = B[1..i] and A[i + 1] < B[i + 1] for some i \u2265 0. If i + 1 > min(|A|,|B|), then the shorter one is regarded as smaller. However, we usually avoid this implicit comparison by adding end marker 0 to the strings.Concatenation of strings A and B is denoted AB.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "MSA[1..m, 1..j ], where the score is defined as max [a..b]\u2208S b \u2212 a + 1. We can compute",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "of the optimal segmentation of MSA in O(ns max ) time after preprocessing values v(j) in O(mns max log \u03c3) time, where s max = max j:v(j)>0",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "C as follows. We set B[i] = 1 and E[k] = 1 iff SA[i..k] is maximal interval with all suffixes starting with (v) for some v \u2208 V . Consider the backward search with query Q[1..q]. Let SA[j ..k ] be the interval after matching the shortest suffix Q[q ..q] such that BWT[j ] = 0. Let i",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "We can preprocess an index structure for G occupying O(W |E| log \u03c3) bits in O(W |E|) time, where {1, . . . , \u03c3} is the alphabet for node labels and W = max v\u2208V (v). Given a query string Q[1..q] \u2208 {1, . . . , \u03c3} q , we can use expanded backward search with the index structure to find out if Q occurs in G. This query takes O(|Q|) time.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "After gaps are removed this segment becomes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "AAC-CGA-C-"
+        },
+        {
+            "text": "Without even seeing the rest of the MSA, one can see that this is not a valid block, as the first string is a prefix of the second. With gapless MSAs this was not possible and the algorithm in Sect. 5.3 exploited this fact. Modifying that algorithm to handle gaps properly is possible, but non-trivial.We leave this extension to future work; see however Sections 8 and 9 for some further insights.Despite the preprocessing for the segmentation is affected by gaps in MSA, once such valid segmentation is found, the rest of the results stay unaffected. All the proposed definitions extend to this interpretation by just omitting gap symbols when reading the strings. The consequence for founder block graph is that strings inside a block can be variable length. Interestingly, with this interpretation Theorem 7 can be expressed with GD strings replaced by elastic strings [9] .",
+            "cite_spans": [
+                {
+                    "start": 872,
+                    "end": 875,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "ACCGATC ACCGATCC AACCGATC AACCGAC"
+        },
+        {
+            "text": "We implemented several methods proposed in this paper. The implementation is available at https://github.com/algbio/founderblockgraphs. Some preliminary experiments are reported below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation and experiments"
+        },
+        {
+            "text": "We implemented the founder block graph construction algorithm of Sect. 5.2 with the faster preprocessing routine of Sect. 5.3; in place of fully-functional bidirectional BWT index, we used similar routines implemented in compressed suffix trees of SDSL library [21] .To test the implementation we downloaded 1484 strains of SARS-CoV-2 strains stored in NCBI database. 1 We created a multiple sequence alignment of the strains using ViralMSA [27] . We filtered out rows that contained gaps or N's. We were left with a multiple sequence alignment of 410 rows and 29811 columns. Our algorithm took 58 seconds to produce the optimal segmentation on Intel(R) Xeon(R) CPU, E5-2690, v4, 2.60GHz. There were 3352 segments in the segmentation, the maximum segment length was 12, and the maximum number of founder segments in a block was 12. The founder block graph had 3900 nodes and 4440 edges. The total length of node labels was 34968. The graph size is thus less than 1% of the MSA size.We also implemented support to construct founder block graphs for general MSA's that contain gaps. The modification to the gapless case was that nested BWT intervals needed to be detected. We stopped left-extension as soon as the BWT intervals contained no other repeats than those caused by nestedness. This left valid range undefined on such columns, but for the rest the valid range can still be computed correctly (undefined values could be",
+            "cite_spans": [
+                {
+                    "start": 261,
+                    "end": 265,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 368,
+                    "end": 369,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Construction"
+        }
+    ]
+}

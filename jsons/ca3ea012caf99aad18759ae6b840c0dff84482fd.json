@@ -1,0 +1,1157 @@
+{
+    "paper_id": "ca3ea012caf99aad18759ae6b840c0dff84482fd",
+    "metadata": {
+        "title": "Ranking Significant Discrepancies in Clinical Reports",
+        "authors": [
+            {
+                "first": "Sean",
+                "middle": [],
+                "last": "Macavaney",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "IR Lab",
+                    "institution": "Georgetown University",
+                    "location": {
+                        "settlement": "Washington",
+                        "region": "DC",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Arman",
+                "middle": [],
+                "last": "Cohan",
+                "suffix": "",
+                "affiliation": {},
+                "email": "armanc@allenai.org"
+            },
+            {
+                "first": "Nazli",
+                "middle": [],
+                "last": "Goharian",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "IR Lab",
+                    "institution": "Georgetown University",
+                    "location": {
+                        "settlement": "Washington",
+                        "region": "DC",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ross",
+                "middle": [],
+                "last": "Filice",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "MedStar Georgetown University Hospital",
+                    "location": {
+                        "settlement": "Washington",
+                        "region": "DC",
+                        "country": "USA"
+                    }
+                },
+                "email": "ross.w.filice@medstar.net"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Medical errors are a major public health concern and a leading cause of death worldwide. Many healthcare centers and hospitals use reporting systems where medical practitioners write a preliminary medical report and the report is later reviewed, revised, and finalized by a more experienced physician. The revisions range from stylistic to corrections of critical errors or misinterpretations of the case. Due to the large quantity of reports written daily, it is often difficult to manually and thoroughly review all the finalized reports to find such errors and learn from them. To address this challenge, we propose a novel ranking approach, consisting of textual and ontological overlaps between the preliminary and final versions of reports. The approach learns to rank the reports based on the degree of discrepancy between the versions. This allows medical practitioners to easily identify and learn from the reports in which their interpretation most substantially differed from that of the attending physician (who finalized the report). This is a crucial step towards uncovering potential errors and helping medical practitioners to learn from such errors, thus improving patient-care in the long run. We evaluate our model on a dataset of radiology reports and show that our approach outperforms both previously-proposed approaches and more recent language models by 4.5% to 15.4%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Medical errors are a pervasive problem in healthcare that can result in serious patient harm [11] . To identify and reduce the occurrence of preventable errors, many medical centers use reporting systems to document cases. Initial reports are often reviewed and revised by more experienced physicians. The revisions could be due to stylistic reasons or (more importantly) misinterpretations/errors in the initial report. In such cases, to prevent recurrence of the errors, is crucial to identify reports with substantive differences between the original and final report and discuss them with the clinician who wrote the initial report. It is often challenging to manually identify such cases among the large number of daily written reports in a timely manner. In this work, we propose an approach for ranking revisions of medical reports by the degree of discrepancy between the different versions of the report. This allows medical practitioners to easily find the reports in which they made an error, which helps them learn from their mistakes and prevent future similar errors. This is a challenging task to automate because the edits that an attending physician makes to a report can range from stylistic differences to significant discrepancies that may have a major effect on the patient (e.g., an unobserved mass). See Fig. 1 for an example of significant and non-significant discrepancies from radiology reports. As we can see, differences between the significant and non-significant discrepancies are often not trivial to identify and requires more than just comparing surface word changes in the versions of the reports. Furthermore, significant discrepancies can occur relatively frequently in practice; in our dataset collected from a large urban hospital, around 7% of reports contained significant errors. With hundreds of reports generated a week at some hospitals, this can amount to a considerable number of errors. We address this problem by proposing a supervised ranking approach for clinician's revised reports by the degree that there are significant discrepancies between their preliminary report and the final corrected report. I.e., our goal is to rank revisions that are more likely due to errors higher than revisions that are merely due to stylistic changes. We aim to rank report revisions by the significance of the discrepancy.",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 97,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1327,
+                    "end": 1333,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Prior works have investigated significant discrepancies in medical reports through comparison of surface textual features [14, 19] , semantic similarity features [2] , and word frequencies [7] . These works often treat the problem as classification and the most successful ones leverage a variety of textual similarity measures. Viewing this problem as ranking is a more suitable and practical form of evaluation; given a doctor's limited time, it is important for them to be presented with the reports that have the most significant discrepancies. Document ranking in the broad medical domain have received extensive interest of researchers [8, 13, [15] [16] [17] 21] . However, these efforts focus on conventional query-document retrieval. Our goal is to rank significant discrepancies by measuring the semantic overlap between the initial and final report. There have also been efforts to identify semantic similarity between two texts, e.g., for paraphrase identification [5, 9, 12, 18] , but these approaches operate on the sentence-level, making them unsuitable for documents (e.g., radiology reports).",
+            "cite_spans": [
+                {
+                    "start": 122,
+                    "end": 126,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 127,
+                    "end": 130,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 162,
+                    "end": 165,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 189,
+                    "end": 192,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 642,
+                    "end": 645,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 646,
+                    "end": 649,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 650,
+                    "end": 654,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 655,
+                    "end": 659,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 660,
+                    "end": 664,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 665,
+                    "end": 668,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 976,
+                    "end": 979,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 980,
+                    "end": 982,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 983,
+                    "end": 986,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 987,
+                    "end": 990,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To summarize, our contributions are: (i) we propose an end-to-end supervised ranking model for identifying significant discrepancies in medical reports.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(ii) We demonstrate that our approach outperforms both previously proposed approaches and more recent language model approaches in a variety of metrics. (iii) We provide an analyses of the importance of different model components.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We propose a supervised model that measures the overlap between the preliminary and final report for the purpose of ranking pairs of preliminary and final reports based on their significance over a given period of time. We observe that the central challenge of this task is being permissive of surface-level changes (which may be considerable), while emphasizing changes of substance, which may be subtle (see Fig. 1 for examples of such changes). To address this, we incorporate importance and similarity scores. The importance score weights each term/phrase and is learned during training. This score allows for terms that are not important to have less of an impact on the ranking score of the report (e.g., words like well and but). Note that this is a special application in which some function words that are often ignored actually have a big impact on the meaning of a report (e.g., not is often considered a stop word and removed). We let the model learn which terms are important during training. The matching score allows for the model to account for the replacement of similar terms using the cosine distance of word vectors (e.g., averaging and averages are similar) and synonym information from a domain-specific ontology (chauffeur fracture and Hutchinson fracture are synonymous). This allows the replacement of semantically-similar terms to have little impact on the ranking score. We calculate three similarity scores (addition, deletion, and overlap) using the importance and matching scores, and linearly combine them as a ranking score.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 410,
+                    "end": 416,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Model"
+        },
+        {
+            "text": "Notation and Task Definition. Let R be a set of clinical reports. Each report r \u2208 R consists of a preliminary and final version of the report (p and f , respectively), and a label l \u2208 {0, 1, . . . , L} indicating the degree of discrepancy between p and f . Each version of the report consists of a sequence of tokens, denoted by p i and f i . The significant discrepancy ranking task produces a ranking score s \u2208 R for each report r \u2208 R such that the reports with higher degrees of discrepancy are assigned a higher ranking score.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model"
+        },
+        {
+            "text": "Similarity Scores. Our approach combines several similarity scores to produce a ranking score. Specifically, we measure the weighted soft additions, deletions, and overlap of unigrams, n-grams, and ontological entities. The addition score (S a , Eq. 1) defines weighted soft similarity as the ratio between the similarity score (weighted by a learned importance score) and the total importance of all terms in the final report. Thus, terms from the final report that do not appear in the preliminary report (i.e., additions) yield a higher score. The deletion score (S d , Eq. 2) is defined similarly, but in terms of the preliminary report; terms from the preliminary report that do not appear in the final report (deletions) yield a higher score. The overlap score (S o , Eq. 3) combines the addition and deletion scores into one succinct measure. We use all three scores to measure term unigram, n-gram, and ontological differences (defined below). We define the similarity functions (where M X (y) \u2208 [0, 1] is a matching score of term y in X, and I(y) \u2208 [0, 1] is the importance score of term y) as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model"
+        },
+        {
+            "text": "Unigram and N-gram Matching. Unigram matching can provide valuable signals for significance in radiology reports. For instance, the addition no (e.g., fracture vs. no fracture) could change the meaning of the report considerably. We define the matching function for unigrams as the maximum cosine similarity between the word embeddings (emb(\u00b7)) of the term and any term in the other report, and a unigram importance function using a simple feed-forward layer with sigmoid activation (W imp and b imp as model parameters):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model"
+        },
+        {
+            "text": "N-gram matching provides another important view of similarity, since there are many multi-word noun phrases in radiological notes. For instance, right arm and left arm represent completely different parts of the body, and should be treated differently. We handle n-grams by first taking the average of the embeddings over sliding windows. This is a simple and effective way to combine the representations. We use bi-grams and tri-grams in our experiments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model"
+        },
+        {
+            "text": "Ontological Matching. Since medical knowledge is broad and extensive, the model may never encounter certain medical entities during training. This knowledge may also not be captured effectively by embeddings. Thus, it is valuable to explicitly encode domain information into the model using an ontology. We use a mapping function that matches any exact ontological name to the corresponding concept, a constant similarity for exact entity matches, and constant weight for all ontology concepts. We use RadLex (v4.0, http://radlex.org/), an ontology of radiology concepts (e.g., procedures, diagnoses, etc.).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model"
+        },
+        {
+            "text": "Dataset. We train and evaluate using a dataset of 3,368 radiology reports from a large urban hospital. Each sample consists of a preliminary report written by a resident, and a final report revised by the attending radiologist, who labeled the edit by the degree of discrepancy between the two reports. The labels are 0 (attending doctor fully agrees with assessment of the resident, 81% of reports), 1 (errors exist, but they are insignificant to the overall impression, 12%), 2 (subtle, yet important, error exists, 6%), 3 (an obvious error exists, 1%). We split the dataset into 122 sets based on the combination of resident and week (ranking sets, average 27.6 reports per ranking set, min 5, max 148). Since residents often work weekly shifts, this is a valuable setting because it allows residents to review report discrepancies from the past week. We randomly split the ranking sets into 60-20-20 train-dev-test set splits. Each ranking set consists of at least 5 reports, each with at least one report discrepancy. Radiology reports contain several sections; we primarily concern ourselves with the summary section of the reports (called the impression) because it contains the main findings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "To evaluate the effectiveness of the model, we compare with the variety of methods in the state-of-the-art, including ranking models, domain specific models and textual similarity models, briefly described below: -Vector space model (VSM). We use the traditional TFIDF-weighted vector space similarity score between the preliminary and final report (from lucene). -BiPACRR. We test the PACRR [6] neural IR model because it learns to identify n-gram similarity between two texts. We modify the architecture to learn two scores (one with the preliminary report as the query and the other with the final report as the query), and linearly combine them to produce a final ranking score. We call this variant BiPACRR. We also experimented with other neural rankers (e.g., KNRM [20] ), but BiPACRR was the most effective. -Textual similarity regression (SimReg) [2] . This approach uses logistic regression to combine several hand-crafted features (mostly consisting of textual similarity measures and lexical features) to identify significant discrepancies in radiology reports. Since this approach performs classification, we use the label score as the ranking score. Our experiments used the authors' implementation. -(Sci)BERT classification. We use the standard fine-tuned BERT textual similarity method on both the pretrained BERT [4] (base-uncased) and",
+            "cite_spans": [
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 772,
+                    "end": 776,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 856,
+                    "end": 859,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1331,
+                    "end": 1334,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines."
+        },
+        {
+            "text": "SciBERT [1] (scivocab-uncased) models. Based on preliminary parameter tuning, we use a learning rate of 10 \u22125 for fine-tuning these models.",
+            "cite_spans": [
+                {
+                    "start": 8,
+                    "end": 11,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines."
+        },
+        {
+            "text": "Given the time constraints of doctors, we choose evaluation metrics that emphasize placing reports with higher discrepancies at the top. We evaluate using nDCG@1, nDCG@5, nDCG (without cutoff), P@1, P@5, and R-Prec (binary labels test any degree of discrepancy higher than label 0).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Metrics."
+        },
+        {
+            "text": "We train the neural models using pairwise crossentropy loss [3] . Hyper-parameters are tuned using nCDG@5 on the dev set. We use SciBERT term embeddings [1] in our model and BiPACRR and tune for the optimal layer's embeddings akin to [10] . SciBERT is an adaptation of BERT to the biomedical and scientific domains, making it suitable for radiology notes.",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Parameters and Training."
+        },
+        {
+            "text": "Results. Test set performance of our best model configuration are shown in Table 1 . Our optimal model consists of unigram, bi-gram, tri-gram, and RadLex scores. When compared to the best prior work (SimReg [2] ), our model typically yields a considerable improvement in ranking performance. Our method improves R-Prec by 7.4%, nDCG@1 and nDCG@5 performance by 4.5%, and P@5 performance by 4.7%. In 54% of the test cases, our approach improves the nDCG@5 score over SimReg (decreases performance in only 27% of cases). Our model also outperforms leading language model classification approaches (BERT and SciBERT) and a leading neural ranking approach tuned for this task in most metrics (BiPACRR) by up to 15.4% in nDCG@1. We attribute this improved effectiveness of our approach to the explicit modeling of term importance and overlap, which are critical for the task. Ablations. Table 2 shows the ablation study examining the importance of different components in our system. We observe that both contextualization and domain-specificity of the word embeddings improve the performance of our approach. The term importance mechanism improves nDCG@5 by 6.9% and the ontology similarity improves performance by 9.8%. All three similarity measures appear to be important, however the overlap score alone can account for most of the performance (last row in table) . This may be because it succinctly accounts for both additions and deletions.",
+            "cite_spans": [
+                {
+                    "start": 207,
+                    "end": 210,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 75,
+                    "end": 82,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 882,
+                    "end": 889,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 1343,
+                    "end": 1362,
+                    "text": "(last row in table)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Parameters and Training."
+        },
+        {
+            "text": "Term Importance. To better understand the term importance mechanism of our approach, we present an example report in Fig. 2 (slightly altered for privacy). This report contains highly significant discrepancies and was ranked at position 3 by our approach and position 9 by SimReg (below several nonsignificant discrepancies). We observe that our model considers many radiological conditions as important, both when unmodified between the reports and when added/deleted (e.g., fracture, dislocation, bankart). Judging by the low textual similarity in this example, we conclude that the SimReg model may be relying too heavily on lexical features. We check the terms that are assigned high importance scores across all reports and find the most common are no (12% of reports), cardiopulmonary (3%), process (3%), and abnormality (3%).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 117,
+                    "end": 123,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Parameters and Training."
+        },
+        {
+            "text": "anteroinferior dislocation of the left shoulder. mild hill-sachs deformity without associated bankart lesion. no evidence of acute fracture or dislocation of the humerus. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Parameters and Training."
+        },
+        {
+            "text": "We presented a supervised ranking model based on lexical and ontological overlaps to rank medical reports by their discrepancy significance. On a real-world dataset of medical reports, we demonstrated that our approach outperforms existing approaches by large margins. This direction is a critical step towards addressing the problem of medical errors. By allowing medical practitioners to more easily find and learn from their previous errors, the chance of recurrent errors will be reduced, improving the well-being of patients.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions."
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "SciBERT: pretrained contextualized embeddings for scientific text",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Identifying significance of discrepancies in radiology reports",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Soldaini",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fong",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Ross",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Raj",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "SIAM International Conference on Data Mining (SDM) -Workshop on Data Mining for Medicine and Healthcare (DMMH)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Neural ranking models with weak supervision",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Dehghani",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zamani",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Severyn",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kamps",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Learning generic sentence representations using convolutional neural networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Gan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Pu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Henao",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Carin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "PACRR: a position-aware neural IR model for relevance matching",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Berberich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Melo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Comparison-bot: an automated preliminary-final report comparison system",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Kalaria",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Filice",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Digit. Imaging",
+            "volume": "29",
+            "issn": "",
+            "pages": "325--330",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10278-015-9840-2"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Generating clinical queries from patient narratives: a comparison between machines and humans",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Koopman",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Cripwell",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Incorporating contextual and syntactic structures improves semantic similarity modeling",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Rao",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EMNLP 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "CEDR: contextualized embeddings for document ranking",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Macavaney",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Medical error-the third leading cause of death in the US",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Makary",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "BMJ",
+            "volume": "353",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Sentence-BERT: sentence embeddings using Siamese BERT-networks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Reimers",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gurevych",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Overview of the TREC 2017 precision medicine track",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "500--324",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Identifying benchmarks for discrepancy rates in preliminary interpretations provided by radiology trainees at an academic institution",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ruutiainen",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Scanlon",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Itri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Am. Coll. Radiol",
+            "volume": "8",
+            "issn": "9",
+            "pages": "644--648",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Term selection for query expansion in medical cross-lingual information retrieval",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Saleh",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Pecina",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Stein",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fuhr",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Mayr",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hauff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ECIR 2019",
+            "volume": "11437",
+            "issn": "",
+            "pages": "507--522",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-15712-8_33"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Biomedical document retrieval for clinical decision support system",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sankhavara",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "84--90",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Denoising clinical notes for medical literature retrieval with convolutional neural model",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Soldaini",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Sentence modeling via multiple word embeddings and multi-level comparison for semantic textual similarity",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Tien",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tomohiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Tatsuya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Inf. Process. Manage",
+            "volume": "56",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "The DePICTORS study: discrepancies in preliminary interpretation of CT scans between on-call residents and staff",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Walls",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Hunter",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Brasher",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Ho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Emerg. Radiol",
+            "volume": "16",
+            "issn": "4",
+            "pages": "303--308",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10140-009-0795-9"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "End-to-end neural ad-hoc ranking with kernel pooling",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Callan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Power",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Relevance-ranked domain-specific synonym discovery",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Frieder",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ECIR 2014",
+            "volume": "8416",
+            "issn": "",
+            "pages": "124--135",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Example unigram importance scores (mean of preliminary and final report). Darker colors indicate higher scores. Underlines: additions. Strikeouts: deletions.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "... 3. Left renal artery: Single with a slightly early branching first branch point averaging averages 1.9 cm from the left lateral margin of the aorta. Left renal vein: Single without late confluence...Fig. 1. Example radiology impression revisions (strikeout removed, underline added).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Ranking performance of our method and baselines.Table 2. Ablation study of our method. Replace SciBERT with BioNLP (pubmed-pmc, bio.nlplab.org) 62.2 -Replace SciBERT with FastText (wiki-news-300d-1M, fasttext.cc) 59.1 Only addition/deletion scores (Sa and S d ) 61.5",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. This work was supported in part by ARCS Foundation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

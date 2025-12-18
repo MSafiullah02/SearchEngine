@@ -1,0 +1,1729 @@
+{
+    "paper_id": "bd82f56652058a23f5fcdeeddc53bbbd811b1f1e",
+    "metadata": {
+        "title": "Optimized Transformer Models for FAQ Answering",
+        "authors": [
+            {
+                "first": "Sonam",
+                "middle": [],
+                "last": "Damani",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Microsoft",
+                    "location": {
+                        "region": "Hyderabad",
+                        "country": "India"
+                    }
+                },
+                "email": "sodamani@microsoft.com"
+            },
+            {
+                "first": "Nath",
+                "middle": [],
+                "last": "Narahari",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Microsoft",
+                    "location": {
+                        "region": "Hyderabad",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ankush",
+                "middle": [],
+                "last": "Chatterjee",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Microsoft",
+                    "location": {
+                        "region": "Hyderabad",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Manish",
+                "middle": [],
+                "last": "Gupta",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Microsoft",
+                    "location": {
+                        "region": "Hyderabad",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Puneet",
+                "middle": [],
+                "last": "Agrawal",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Microsoft",
+                    "location": {
+                        "region": "Hyderabad",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Informational chatbots provide a highly effective medium for improving operational efficiency in answering customer queries for any enterprise. Chatbots are also preferred by users/customers since unlike other alternatives like calling customer care or browsing over FAQ pages, chatbots provide instant responses, are easy to use, are less invasive and are always available. In this paper, we discuss the problem of FAQ answering which is central to designing a retrieval-based informational chatbot. Given a set of FAQ pages s for an enterprise, and a user query, we need to find the best matching question-answer pairs from s. Building such a semantic ranking system that works well across domains for large QA databases with low runtime and model size is challenging. Previous work based on feature engineering or recurrent neural models either provides low accuracy or incurs high runtime costs. We experiment with multiple transformer based deep learning models, and also propose a novel MT-DNN (Multi-task Deep Neural Network)-based architecture, which we call Masked MT-DNN (or MMT-DNN). MMT-DNN significantly outperforms other state-of-the-art transformer models for the FAQ answering task. Further, we propose an improved knowledge distillation component to achieve \u223c2.4x reduction in model-size and \u223c7x reduction in runtime while maintaining similar accuracy. On a small benchmark dataset from SemEval 2017 CQA Task 3, we show that our approach provides an NDCG@1 of 83.1. On another large dataset of \u223c281K instances corresponding to \u223c30K queries from diverse domains, our distilled 174 MB model provides an NDCG@1 of 75.08 with a CPU runtime of mere 31 ms establishing a new state-of-the-art for FAQ answering.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Reducing agent costs in the call center is typically high on the list of priorities of call center managers in any enterprise. Enterprises put up frequently asked questions (FAQ) pages to satisfy users' frequent information needs so as to avoid such calls. But often such pages are too large and not very well structured for users to read. The difficulties faced by users in interacting with the FAQ pages are multi-fold -(1) User has to scan through a long list of QA pairs. (2) FAQs in a list may be poorly organized and not semantically grouped. (3) Multiple FAQs may answer the query, and the user must look out for a QA pair that answers the question with the right level of specificity. (4) An FAQ list may sometimes be scattered over several documents.",
+            "cite_spans": [
+                {
+                    "start": 549,
+                    "end": 552,
+                    "text": "(3)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In addition, a poorly managed call center or mismatching working hours for global customers, could lead to long wait times for customers who may then move over to other competitive businesses. Alternatively, users pose such queries on community question answering (cQA) forums, or contact businesses over slow media like emails or phone calls. In 2014, Quora, a popular cQA forum, claimed that 10% of U.S. population uses its service every month 1 contributing to a total of 61M questions with 108M answers 2 . Such popularity of cQA forums at least partially indicates the difficulty faced by users in interacting with FAQ pages to obtain answers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To provide correct information instantly at much lower operating costs, retrieval-based chatbots that can match user queries with content on FAQ pages are highly desirable. In this paper, we discuss the problem of FAQ answering which is central to designing a retrieval-based information chatbot. Let D denote the set of question-answer pairs extracted from a set of FAQ pages s for an enterprise. Given D and a user query q, our goal is to rank question-answer pairs in D. Top K QA pairs with high scores are returned to the user. Figure 1 shows possible system snapshots using two user interfaces -web search as well as a chatbot. In case of web search interface (left of Fig. 1 ), K is set to 4, while K = 1 for the chatbot interface (right of Fig. 1 Note that this problem is similar to the problem of automatically answering questions on cQA forums by matching existing question-answer pages. However, there are some major differences as follows: (1) Queries on cQA forums are much longer than queries and questions on FAQ pages. In fact, often times, cQA queries have a subject and a body [29] . (2) cQA forums have a user network. Thus every QA pair is associated with a set of users. Unlike that, when ranking QA pairs from FAQ pages, we cannot exploit signals from any user network. (3) cQA pages typically have a question but multiple user-voted answers. FAQ pages have no user-voting, and only one answer per question. (4) On cQA forums, different answers may apply based on user context. On FAQ pages, every question has a unique answer.",
+            "cite_spans": [
+                {
+                    "start": 1095,
+                    "end": 1099,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 532,
+                    "end": 540,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 674,
+                    "end": 680,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 747,
+                    "end": 753,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "FAQ answering is a challenging task. Solving the problem needs prediction of query-question semantic similarity and query-answer relevance, in a joint manner. Also, building a general system that works across domains implies that we cannot resort to any domain specific heuristics. Finally, although recent deep learning based systems provide high accuracy across multiple NLP tasks, building a deep learning based system for FAQ Answering for large QA databases with low runtimes and model size brings in more challenges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Previous work on answering a question, given FAQ pages, was based on feature engineering (FAQ-Finder [8] , Auto-FAQ [28] , [11, 22] ) or typical attentionbased recurrent neural network models (SymBiMPM [7] ). Recently, transformer based networks [24] have shown significant gains across many natural language processing tasks. In this paper, we propose the use of transformer network based methods like Bidirectional Encoder Representations from Transformers (BERT) [6] and Multi-task Deep Neural Network (MT-DNN) [15] . Further, we propose a novel architecture, MMT-DNN, based on a masking trick specifically applicable to input in the form of (query, question, answer) triples. To make such models practically usable, we need to reduce the model size as well as the execution time. Hence, we propose an improved knowledge distillation method for our MMT-DNN model. Our experiments with two datasets show that the proposed model outperforms all the baselines by significant margins. Also, our distilled 174MB MT-DNN-3 model provides a runtime of mere 31 ms making it usable in real-time chatbot scenarios. We make the following main contributions in this paper.",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 116,
+                    "end": 120,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 123,
+                    "end": 127,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 202,
+                    "end": 205,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 246,
+                    "end": 250,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 466,
+                    "end": 469,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 514,
+                    "end": 518,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We propose the use of transformer based models like BERT and MT-DNN for solving the FAQ Answering task, and also present a novel architecture, MMT-DNN, that achieves better accuracy. -We propose and experiment with an improved knowledge distillation method to reduce the model size and model runtime. -On two real world datasets, our proposed MMT-DNN establishes a new stateof-the-art for FAQ answering.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Data Mining for FAQ Web Pages. Research on FAQ web pages has focused on three sub-areas: (1) FAQ mining using list detection algorithms [11, 14] , (2) answering questions using FAQ web pages [8, 11, 22, 28] , (3) navigational interface for Frequently Asked Question (FAQ) pages [20] , and (4) Completeness of FAQ pages [3] . In this paper, we focus on the FAQ answering task. Previous work on answering a question given FAQ pages (FAQ-Finder [8] , Auto-FAQ [28] , [2, 11, 13, 21, 23] ) was based on traditional feature engineering for surfacing statistical/semantic similarities between query and questions. Most of these works considered similarity between query and questions, very few considered query-answer similarity. We use transformer based deep learning methods for jointly considering query-question and query-answer similarity.",
+            "cite_spans": [
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 147,
+                    "end": 150,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 191,
+                    "end": 194,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 195,
+                    "end": 198,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 199,
+                    "end": 202,
+                    "text": "22,",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 203,
+                    "end": 206,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 319,
+                    "end": 322,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 442,
+                    "end": 445,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 457,
+                    "end": 461,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 464,
+                    "end": 467,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 468,
+                    "end": 471,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 472,
+                    "end": 475,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 476,
+                    "end": 479,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 480,
+                    "end": 483,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently deep learning based methods have been proposed for FAQ Answering. Wu et al. [29] propose the attention-based Question Condensing Networks (QCN) to align a question-answer pair where the question is composed of a subject and a body. To suit our problem setting, we experiment by substituting query for the subject, and question for the body. Gupta et al. [7] propose SymBiMPM (BiLSTMs with multi-perspective matching blocks) for computing query-QA match. Recently, transformer network models have emerged as stateof-the-art across multiple NLP tasks. Hence, unlike previous deep learning works, we use transformer networks for FAQ answering.",
+            "cite_spans": [
+                {
+                    "start": 85,
+                    "end": 89,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 363,
+                    "end": 366,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Applications of Transformer Models. After the original Transformer work by Vaswani et al. [24] , several architectures have been proposed like BERT [6] , MT-DNN [15] etc. The GLUE [26] and the SuperGLUE [25] dashboards tell us that such models have outperformed previously proposed methods across complex NLP tasks like text classification, textual entailment, machine translation, word sense disambiguation, etc. We present the first work to investigate application of transformers to FAQ answering task.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 161,
+                    "end": 165,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 180,
+                    "end": 184,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 203,
+                    "end": 207,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Existing deep neural network models are computationally expensive and memory intensive, hindering their deployment in devices with low memory resources or in applications with strict latency requirements. Chatbots expect near realtime responses. Thus, transformer based models need to be compressed and accelerated. In the past few years, multiple techniques have been proposed for model optimization including pruning, quantization, knowledge distillation, and low rank factorization. Cheng et al. [5] provide a good survey of such methods. In this paper, we explore different variations of knowledge distillation and present a novel architecture that provides best results for the FAQ answering task.",
+            "cite_spans": [
+                {
+                    "start": 499,
+                    "end": 502,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model Compression."
+        },
+        {
+            "text": "Given a question-answer database, when a user query q arrives, we first compute a list of candidate QA pairs which have high BM25 score [19] with respect to the query. Given the latency constraints, we use computationally cheap BM25 match, however, understandably, BM25 may have missed semantically similar but syntactically different QA pairs. If q uses synonyms of the words in the ideal QA pair, it is possible that the pair would not be selected based on BM25 score. These candidate QA pairs, along with the original query, are scored using various methods described in this section. Top K QA pairs with high scores are returned to the user.",
+            "cite_spans": [
+                {
+                    "start": 136,
+                    "end": 140,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Approach"
+        },
+        {
+            "text": "We first discuss baseline methods like BiLSTMs with attention and Sym-BiMPM [7] . Next, we discuss our proposed transformer based methods. All of these methods take query (q), question (Q), and answer (A) as input, and output one of the three classes: Good, Average or Bad indicating the degree of match between q and the (Q, A) pair. Figure 2 illustrates architectures of various methods discussed in this section.",
+            "cite_spans": [
+                {
+                    "start": 76,
+                    "end": 79,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 335,
+                    "end": 343,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Approach"
+        },
+        {
+            "text": "BiLSTMs. As illustrated in Fig. 2 (A), in this approach, the query, question and answer are processed using three two-row bidirectional LSTMs [10] . The query and question BiLSTMs share weights. We use BiLSTMs with attention. The final output from the last hidden layer of each of the BiLSTMs is concatenated and fed into a fully connected neural network (MLP). The output layer has three neurons (one for each of the three classes) across all the architectures. The network is trained using Adam optimizer [12] with cross entropy loss.",
+            "cite_spans": [
+                {
+                    "start": 142,
+                    "end": 146,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 507,
+                    "end": 511,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 33,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Baselines"
+        },
+        {
+            "text": "SymBiMPM. Symmetric Bilateral Multi-Perspective Matching Block (Sym-BiMPM) is the method proposed by Gupta et al. [7] . This model uses a multiperspective matching block [27] to compare two sequences and generate the matched representations for both these sequences. This block has four different matching mechanisms that are used on the input sequences. Matching is applied in both the directions, i.e. if P and Q are the two inputs, then the output is a matched representation of P obtained by attending to Q, and a matched representation of Q obtained by attending to P . All the BiLSTMs share weights. Also, both the match blocks share weights. As illustrated in Fig. 2(B) , Multi-perspective matching blocks are used for query-question and query-answer matching followed by attention layer and fully connected layers to get the final class label. ",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 117,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 667,
+                    "end": 676,
+                    "text": "Fig. 2(B)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Baselines"
+        },
+        {
+            "text": "Transformer networks proposed by Vaswani et al. [24] follow a non-recurrent architecture with stacked self-attention and fully connected layers for both the encoder and decoder, each with 6 layers. BERT and MT-DNN are two most popular extensions of the Transformer encoder network. Broadly this architecture is illustrated in Fig. 2(C) .",
+            "cite_spans": [
+                {
+                    "start": 48,
+                    "end": 52,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 335,
+                    "text": "Fig. 2(C)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Proposed Methods"
+        },
+        {
+            "text": "BERT. BERT [6] essentially is a transformer encoder with 12 layers. We used the pre-trained model which has been trained on Books Corpus and Wikipedia using the MLM (masked language model) and the next sentence prediction (NSP) loss functions. The query, question and answer are concatenated into a sequence and are separated with a special \"SEP\" token. The sequence is prepended with a \"CLS\" token. The representation C for the \"CLS\" token from the last encoder layer is used for classification by connecting it to an output softmax layer. Optionally, we can finetune the pre-trained model using labeled training data for the FAQ answering task.",
+            "cite_spans": [
+                {
+                    "start": 11,
+                    "end": 14,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposed Methods"
+        },
+        {
+            "text": "The MT-DNN architecture [15] extends BERT by further pretraining it with large amounts of cross-task data. Specifically, the MT-DNN is a 12 layer transformer encoder where the BERT model has been further pretrained using single sentence classification, text similarity, pairwise text classification and relevance ranking tasks. The representation C for the \"CLS\" token from the last encoder layer is used for classification by connecting it to an output softmax layer. Optionally, we can finetune the pre-trained model using labeled training data for the FAQ answering task.",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 28,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "MT-DNN."
+        },
+        {
+            "text": "The proposed Masked MT-DNN method modifies the MT-DNN architecture, as illustrated in Fig. 2(D) . The transformer encoder is divided into two parts: encoder 1 and encoder 2 . Encoder 1 consists of l encoder layers, while encoder 2 contains 12-l layers. l is a hyper-parameter tuned on validation data. The input sequence (query, question, answer) is first processed by encoder 1 to get a transformed sequence (query', question', answer'). Intuitively, (query, question) pair is more homogeneous compared to (query, answer) pair. Hence, we explore disjoint encoding of the two pairs using separate encoder 2 blocks for query-question and query-answer matching. Both encoder 2 blocks share weights. Specifically, the first encoder 2 block receives the concatenated string of the CLS token, query and question as input, where the answer is masked by replacing answer tokens by zeros. Similarly, the second encoder 2 block receives the concatenated string of the CLS token, query and answer as input, where the question is masked by replacing the question tokens by zeros. The C token from both these encoder 2 blocks are concatenated and connected to an output softmax layer.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 86,
+                    "end": 95,
+                    "text": "Fig. 2(D)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "MMT-DNN."
+        },
+        {
+            "text": "Knowledge Distillation. The proposed MMT-DNN model, like other Transformer models, is very large and also incurs a large number of computations at prediction time. Hence, we use knowledge distillation strategies [1] to compress the model and reduce latency while retaining accuracy. Figure 3 shows our improved knowledge distillation component. We use student-teacher networks for knowledge distillation [9] by considering the fine-tuned MMT-DNN-12 model as a teacher model (TM) for knowledge distillation. Layers 2, 3, and 4 of the fine-tuned MMT-DNN-12 are used to initialize a MT-DNN-3 model which is the initial student model (ISM) for knowledge distillation. Note that the student model is a MT-DNN and not a MMT-DNN. A combination of hard targets from the labeled dataset and soft targets from the fine-tuned MMT-DNN-12 TM is used to define the loss for training the MT-DNN-3 model to obtain the distilled student model (DSM). Although not shown in the figure (due to lack of space), in order to facilitate gradual transfer of knowledge, the distillation from MMT-DNN-12 to MT-DNN-3 is done in a chain of steps where MMT-DNN-12 is first distilled to a MT-DNN-9, then to MT-DNN-6 and finally to an MT-DNN-3 student model (DSM) [17] . We also have access to a much larger (15 million sized) unlabeled dataset of queries which lead to clicks to FAQ pages. These are scored against the TM to generate soft targets. These soft targets are then used to further distill the DSM, followed by TVM compiler optimizations [4] to obtain the final distilled MT-DNN-3 student model (FSM). Table 1 presents basic statistics about the two datasets.",
+            "cite_spans": [
+                {
+                    "start": 212,
+                    "end": 215,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 404,
+                    "end": 407,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1232,
+                    "end": 1236,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1517,
+                    "end": 1520,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 283,
+                    "end": 291,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 1581,
+                    "end": 1588,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "MMT-DNN."
+        },
+        {
+            "text": "SemEval-2017. This dataset 3 was intended for community question answering (cQA) originally, but the task 3 data had the QA pairs grouped by search query terms, which facilitated the transformation of this data into FAQ Retrieval format where FAQs are ranked for a query and are awarded ranks as Good, Average or Bad (as in original dataset). We used standard train, dev, test splits provided by the task organizers. Although this dataset is small, we experiment with it since this is the only publicly available dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "This dataset was created using \u223c30K queries (from a popular search engine's query log) leading to clicks to FAQ pages. We took only those queries which resulted into at least 5 clicks to some FAQ page. The query was then compared to all the QA pairs extracted from the clicked FAQ pages using BM25 score [19] to extract a max of top 15 QA pairs. We then got these (query, QA) instances judged into 3 classes (Good, Average or Bad) using a crowdsourcing platform with three-way redundancy. The queries and FAQ pages were carefully chosen such that (1) they belong to multiple domains like airports, banks, supermarkets, tourism and administrative bodies, (2) queries and QA pairs of various sizes are considered, and (3) FAQ pages with varying number of QA pairs are included. Note that this dataset is \u223c20x larger than the SemEval-2017 dataset.",
+            "cite_spans": [
+                {
+                    "start": 304,
+                    "end": 308,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "FAQ Search Dataset (FSD)."
+        },
+        {
+            "text": "The query, question and answer are all represented using GloVe [18] embeddings for all the baseline methods. Transformer based methods use WordPiece [30] embeddings. All experiments were done on a machine with 4 Tesla V100-SXM2-32GB GPUs. We use the popular ranking metric, Normal Discounted Cumulative Gain (NDCG)@K to compare various methods. For BiLSTMs in all baseline methods, the hidden layer size was 300. For transformer based methods, the embedding size was fixed to 30522 and the input sequence length was fixed to 512 tokens. Table 2 shows accuracy comparison across various methods on both the datasets. Block A shows results for baseline methods. Surprisingly, Sym-BiMPM [7] performs worse than BiLSTMs. SemEval-2017 dataset has labels for query-question pair, for query-answer pair, as well as query-answer pair. For SymBiMPM [7] , the authors used query-question label as the label for a (query, question, answer) triple. As a refinement, we first considered only those QA pairs where question-answer label is \"good\", and then used the label for query-answer similarity as the label for a (query, question, answer) triple. Also, queries in the SemEval-2017 set have a subject as well as a body. Gupta et al. [7] simply used the query subject and ignored the query body. We experiment with just the query subject as well as with query subject + body. Table 2 shows that using query subject + body usually provides better accuracy, sometimes with a large margin. We also experimented with QCN [29] but the results were worse than even BiLSTMs. This is expected due to mismatch in the problem setting, as discussed in Sect. 2. Further, Block B shows results for the proposed methods. As the table shows, our proposed methods outperform existing methods by a significant margin. All results are obtained as a median of 5 runs. Both BERT and MT-DNN benefit from finetuning across the two datasets. Also, MMT-DNN outperforms all other methods by a significant margin (p < 0.05 using McNemar Test [16] ), establishing a new state-of-the-art for FAQ answering task. Figure 4 shows NDCG@K for K = 1 to 10 for the MMT-DNN approach for both the datasets. With increase in K, while the accuracy improvement for the FSD is intuitive, the result is not very intuitive for the SemEval-2017 dataset. This is mainly because of the small size of the dataset because of which usually there are very few good answers matching any query. : Work permit for husband? I am thinking of sponsoring my husband to live in Qatar. I heard that if he gets a job; he will need to get a work permit. Are husbands able to get a work permit? ...",
+            "cite_spans": [
+                {
+                    "start": 63,
+                    "end": 67,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 684,
+                    "end": 687,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 840,
+                    "end": 843,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1223,
+                    "end": 1226,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1506,
+                    "end": 1510,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 2005,
+                    "end": 2009,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 537,
+                    "end": 544,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1365,
+                    "end": 1372,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 2073,
+                    "end": 2081,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": ": If he is on a family visa he needs to find a job first so that the company who will hire him will be the one to process his work permit. . : If for whatever reason you cannot exit the car park in your confirmed booking me (e.g., you haven't returned due a cancelled flight), the credit card or debit card that you use to exit the car park (i.e. your nominated card) will be debited with the cost of the addi onal me, based on the rates displayed at the entry to the car park.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": ": What happens if I enter the car park prior to my confirmed booking me? : If you enter the car park before your confirmed booking me, or exit the car park later than your confirmed booking me, the credit card or debit card that you use to exit the car park (i.e. your nominated card) will be debited with the cost of the addi onal me, based on the rates displayed at the entry to the car park.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": ": How do I amend or cancel my booking?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": ": You may cancel your Booking, for any reason at any me up to 24 hours before the start of the Booking Period. To do this, ... Figure 5 shows the NDCG@5 for MMT-DNN across the two datasets with varying number of Encoder 1 layers (l). As expected, the accuracy is better at larger values of l. This means that it is useful to allow attention across question and answer in the first few layers but let the query-question and query-answer attention be learned separately at higher layers. Note that l = 0 corresponds to not having Encoder 1 at all, and processing (query, question) and (query, answer) separately throughout the network.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 127,
+                    "end": 135,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": "Next, we show two queries with top three QA pairs ranked by our MMT-DNN system in Fig. 6 . For query q 1 , BiLSTMs had this question as the second result: \"Work Permit How many days does it take to finish the processing of a Work Permit?\". Similarly, SymBiMPM leads to unrelated questions within top 3 like \"Hepatitis C (HCV) -Work permit I have Hepatitis C (HCV); Can i get work permit?\".",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 82,
+                    "end": 88,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": "Similarly, for q 2 , baselines lead to the following unrelated question in top 3: \"Can I get motorbike parking?\", \"What do I do if I take a ticket on arrival to the car park when I should have entered my credit card?\".",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy Comparison"
+        },
+        {
+            "text": "In Fig. 7 , we visualize the heads from the multi-head self attention module of the last encoder for our best approach. This visualization helps us understand what pairs of words in the (query, question, answer) have high self-attention weights. The results are very intuitive showing that query, question and answer are jointly enhancing each other's representations to contribute to high accuracy. (left) shows the token \"delayed\" in the query has high attention weights for the tokens \"prior\", \"time\" and \"later\" in the question. Figure 7 (middle) shows the token \"parking\" in the query has high attention weights for the tokens \"car\" and \"park\" in the answer. Figure 7 (right) shows the token \"prior\" in the question has high attention weights for the tokens \"before\" and \"later\" in the answer.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 9,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 533,
+                    "end": 541,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 664,
+                    "end": 672,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Attention Visualization for MMT-DNN"
+        },
+        {
+            "text": "We analyzed error patterns for our best method (MMT-DNN). The most confusing category is the \"Average class\" with lowest precision and recall. Fortunately, this does not impact ranking significantly especially in cases where there are enough \"good\" QA pairs for a query. Further, we look at a few examples to do more detailed error analysis by manually assigning error categories to 60 (query, question, answer) triples incorrectly classified by MMT-DNN method. Table 3 shows percentages contributed by each error pattern and a few examples. Verbose Match errors accounted for more than half of the errors, which is in line with our expectations. Table 4 shows the NDCG obtained using the proposed architectures for KD. Even with small labeled data, distilled MT-DNN-3 provides accuracy comparable to the teacher model. Further distillation using large unlabeled data leads to better results. Note that we fixed the hard versus soft loss balancing parameter \u03b1 as 0.01. Overall, the final model TVM-optimized MT-DNN-3 provides NDCG@1 of 75.08 on FSD dataset with a model size of 174MB and a CPU/GPU runtime of 31.4/5.18 ms per instance. We tried various ways of initialization of the student model for knowledge distillation as shown in Table 5 . Initialization using some layers of the teacher model (usually the first few layers) is clearly better than random initialization. Figure 8 shows the accuracy versus runtime trade-off for various models. The radius of the circle corresponds to the model size. Compared to all other approaches, the distilled MT-DNN-3 models are better than others, and among them the best one is the TVM-optimized MT-DNN-3 which also used unlabeled data during distillation.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 462,
+                    "end": 469,
+                    "text": "Table 3",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 647,
+                    "end": 654,
+                    "text": "Table 4",
+                    "ref_id": "TABREF6"
+                },
+                {
+                    "start": 1236,
+                    "end": 1243,
+                    "text": "Table 5",
+                    "ref_id": "TABREF7"
+                },
+                {
+                    "start": 1377,
+                    "end": 1385,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Error Analysis"
+        },
+        {
+            "text": "We proposed the use of transformer based models like BERT and MT-DNN for solving the FAQ Answering task. We also proposed a novel MT-DNN architecture with masking, MMT-DNN, which establishes a new state-of-the-art for FAQ answering, as evaluated on two real world datasets. Further, we propose and experiment with an improved knowledge distillation strategy to reduce the model size and model runtime. Overall the proposed techniques lead to models with high accuracy, and small runtime and model size.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Do deep nets really need to be deep? In: NIPS",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2654--2662",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Bridging the lexical chasm: statistical approaches to answer-finding",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cohn",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Freitag",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Mittal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "192--199",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "FAQaugmenter: suggesting questions for enterprise FAQ pages",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Chatterjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Agrawal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "WSDM",
+            "volume": "",
+            "issn": "",
+            "pages": "829--832",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "T V M: an automated end-to-end optimizing compiler for deep learning",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "OSDI",
+            "volume": "",
+            "issn": "",
+            "pages": "578--594",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A survey of model compression and acceleration for deep neural networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1710.09282"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Bert: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.04805"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "FAQ retrieval using attentive matching",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Carvalho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "929--932",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "FAQ finder: a case-based approach to knowledge navigation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hammond",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Burke",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lytinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Conference on AI for applications",
+            "volume": "114",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Distilling the knowledge in a neural network",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1503.02531"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Long short-term memory",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hochreiter",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Neural Comput",
+            "volume": "9",
+            "issn": "8",
+            "pages": "1735--1780",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Retrieving answers from frequently asked questions pages on the web",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Jijkoun",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "De Rijke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "76--83",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "SMS based interface for FAQ retrieval",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kothari",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Negi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Faruquie",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Chakaravarthy",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Subramaniam",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "852--860",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "FAQ mining via list detection",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Fung",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Multilingual Summarization and Question Answering",
+            "volume": "",
+            "issn": "",
+            "pages": "1--7",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Multi-task deep neural networks for natural language understanding",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.11504"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Psychological Statistics",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Mcnemar",
+                    "suffix": ""
+                }
+            ],
+            "year": 1969,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Improved knowledge distillation via teacher assistant: bridging the gap between student and teacher",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mirzadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Farajtabar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ghasemzadeh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1902.03393"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Glove: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "EMNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "The probabilistic relevance framework: BM25 and beyond. FnTIR",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Robertson",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zaragoza",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "3",
+            "issn": "",
+            "pages": "333--389",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Dynamic frequently asked questions (FAQ) system. US Patent 5",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Schmonsees",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "",
+            "volume": "842",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Automated FAQ answering: continued experience with shallow language understanding",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sneiders",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Question Answering Systems. Papers from the 1999 AAAI Fall Symposium",
+            "volume": "",
+            "issn": "",
+            "pages": "97--107",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Automated FAQ answering with question-specific knowledge representation for web self-service",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sneiders",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "298--305",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Question similarity calculation for FAQ answering",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Gu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wenyin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Semantics, Knowledge and Grid",
+            "volume": "",
+            "issn": "",
+            "pages": "298--301",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "SuperGLUE: a stickier benchmark for general-purpose language understanding systems",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1905.00537"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "GLUE: a multi-task benchmark and analysis platform for natural language understanding",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Hill",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bowman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Bilateral multi-perspective matching for natural language sentences",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hamza",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Florian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1702.03814"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Auto-faq: an experiment in cyberspace leveraging",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Whitehead",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "Comput. Netw. ISDN Syst",
+            "volume": "28",
+            "issn": "1-2",
+            "pages": "137--146",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Question condensing networks for answer selection in community question answering",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "1746--1755",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Google's neural machine translation system: bridging the gap between human and machine translation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1609.08144"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Web Search interface (left), Chatbot interface (right);",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Architectures of various methods: (A) BiLSTMs with attention (B) Sym-BiMPM (adapted from [7]) (C) BERT/MT-DNN (D) MMT-DNN",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Knowledge distillation for FAQ answering",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "NDCG@K NDCG@5 with varying number of Encoder1 layers (l) for MMT-DNN for the two datasets from SemEval-2017 dataset: working permit ... 1-do i need working permit since i have residence visa in qatar n under husband sponsor? 2-without working permit expat's wife could not work in qatar? ...",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Top 3 QA pairs returned by MMT-DNN for two queries (one from each dataset)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Visualization of a few heads for various examples for the last encoder layer of our best approach. (left): query-question, (middle): query-answer, (right): questionanswer",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Accuracy, runtime, model size comparison for various models (best viewed in color) (Colorfigure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "). Hello, how can I help you? I am travelling. How can I get OTP? Since this is an addi onal security measure, OTP is sent only to your mobile number registered with ICICI Bank. You cannot. You are required to authen cate your transac on by entering OTP. Q: Are there any charges to get OTP on interna onal mobile? (Source) A: US Bank does not levy any service charges for OTP on Interna onal Mobile number. Q: Will the user id get disabled if I enter the OTP incorrectly? (Source) A: Yes User ID will get disabled in case OTP is entered incorrectly 3 mes",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Dataset statistics (train/dev/test)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Accuracy comparison across various methods. For SemEval-2017 dataset, results are for two settings: (using just the query subject/using query subject + body).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Analysis of various types of errors with examplesEntity mismatch q and Q/A refer to a different main entity 29 q:\"What is best mall in Doha to buy good furniture?\", Q:\"where to buy good abhaya in doha\" Any aquapark in Doha?\", Q:\"any water theme park in qatar?\"Intentmismatch q and Q/A have different intents 5 q:\"What is best mall in Doha to buy good furniture? ... showrooms ...\", Q:\"Where to buy used furniture? .. cheap ...\" Negation q and Q/A have opposite intents 7 q:\"Is there any Carrefour which is open?\", Q:\"any other good supermarkets apart from Carrefour\" Verbose match q and Q/A match on unimportant parts 52 q:\"Is it good offer? Hi Frds;i QA supervisor with 8 years exp in pharmaceutical have got job offer from Qatar pharma company; Salary which they have offered to me is 5000QAR...\", Q:\"Is it a good offer? Dear all; I need your help please:) ; i got an offer from Habtoor leighton group for Planning Engineer position. They are offering 10K ...\"",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Accuracy vs size and runtime latency comparison across various models for the knowledge distillation experiments (on FSD)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Initialization for knowledge distillation for MT-DNN-3 model using MMT-DNN-12 layers or Random (on FSD)",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

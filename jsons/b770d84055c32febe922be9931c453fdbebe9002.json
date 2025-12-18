@@ -1,0 +1,1993 @@
+{
+    "paper_id": "b770d84055c32febe922be9931c453fdbebe9002",
+    "metadata": {
+        "title": "Fact or Fiction: Verifying Scientific Claims",
+        "authors": [
+            {
+                "first": "David",
+                "middle": [],
+                "last": "Wadden",
+                "suffix": "",
+                "affiliation": {},
+                "email": "dwadden@cs.washington.edu"
+            },
+            {
+                "first": "Kyle",
+                "middle": [],
+                "last": "Lo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Allen Institute for Artificial Intelligence",
+                    "location": {
+                        "settlement": "Seattle",
+                        "region": "WA",
+                        "country": "USA"
+                    }
+                },
+                "email": "kylel@allenai.org"
+            },
+            {
+                "first": "Lucy",
+                "middle": [
+                    "Lu"
+                ],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Allen Institute for Artificial Intelligence",
+                    "location": {
+                        "settlement": "Seattle",
+                        "region": "WA",
+                        "country": "USA"
+                    }
+                },
+                "email": "lucyw@allenai.org"
+            },
+            {
+                "first": "Shanchuan",
+                "middle": [],
+                "last": "Lin",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Madeleine",
+                "middle": [],
+                "last": "Van Zuylen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Allen Institute for Artificial Intelligence",
+                    "location": {
+                        "settlement": "Seattle",
+                        "region": "WA",
+                        "country": "USA"
+                    }
+                },
+                "email": "madeleinev@allenai.org"
+            },
+            {
+                "first": "Arman",
+                "middle": [],
+                "last": "Cohan",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Allen Institute for Artificial Intelligence",
+                    "location": {
+                        "settlement": "Seattle",
+                        "region": "WA",
+                        "country": "USA"
+                    }
+                },
+                "email": "armanc@allenai.org"
+            },
+            {
+                "first": "Hannaneh",
+                "middle": [],
+                "last": "Hajishirzi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Allen Institute for Artificial Intelligence",
+                    "location": {
+                        "settlement": "Seattle",
+                        "region": "WA",
+                        "country": "USA"
+                    }
+                },
+                "email": "hannaneh@cs.washington.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We introduce the task of scientific factchecking. Given a corpus of scientific articles and a claim about a scientific finding, a factchecking model must identify abstracts that support or refute the claim. In addition, it must provide rationales for its predictions in the form of evidentiary sentences from the retrieved abstracts. For this task, we introduce SCIFACT, a dataset of 1.4K expert-written scientific claims paired with evidence-containing abstracts annotated with labels and rationales. We present a baseline model and assess its performance on SCIFACT. We observe that, while fact-checking models trained on Wikipedia articles or political news have difficulty generalizing to our task, simple domain adaptation techniques represent a promising avenue for improvement. Finally, we provide initial results showing how our model can be used to verify claims relevant to",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Fact-checking -a task in which the veracity of an input claim is verified against a corpus of documents that support or refute the claim -has seen increased attention as an important research area. This attention is motivated by the proliferation of misinformation in political news, social media, and on the web. In turn, interest in fact-checking has spurred the creation of many datasets across different domains to support research and development of automated fact-checking systems. Yet, to our knowledge, no such dataset exists to facilitate research on another important domain for factchecking -scientific literature. The ability to verify claims about scientific concepts, especially those Taking anti-depressants is associated with an increase in the A\u03b2 level in the brain of experimental animals",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Fact-checker Rationale Corpus Figure 1 : A SCIFACT claim refuted by evidence. To refute this claim, the system must recognize that (1) \"CSF\" is an acronym for \"cerebral spinal fluid\", found in the brain, (2) \"Citalopram\" is a type of antidepressant, but \"placebo\" is not, and (3) \"Slowing by 37%\" indicates a reversal in effect relative to the claim. related to biomedicine, is an important application area for fact-checking. Furthermore, this line of research also offers a unique opportunity to explore the capabilities of modern neural models, since successfully verifying most scientific claims requires expert background knowledge, complex language understanding, and reasoning capability, as demonstrated in Figure 1 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 30,
+                    "end": 38,
+                    "text": "Figure 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 715,
+                    "end": 723,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Decision: REFUTES Claim"
+        },
+        {
+            "text": "In this paper, we introduce the task of scientific fact-checking. To facilitate research on this task, we construct SCIFACT, a dataset of 1,409 scientific claims accompanied by scientific abstracts that support or refute each claim, and annotated with rationales justifying each support / refute decision. To curate this dataset, we use a novel annotation protocol that takes advantage of a plentiful source of naturally-occurring claims in the scientific literature -citation sentences, or \"citances\" (Nakov et al.) .",
+            "cite_spans": [
+                {
+                    "start": 502,
+                    "end": 516,
+                    "text": "(Nakov et al.)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Decision: REFUTES Claim"
+        },
+        {
+            "text": "To establish performance baselines on this new task, we develop a pipeline model following the \"BERT-to-BERT\" approach from , which achieves strong performance on FEVER. Our model, which we call VERISCI, retrieves abstracts related to a given claim, uses a BERT-based (Devlin et al., 2019) sentence selector to identify rationale sentences, and then labels each claim as SUPPORTS, REFUTES, or NOTE-NOUGHINFO with respect to the claim. Our system is able to identify correctly-labeled and rationalized evidence abstracts with performance of 46.5 F1, indicating that the task is doable but leaving ample room for improvement. Despite its small size, training VERISCI on SCIFACT leads to better performance than training on fact-checking datasets constructed from Wikipedia articles (Thorne et al., 2018) and political news (Hanselowski et al., 2019) . The strongest performance is achieved using a simple domain adaptation strategy, pretraining on FEVER and then finetuning on SCIFACT.",
+            "cite_spans": [
+                {
+                    "start": 268,
+                    "end": 289,
+                    "text": "(Devlin et al., 2019)",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 780,
+                    "end": 801,
+                    "text": "(Thorne et al., 2018)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 821,
+                    "end": 847,
+                    "text": "(Hanselowski et al., 2019)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Decision: REFUTES Claim"
+        },
+        {
+            "text": "To evaluate the real-world applicability of our dataset and approach, we showcase the ability of our model to verify expert-written claims concerning the novel coronavirus COVID-19 against the newly-released CORD-19 corpus . Medical student reviewers judge the retrieved evidence to be plausible in 23 of the 36 claims. 1 Our data and models will be released publicly at https://github.com/allenai/scifact.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decision: REFUTES Claim"
+        },
+        {
+            "text": "We discuss SCIFACT in relation to existing factchecking datasets and other related scientific NLP tasks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related work"
+        },
+        {
+            "text": "Fact-checking datasets include PolitiFact (Vlachos and Riedel, 2014), Emergent (Ferreira and Vlachos, 2016) , LIAR (Wang, 2017) , SemEval 2017 Task 8 RumorEval (Derczynski et al., 2017) , Snopes (Popat et al., 2017) , CLEF-2018 Check-That! (Barr\u00f3n-Cede\u00f1o et al., 2018 , Verify (\"Baly et al., 2018) , FEVER (Thorne et al., 2018) , and UKP Snopes (Hanselowski et al., 2019) . Notably, the latter two datasets are additionally annotated with sentence-level rationales; we refer the reader to Hanselowski et al. (2019) for a thorough review. Yet, to our knowledge, there is no prior work on scientific fact checking. We summarize key characteristics of other fact-checking datasets and explain how they differ from those in SCIFACT.",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 107,
+                    "text": "(Ferreira and Vlachos, 2016)",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 115,
+                    "end": 127,
+                    "text": "(Wang, 2017)",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 160,
+                    "end": 185,
+                    "text": "(Derczynski et al., 2017)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 195,
+                    "end": 215,
+                    "text": "(Popat et al., 2017)",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 218,
+                    "end": 227,
+                    "text": "CLEF-2018",
+                    "ref_id": null
+                },
+                {
+                    "start": 228,
+                    "end": 267,
+                    "text": "Check-That! (Barr\u00f3n-Cede\u00f1o et al., 2018",
+                    "ref_id": null
+                },
+                {
+                    "start": 277,
+                    "end": 297,
+                    "text": "(\"Baly et al., 2018)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 306,
+                    "end": 327,
+                    "text": "(Thorne et al., 2018)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 345,
+                    "end": 371,
+                    "text": "(Hanselowski et al., 2019)",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 489,
+                    "end": 514,
+                    "text": "Hanselowski et al. (2019)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fact checking"
+        },
+        {
+            "text": "Natural vs synthetic claims We distinguish between synthetic and natural claims. FEVER uses synthetic claims created by annotators by mutating Wikipedia sentences selected as related evidence. Most other prior work uses natural claims curated from fact checking sites, Twitter, debates, or news articles. The claims in SCIFACT natural, since they are derived from citation sentences that occur naturally in scientific articles, and annotators to not see the evidence at time of claim writing. We discuss this claim-writing process further in \u00a73.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fact checking"
+        },
+        {
+            "text": "Labeling claims vs claim-document pairs In fact-checking, a claim is a statement of actuality whose veracity is a fixed target for investigation. Therefore, claims can be assigned a global supported or refuted label. For example in FEVER, the claim \"Barack Obama was the 44 th President of the United States\" can be verified as globally supported given sufficient evidence.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fact checking"
+        },
+        {
+            "text": "While SCIFACT claims are indeed factual assertions, we do not attempt to assign them global labels because the asserted \"fact\" may still be under active scientific research. Instead of labeling claims, we label claim-document pairs with support or refute relations. This is similar to the task in Perspectrum , which identifies evidence-backed \"perspective\" statements as agreeing or disagreeing with an opinion-based claim, such as \"Animals should have lawful rights.\" We discuss this claim-document labeling process further in \u00a73.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fact checking"
+        },
+        {
+            "text": "The SCIFACT task is closely related to two other scientific NLP tasks -citation contextualization and evidence inference. The goal of citation contextualization is to identify all spans in a cited document that are relevant to a particular citation in a citing document (Cohan et al., 2015) . A dataset of 20 biomedical articles annotated with contextualized citations was released at TAC 2014 for this task. 2 While the dataset was annotated by domain experts, the average inter-annotator agreement rate on annotated spans was only 21.7% 3 . More re-cently, the SciSummNet dataset (Yasunaga et al., 2019) was released, focusing on NLP papers rather than biomedicine. Similar to these datasets, the annotation in SCIFACT involves contextualizing citances in the cited document, but in SCIFACT, citances are first converted into claims, and evidence is restricted to the abstracts of the cited documents.",
+            "cite_spans": [
+                {
+                    "start": 270,
+                    "end": 290,
+                    "text": "(Cohan et al., 2015)",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 582,
+                    "end": 605,
+                    "text": "(Yasunaga et al., 2019)",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related scientific NLP tasks"
+        },
+        {
+            "text": "The evidence inference task , involves predicting the effect of a medical intervention on a specified outcome. Like SCIFACT, the evidence inference task requires the model to identify evidence justifying its label predictions. Unlike the full-sentence claims given as input to SCIFACT, the inputs for evidence inference are individual text spans specifying an intervention, comparator, and treatment outcome.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related scientific NLP tasks"
+        },
+        {
+            "text": "For this task, we introduce SCIFACT, a dataset of 1,409 scientific claims fact-checked against a corpus of 5,183 abstracts. Abstracts that support or refute a claim are additionally annotated with rationales. We describe our corpus creation and annotation protocol.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The SCIFACT dataset"
+        },
+        {
+            "text": "To construct SCIFACT, we use S2ORC , a publicly-available corpus of millions of scientific articles. We restrict articles to those with at least 10 citations and with full text freely available 4 . To ensure that documents in our dataset are of high quality, we randomly sample articles from a manually curated collection of well-regarded journals spanning domains from basic science (e.g., Cell, Nature) to clinical medicine (e.g., JAMA, BMJ). The full list is in Appendix B. We refer to the resulting collection of articles as our seed set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data source"
+        },
+        {
+            "text": "We use the S2ORC citation graph to sample citances (from citing articles) that cite these seed articles. If a citance cites other articles not in the seed set, we refer to these as co-cited articles.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Data source"
+        },
+        {
+            "text": "Definition In SCIFACT, a scientific claim is an atomic factual statement expressing a finding about one aspect of a scientific entity or process, which can be verified from a single source. 5 For instance, 4 While we focus on abstracts, this choice leaves open the opportunity to extend our work to full text. 5 Requiring annotators to search multiple sources to verify a single claim increases cognitive burden and decreases the \"Future studies are also warranted to evaluate the potential association between WNT5A/PCP signaling in adipose tissue and atherosclerotic CVD, given the major role that IL-6 signaling plays in this condition as revealed by large Mendelian randomization studies 44, 45 .\" IL-6 signaling plays a major role in atherosclerotic cardiovascular disease. Figure 2 : A claim written based on a citance. Material unrelated to the citation is removed. The acronym \"CVD\" is expanded to \"cardiovascular disease\".",
+            "cite_spans": [
+                {
+                    "start": 310,
+                    "end": 311,
+                    "text": "5",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 779,
+                    "end": 787,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Claim writing"
+        },
+        {
+            "text": "\"The R 0 of the novel coronavirus is 2.5\" is considered a valid scientific claim. Opinion-based statements like \"The government should require people to stand six feet apart to slow the spread of coronavirus\" are not considered scientific claims. Compound claims like \"Aerosolized coronavirus droplets can travel at least 6 feet and can remain in the air for 3 hours\" should be split into two atomic claims.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "Annotation Citances (Nakov et al.) are an ideal source for claims since they contain expert-written assertions about important findings reported in related research articles, and, unlike claims found on the web, they specify the documents where supporting evidence can be found.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "Annotators are shown a citance -the source citance -in the context of its source article, and are asked to write up to three claims based on the content of the citance while ensuring the produced claims conform to our claim definition. This results in natural claims because the annotator does not see the cited article's abstract -the cited abstract -at the time of claim writing. Figure 2 shows an example. See Appendix C for screenshots of the claim and evidence interfaces.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 382,
+                    "end": 390,
+                    "text": "Figure 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "Annotators The annotators include four experts with background in scientific NLP, fifteen undergraduates studying life sciences, and four graduate students (doctoral or medical) in the life sciences. Student claim writers attend an in-person training session where they are introduced to the task and receive feedback from the four experts. Following training, student annotators continue writing claims remotely. The expert annotators monitor quality of annotation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "these claims for quality and provide feedback when necessary. As a final check, all submitted claims are proofread by an undergraduate whose claims are deemed especially high-quality by the expert annotators.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "Claim negation Unless the authors of the source citance were mistaken, cited articles should provide supporting evidence for the claims made in a citance. To obtain examples where an abstract REFUTES a claim, we create claim negations. Performing this task improperly can introduce biases into the dataset; for instance, a model could learn to associate the word \"not\" with a REFUTED label (Schuster et al., 2019) . To mitigate these effects, a scientific NLP expert performed the negations, skipping claims that could not be negated without introducing obvious dataset artifacts. The majority of claim negations involved a reversal of effect direction; for instance \"A high microerythrocyte count protects against severe anemia\" can be negated as \"A high microerythrocyte count raises vulnerability to severe anemia\".",
+            "cite_spans": [
+                {
+                    "start": 390,
+                    "end": 413,
+                    "text": "(Schuster et al., 2019)",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Source citance Claim"
+        },
+        {
+            "text": "Annotation Annotators are shown a claim, together with one of the claim's cited abstracts, and asked to label the claim-abstract pair as SUPPORTS, REFUTES, or NOTENOUGHINFO. If the abstract is not relevant to the claim, they are instructed to label it NOTENOUGHINFO. If the annotator assigns a SUPPORTS or REFUTES label, they must also identify all valid rationales justifying the label. A rationale is a minimal collection of sentences sufficient to justify the label. An abstract may have multiple rationales, 6 as in Figure 3 , but they must be mutually exclusive -i.e. they may not share any sentences.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 520,
+                    "end": 528,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Claim verification"
+        },
+        {
+            "text": "Annotators The annotators include three NLP experts, five undergraduates studying life sciences, and five graduate students studying life sciences. Annotations are performed remotely through a web interface. Annotators are required to pass a 10question \"quiz\" before annotating their own claims. After passing the quiz, subsequent submissions are reviewed by an NLP expert until that expert deems the annotator reliable. Approved annotators are then assigned to review each others' submissions. In general, graduate students are assigned to review annotations from undergraduates.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Claim verification"
+        },
+        {
+            "text": "Antibiotics can have significant and longlasting effects on the gastrointestinal tract microbiota, reducing colonization resistance against pathogens including Clostridium difficile.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Claim verification"
+        },
+        {
+            "text": "Antibiotic induced alterations in the gut microbiome reduce resistance against Clostridium difficile",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Claim verification"
+        },
+        {
+            "text": "Our results indicate that antibiotic-mediated alteration of the gut microbiome converts the global metabolic profile to one that favours C. difficile germination and growth.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rationale 1"
+        },
+        {
+            "text": "Rationale 2 Figure 3 : A claim supported by two rationales from the same abstract. The text of each rationale on its own provides sufficient evidence to verify the claim.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 20,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Rationale 1"
+        },
+        {
+            "text": "Quality We assign 232 claim-abstract pairs for independent re-annotation. The label agreement is 0.75 Cohen's \u03ba, comparable with the 0.68 Fleiss' \u03ba reported in Thorne et al. (2018) , and 0.70 Cohen's \u03ba reported in Hanselowski et al. (2019) . To measure rationale agreement, we treat each sentence as either classified as \"part of a rationale\" or \"not part of a rationale\" and compute sentence-level agreement on abstracts where annotators agreed on the entailment label. The resulting Cohen's \u03ba is 0.71. Additional statistics on the dataset can be found in Appendix B.",
+            "cite_spans": [
+                {
+                    "start": 160,
+                    "end": 180,
+                    "text": "Thorne et al. (2018)",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 214,
+                    "end": 239,
+                    "text": "Hanselowski et al. (2019)",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Rationale 1"
+        },
+        {
+            "text": "Our initial corpus is defined as the union of the seed and co-cited abstract sets from \u00a73.1. To simulate a more realistic corpus for retrieval, we introduce additional distractor abstracts. In doing so, we observe a tradeoff. Adding too many distractors (e.g., all biomedical papers in S2ORC) increases the likelihood of false negatives -that is, when a distractor actually contains evidence relevant to a written claim, but may have been unknown to the authors who wrote the source citance. However, adding a small number of uniformly-sampled distractors does not pose a retrieval challenge, since these documents may not share much lexical overlap with the claims. We address this problem as follows: for each citance, we sample articles that are cited in the same document as the citance, but in a different paragraph (see Figure 4 ). These articles should have cover topics related to the evidence articles. At the same time, the citance authors were clearly aware of these articles, and presumably would have mentioned them in the citance if they were relevant. We add five distractor articles per citance.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 826,
+                    "end": 834,
+                    "text": "Figure 4",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Adding distractors to the corpus"
+        },
+        {
+            "text": "We formalize our definition of the SCIFACT task and define how we perform evaluation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The SCIFACT task"
+        },
+        {
+            "text": "The inputs to our fact-checking task are a scientific claim c and a corpus of abstracts A. All abstracts a \u2208 A are labeled as y(c, a) \u2208 {SUPPORTS, REFUTES, NOTENOUGHINFO } with respect to a claim c. The abstracts that either SUPPORT or REFUTE c are referred to as evidence abstracts for c. We denote the set of evidence abstracts E(c). Each evidence abstract a \u2208 E(c) is annotated with rationales. A single rationale R is a collection of sentences {r 1 (c, a) , . . . , r m (c, a)} sufficient to justify the label y(c, a), where m is the number of sentences in rationale R. We denote the set of all rationales as R(c, a) = {R 1 (c, a) , . . . , R n (c, a)}, where n is the number of rationales.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 438,
+                    "end": 459,
+                    "text": "sentences {r 1 (c, a)",
+                    "ref_id": null
+                },
+                {
+                    "start": 621,
+                    "end": 634,
+                    "text": "= {R 1 (c, a)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Task Formulation"
+        },
+        {
+            "text": "Given a claim c and a corpus A, the system must predict a set of evidence abstracts E(c). For each abstract a \u2208 E(c), it must predict a label y(c, a), and a collection of rationale sentences S(c, a) = { s 1 (c, a) , . . . , s m (c, a)}. Note that although the gold annotations may contain multiple separate rationales, to simplify the prediction task we simply require the model to predict a single collection of rationale sentences; these sentences may come from multiple gold rationales.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 201,
+                    "end": 213,
+                    "text": "{ s 1 (c, a)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Task Formulation"
+        },
+        {
+            "text": "Abstract-level evaluation is inspired by the FEVER Score and measures the system's ability to correctly identify evidence abstracts. A predicted abstract a \u2208 E(c) is correctly identified if (1) a is a gold evidence abstract for c, (2) The predicted label is correct: y(c, a) = y(c, a), (3) the predicted rationale sentences contain a gold rationale, i.e., there exists some gold rationale R(c, a) \u2286 S(c, a). Like FEVER, which limits the maximum number of predicted rationale sentences to five, SCIFACT limits to three predicted rationale sentences. 7 Overall performance is measured by the F1 of the precision and recall of correctly-identified evidence abstracts, which we refer to as F 1 abstract .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Task Evaluation"
+        },
+        {
+            "text": "Sentence-level evaluation measures the system performance at identifying individual rationale sentences. We consider this evaluation in addition to the abstract-level evaluation because the abstractlevel evaluation does not penalize the prediction of extra rationale sentences. To address this, we define an additional evaluation criterion at the level of individual rationale sentences. When the model correctly identifies all the sentences in a gold rationale, it is rewarded for each sentence in that rationale, but it is also penalized for all other sentences it predicts. More formally, a rationale sentence s(c, a) \u2208 S(c, a) is correctly identified if (1) the abstract a is correctly labeled, (2) s(c, a) is a member of a gold rationale R(c, a), and (3) all other members of R(c, a) are among the predicted S(c, a).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Task Evaluation"
+        },
+        {
+            "text": "Denote the set of correctly predicted rationale sentences for claim c and abstract a as S * (c, a). We compute rationale sentence precision and recall as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Task Evaluation"
+        },
+        {
+            "text": "Overall performance is measured as the F1 of the precision and recall, denoted as F 1 sentence . For sentence-level evaluation, we do not limit the number of predicted rationale sentences, since the evaluation penalizes models that over-predict.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Task Evaluation"
+        },
+        {
+            "text": "We develop a baseline for scientific fact checking by adapting the \"BERT-to-BERT\" model for \"hard\" rationale selection presented in DeYoung et al. (2019) for a number of rationalized NLP tasks including FEVER; this approach is also similar to the fact-checking model presented in Soleimani et al. (2019) . Our baseline (called VERISCI) takes a claim c and corpus A as input, identifies evidence abstracts E(c), and predicts a label y(c, a) and rationale sentences S(c, a) for each a \u2208 E(c). VERISCI is a pipeline of three components:",
+            "cite_spans": [
+                {
+                    "start": 280,
+                    "end": 303,
+                    "text": "Soleimani et al. (2019)",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "VERISCI: Baseline model"
+        },
+        {
+            "text": "1. ABSTRACTRETRIEVAL, which retrieves k abstracts with highest TF-IDF similarity to the input claim. 2. RATIONALESELECTION, which identifies rationals S(c, a) for each candidate abstract ( \u00a75.1). 3. LABELPREDICTION, which makes the final label prediction y(c, a) ( \u00a75.2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VERISCI: Baseline model"
+        },
+        {
+            "text": "Given a claim c and candidate abstract a, we train a model to predict z i for each abstract sentence a i , where z i = 1[a i is a rationale sentence]. For each sentence, we encode the concatenated sequence w i = [a i , SEP, c] using BERT 8 and predict a scor\u1ebd z i = \u03c3[f (CLS(w i ))], where \u03c3 is the sigmoid function, f is a linear layer and CLS(w i ) is the CLS token from the BERT encoding of w i . We minimize cross-entropy loss between z i andz i during training. We train the model on pairs of claims and their cited abstracts from our corpus. For each claim, we use cited abstracts labeled NOTENOUGHINFO, as well as non-rationale sentences from abstracts labeled SUPPORTS and REFUTES as negative examples. We threshold the sigmoid values when performing selection.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rationale selection"
+        },
+        {
+            "text": "Sentences identified by the rationale selector are passed to a separate BERT model to make the final labeling decision. Given a claim c and abstract a, 8 We use BERT to refer to the class of models with the BERT architecture. Our final system uses RoBERTa-large (Liu et al., 2019). we concatenate the claim and the rationale sentences u = [s 1 (c, a), . . . s m (c, a), SEP, c], 9 and predict\u1ef9(c, a) = \u03c6[f (CLS(u))], where \u03c6 is the softmax function, and f is a linear layer with three outputs representing the {SUPPORTS, REFUTES, NOTENOUGHINFO } labels. We minimize the cross-entropy loss between\u1ef9(c, a) and the true label y(c, a).",
+            "cite_spans": [
+                {
+                    "start": 152,
+                    "end": 153,
+                    "text": "8",
+                    "ref_id": null
+                },
+                {
+                    "start": 262,
+                    "end": 281,
+                    "text": "(Liu et al., 2019).",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Label prediction"
+        },
+        {
+            "text": "We train the model on pairs of claims and their cited abstracts using gold rationales as input. For abstracts labeled NOTENOUGHINFO, we randomly choose k sentences from the cited abstract as input rationales. 10 When making predictions, we use the predicted rationale sentences S(c, a) as input and predict\u0177(c, a) = argmax\u1ef9(c, a). The system predicts NOTENOUGHINFO when given an abstract with no rationale sentences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Label prediction"
+        },
+        {
+            "text": "In our experiments, we (1) establish a performance baseline on SCIFACT using VERISCI, (2) analyze the performance of the three components of VERISCI, (3) demonstrate the importance of in-domain training data, and (4) present promising qualitative results on verifying claims about COVID-19 using VERISCI. Table 1 shows the full-pipeline performance of VERISCI on the SCIFACT test set, evaluated using the abstract-level and sentence-level metrics defined in \u00a74. The F 1 abstract value of 46.5 indicates that, for roughly half of the claim-abstract pairs, VERISCI correctly identifies the SUPPORTS or RE-FUTES label and provides reasonable evidence to justify the decision. Given the difficulty of the task and limited in-domain training data, we consider this a promising result, while leaving plenty of room for improvement.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 305,
+                    "end": 312,
+                    "text": "Table 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Oracle experiments To examine the performance of each system component, we run the VERISCI pipeline, replacing some components with \"oracles\" that always make correct predictions when given correct inputs. 11 The first three rows in Table 1 isolate the performance of a single model component together with two oracles. The next three rows are single-oracle, and examine performance using two of the three model components combined with one oracle. Interestingly, the three pipeline components share similar levels of responsibility for model errors as measured by F 1 sentence . The double-oracle models all have F 1 sentence values around 80. The single-oracle models have values around 60, and the final system F 1 sentence is roughly 40. Thus, replacing a single oracle component introduces a loss of roughly 20 F 1 sentence . These results suggest that no single module is serving as a performance \"bottleneck\"; improvements at each stage of the pipeline are likely to improve overall performance. Training datasets During model development, we train the RATIONALESELECTION and LABEL-PREDICTION modules on four different datasets: FEVER, UKP Snopes, SCIFACT, and FEVER pretraining followed by SCIFACT fine-tuning. The RATIONALESELECTION module is evaluated on its ability to identify rationale sentences given gold abstracts. 12 The LABELPREDICTION module is evaluated on its classification accuracy given gold rationales from evidence abstracts (including evidence documents labeled NOTENOUGHINFO). The results of these experiments are shown in Table  2 cases for identifying rationale sentences. For the more complex reasoning involved in LABELPRE-DICTION, domain adaptation was the most effective approach, training first on the large FEVER dataset and then the smaller in-domain SCIFACT training set. Based on these results, we use the RA-TIONALESELECTION module trained on SCIFACT only, and the LABELPREDICTION module trained on FEVER + SCIFACT for our final end-to-end system VERISCI. Additional implementation details can be found in Appendix A.",
+            "cite_spans": [
+                {
+                    "start": 1331,
+                    "end": 1333,
+                    "text": "12",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 233,
+                    "end": 240,
+                    "text": "Table 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 1551,
+                    "end": 1559,
+                    "text": "Table  2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "We conduct exploratory experiments using our system to fact-check claims concerning COVID-19. We task a medical student to write 36 COVIDrelated claims. For each claim c, we use VERISCI to predict evidence abstracts E(c). The same medical student annotator assigns a label to each (c, E(c)) pair. A pair is labeled plausible if at least half of the evidence abstracts in E(c) are judged to have reasonable rationales and labels. It is labeled missed if E(c) = \u2205. Finally, it is labeled implausible if the majority of the abstracts in E(c) have irrelevant rationales or incorrect labels. Table 3 shows two example claims, both with supporting and refuting evidence identified by VERISCI. For the majority of these COVID-related claims (23 out of 36), the rationales produced by VERISCI was deemed plausible by our annotator, demonstrating that VERISCI is able to successfully retrieve and classify evidence in many cases. An examination of errors reveals that the system can be confused by context, where abstracts are labeled SUPPORTS or REFUTES even though the rationale sentences reference a different disease or drug from the claim. An example of this is also provided in Table 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 587,
+                    "end": 594,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1175,
+                    "end": 1182,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Verifying claims about COVID-19"
+        },
+        {
+            "text": "Though SCIFACT represents progress in scientific fact-checking, we look forward to making further improvements. In several cases described below, we attempt to collect more fine-grained data for certain subtasks, but are impeded by annotation challenges. We also discuss how the task of scientific fact-checking can be naturally extended to involve evidence synthesis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Future Directions"
+        },
+        {
+            "text": "During pilot annotations for entailment labeling, annotators are instructed to label abstracts as one of SUPPORTS, PARTIALLYSUPPORTS, NOTE-NOUGHINFO, PARTIALLYREFUTES, or REFUTES. The Perspectrum dataset features a similar annotation scheme for annotating evidence in online debates. The PARTIAL categorization is useful in cases like the one shown in Figure 5 , where the abstract contains relevant evidence, but the context is different (mouse vs. human). When an annotator selects a PARTIAL label, they are also instructed to edit the claim being verified, making as few changes as possible, such that the evidence would provide full support / contradiction for the edited claim.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 352,
+                    "end": 360,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Partial evidence"
+        },
+        {
+            "text": "Unfortunately, inter-annotator label agreement is only 0.48 Cohen's \u03ba on this more granular annotation task, largely due to disagreement over the PAR-TIAL label. This is unsurprising given the subjectivity of the task, and is consistent with the findings from . Based on this low agreement, we completely remove partially-supported claims from the task dataset. 13 Improving agree-13 Though we make these claims and their edits available as a supplement to the dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Partial evidence"
+        },
+        {
+            "text": "Treating the gut microbiome with antibiotics reduces levels of free fatty acids in patients with high-fat diets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Partial evidence"
+        },
+        {
+            "text": "Treating the gut microbiome with antibiotics reduces levels of free fatty acids in mice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Rationale"
+        },
+        {
+            "text": "Antibiotic treatment reduces free fatty acid levels in the gut microbial community of mice susceptible to C. difficile infection Figure 5 : An abstract that partially supports a claim. The edited claim is fully supported. ment on partial labels is part of ongoing work.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 129,
+                    "end": 137,
+                    "text": "Figure 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "Edited claim"
+        },
+        {
+            "text": "Similarly, for claim verification, we initially instruct annotators to identify primary and supplemental rationale sentences for each rationale. Primary sentences are those that are needed to verify the claim, while supplemental sentences provide important context missing from primary sentences that are still necessary for appropriately selecting the SUPPORTS or REFUTES label. For example, in Figure 1 , the claim specifies \"in experimental animals,\" yet no part of the rationale sentence indicates that its content applies to experimental animals. In this case, another sentence in the rationale abstract supplying information that the experiment was conducted in mice would qualify as a supplemental sentence for this rationale.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 396,
+                    "end": 404,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Modeling contextual information"
+        },
+        {
+            "text": "We provide some guidance on when and how to select supplemental sentences, such as defining context to be aspects of the claim such as country or population, or instructing annotators to select the first sentence in an abstract that provides the supplementary information. However, agreement on supplemental rationale sentences is low among annotators (Cohen's \u03ba = 0.45). Consequently, we remove supplemental rationale sentences from the task dataset, though we continue to work with annotators on improving agreement.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Modeling contextual information"
+        },
+        {
+            "text": "Evidence synthesis (Marshall et al., 2017) is the task of combining relevant information across different sources to inform decision making. Evaluating the veracity of a scientific statement is challenging, even for human experts. It requires assessing the strength of conflicting evidence from Table 3 : Results of our system on several claims concerning COVID-19. In some cases, the label is predicted given the wrong context, e.g. the third evidence sentence for the first claim is a finding about Lopinavir, but for the wrong disease (MERS-CoV).",
+            "cite_spans": [
+                {
+                    "start": 19,
+                    "end": 42,
+                    "text": "(Marshall et al., 2017)",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 295,
+                    "end": 302,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Evidence synthesis"
+        },
+        {
+            "text": "documents of varying degrees of support, credibility, and recency, and synthesizing the results in a meaningful and actionable way.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evidence synthesis"
+        },
+        {
+            "text": "Evidence synthesis is not a current part of our task definition. Though we do not ask our system to make corpus-level decisions about a claim's veracity, the extracted evidence and entailment labels produced by VERISCI can naturally be extended for evidence synthesis. However, because performance degrades with each additional pipeline component, further understanding of the scientific factchecking task and its subtasks is necessary before such a system could be useful in practice. Accurate representations of partial evidence and contextual knowledge are necessary steps towards this goal.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evidence synthesis"
+        },
+        {
+            "text": "Fact checking is important in the scientific domain because it allows us to trace the sources and measure the veracity of scientific claims. These abilities have emerged as particularly important in the context of the reproducibility crisis in science and the rise of disinformation in society. In this article, we formalize the definition of scientific fact checking, and release a dataset (SCIFACT) and models (VERISCI) to support work on this task.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Scientific fact checking poses a set of unique challenges, pushing the limits of neural models on complex language understanding and reasoning. Domain-adaptation techniques show promise, but our findings suggest that additional work is necessary to improve the performance of end-to-end fact-checking systems. We also demonstrate how fact checking might work in practice, by applying our system to the real-world problem of verifying claims related to COVID-19. We hope that these resources encourage others to pursue and expand upon our work, and to further shed light on the broader and more challenging goal of scientific document understanding.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "All models are implemented using the Huggingface Transformers package (Wolf et al., 2019) .",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 89,
+                    "text": "(Wolf et al., 2019)",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Model implementation details"
+        },
+        {
+            "text": "For the ABSTRACTRETRIEVAL module, VERISCI retrieves the top k = 3 documents ranked by TF-IDF similarity using unigram + bigram features. These parameters are tuned on the SCIFACT development set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.1 Parameters for the final VERISCI system"
+        },
+        {
+            "text": "For both the RATIONALESELECTION and LA-BELPREDICTION modules, we experiment with SCIBERT (Beltagy et al.) , BioMedRoBERTa (Gururangan et al., 2020) , RoBERTa-base, and RoBERTa-large. RoBERTa-large achieves the best development set performance for both subtasks and is used in the final model.",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 105,
+                    "text": "(Beltagy et al.)",
+                    "ref_id": null
+                },
+                {
+                    "start": 108,
+                    "end": 147,
+                    "text": "BioMedRoBERTa (Gururangan et al., 2020)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "A.1 Parameters for the final VERISCI system"
+        },
+        {
+            "text": "When making predictions using the RATIO-NALESELECTION module described in \u00a75.1, we find that the usual decision rule of predicting\u1e91 i = 1 whenz i \u2265 0.5 works well for models trained on SCIFACT. However, for models trained on FEVER and UKP Snopes, we achieve better performance by tuning the classification threshold t, such that z i = 1 whenz i \u2265 t, on the SCIFACT dev set. The best threshold was t = 0.025 for VERISCI trained on FEVER, and t = 0.75 for VERISCI trained on UKP Snopes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.1 Parameters for the final VERISCI system"
+        },
+        {
+            "text": "We experiment with various learning rates when training SCIBERT, BioMedRoBERTa, RoBERTabase, and RoBERTa-large. Below we describe the setting for training RoBERTa-large. For models trained on SCIFACT, we use an initial learning rate of 1e-5 on the transformer base and 1e-3 on the linear layer. For FEVER + SCI-FACT, the learning rate is set to 1e-5 for the entire model for pre-training on FEVER and fine-tuning on SCIFACT. We use a batch size of 256 through gradient accumulation and apply cosine learning rate decay over 20 epochs to find the best performing model on the dev set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.2 Training the RATIONALESELECTION module"
+        },
+        {
+            "text": "For models trained on FEVER, we set the learning rate to 0.5e-5 for the transformer base and 0.5e-4 for the linear layer. For models trained on UKP Snopes, we set the learning rate 1e-5 for the transformer base and 1e-4 for the linear layer. We find that these learning rates help the models converge. We only train the model for 5 epochs be-cause FEVER and UKP Snopes are larger datasets and the models converged within the first 5 epochs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.2 Training the RATIONALESELECTION module"
+        },
+        {
+            "text": "We adopt similar settings as we used for the RA-TIONALESELECTION module and only change the learning rate to 1e-5 for the transformer base and 1e-4 for the linear layer for models trained on SCI-FACT, FEVER, and UKP Snopes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A.3 Training the LABELPREDICTION module"
+        },
+        {
+            "text": "We compute statistics separately for structured abstracts, abstracts that are organized into welldefined sections, and for unstructured abstracts. Table 4 provides statistics summarizing the lengths of abstracts and rationales. Table 5 shows the counts for each claim-abstract label category in the train, dev, and test sets. Table 6 shows the number of evidence documents supporting each claim. The majority of claims are supported by a single document set. Figure 6a shows the distribution of the number of rationales in structured and unstructured abstracts. Structured abstracts are more likely to have two evidence sets -for instance, one in the \"results\" section, and one in the \"conclusions\" section. Figure  6b shows the distribution of sentences per rationale. Figure 7 shows the fraction of sentences in each abstract that are part of a rationale. Unstructured abstracts have a heavier \"right tail\", representing cases where the abstract is short and the entire abstract supports the claim.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 147,
+                    "end": 154,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 228,
+                    "end": 235,
+                    "text": "Table 5",
+                    "ref_id": "TABREF4"
+                },
+                {
+                    "start": 326,
+                    "end": 333,
+                    "text": "Table 6",
+                    "ref_id": "TABREF5"
+                },
+                {
+                    "start": 459,
+                    "end": 468,
+                    "text": "Figure 6a",
+                    "ref_id": null
+                },
+                {
+                    "start": 708,
+                    "end": 718,
+                    "text": "Figure  6b",
+                    "ref_id": null
+                },
+                {
+                    "start": 770,
+                    "end": 778,
+                    "text": "Figure 7",
+                    "ref_id": null
+                }
+            ],
+            "section": "B Detailed corpus statistics"
+        },
+        {
+            "text": "MeSH terms for evidence documents appear in Figure 8 . Terms like Human, Risk factors, and Treatment outcome are common to randomized control trial reports. Terms like DNA, RNA, and Cell differentiation indicate molecular biology research. Table 4 : Summary statistics on the abstracts in the corpus. The Abstract length is measured in number of sentences. The Rationale fraction is the fraction of sentences in each abstract that are rationales. Train  332  304  173 809  Dev  124  112  64 300  Test  100  100 100 300 ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 44,
+                    "end": 52,
+                    "text": "Figure 8",
+                    "ref_id": null
+                },
+                {
+                    "start": 240,
+                    "end": 247,
+                    "text": "Table 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 447,
+                    "end": 510,
+                    "text": "Train  332  304  173 809  Dev  124  112  64 300  Test  100  100",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "B Detailed corpus statistics"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Integrating stance detection and fact checking in a unified corpus",
+            "authors": [
+                {
+                    "first": "&quot;",
+                    "middle": [],
+                    "last": "Ramy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mitra",
+                    "middle": [],
+                    "last": "Baly",
+                    "suffix": ""
+                },
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Mohtarami",
+                    "suffix": ""
+                },
+                {
+                    "first": "Llu\u00eds",
+                    "middle": [],
+                    "last": "Glass",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alessandro",
+                    "middle": [],
+                    "last": "M\u00e0rquez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Preslav&quot;",
+                    "middle": [],
+                    "last": "Moschitti",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Nakov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Overview of the clef-2018 checkthat! lab on automatic identification and verification of political claims. task 2: Factuality",
+            "authors": [
+                {
+                    "first": "Alberto",
+                    "middle": [],
+                    "last": "Barr\u00f3n-Cede\u00f1o",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tamer",
+                    "middle": [],
+                    "last": "Elsayed",
+                    "suffix": ""
+                },
+                {
+                    "first": "Reem",
+                    "middle": [],
+                    "last": "Suwaileh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Llu\u00eds",
+                    "middle": [],
+                    "last": "M\u00e0rquez I Villodre",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pepa",
+                    "middle": [],
+                    "last": "Atanasova",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wajdi",
+                    "middle": [],
+                    "last": "Zaghouani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Spas",
+                    "middle": [],
+                    "last": "Kyuchukov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Giovanni",
+                    "middle": [],
+                    "last": "Da San",
+                    "suffix": ""
+                },
+                {
+                    "first": "Preslav",
+                    "middle": [],
+                    "last": "Martino",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Nakov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "SciBERT: A pretrained language model for scientific text",
+            "authors": [
+                {
+                    "first": "Iz",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyle",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arman",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Seeing things from a different angle: Discovering diverse perspectives about claims",
+            "authors": [
+                {
+                    "first": "Sihao",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Khashabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wenpeng",
+                    "middle": [],
+                    "last": "Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chris",
+                    "middle": [],
+                    "last": "Callison-Burch",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Matching citation text and cited spans in biomedical literature: a search-oriented approach",
+            "authors": [
+                {
+                    "first": "Arman",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luca",
+                    "middle": [],
+                    "last": "Soldaini",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nazli",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "SemEval-2017 task 8: RumourEval: Determining rumour veracity and support for rumours",
+            "authors": [
+                {
+                    "first": "Leon",
+                    "middle": [],
+                    "last": "Derczynski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kalina",
+                    "middle": [],
+                    "last": "Bontcheva",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [],
+                    "last": "Liakata",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rob",
+                    "middle": [],
+                    "last": "Procter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 11th International Workshop on Semantic Evaluation",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/S17-2006"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Bert: Pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Wei",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenton",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristina",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Eraser: A benchmark to evaluate rationalized nlp models",
+            "authors": [
+                {
+                    "first": "Jay",
+                    "middle": [],
+                    "last": "Deyoung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sarthak",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nazneen",
+                    "middle": [],
+                    "last": "Fatema Rajani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Lehman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Caiming",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Richard",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Byron",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wallace",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Emergent: a novel data-set for stance classification",
+            "authors": [
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Ferreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andreas",
+                    "middle": [],
+                    "last": "Vlachos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/N16-1138"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Dont stop pretraining: Adapt language models to domains and tasks",
+            "authors": [
+                {
+                    "first": "Ana",
+                    "middle": [],
+                    "last": "Suchin Gururangan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Swabha",
+                    "middle": [],
+                    "last": "Marasovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyle",
+                    "middle": [],
+                    "last": "Swayamdipta",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iz",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Doug",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Noah",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Downey",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Smith",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "A richly annotated corpus for different tasks in automated factchecking",
+            "authors": [
+                {
+                    "first": "Andreas",
+                    "middle": [],
+                    "last": "Hanselowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christian",
+                    "middle": [],
+                    "last": "Stab",
+                    "suffix": ""
+                },
+                {
+                    "first": "Claudia",
+                    "middle": [],
+                    "last": "Schulz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zile",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Iryna",
+                    "middle": [],
+                    "last": "Gurevych",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 23rd Conference on Computational Natural Language Learning (CoNLL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Inferring which medical treatments work from reports of clinical trials",
+            "authors": [
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Lehman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jay",
+                    "middle": [],
+                    "last": "Deyoung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Regina",
+                    "middle": [],
+                    "last": "Barzilay",
+                    "suffix": ""
+                },
+                {
+                    "first": "Byron",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wallace",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Roberta: A robustly optimized bert pretraining approach",
+            "authors": [
+                {
+                    "first": "Yinhan",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Myle",
+                    "middle": [],
+                    "last": "Ott",
+                    "suffix": ""
+                },
+                {
+                    "first": "Naman",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jingfei",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mandar",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Danqi",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Omer",
+                    "middle": [],
+                    "last": "Levy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mike",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Luke",
+                    "middle": [],
+                    "last": "Zettlemoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Veselin",
+                    "middle": [],
+                    "last": "Stoyanov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "S2ORC: The Semantic Scholar Open Research Corpus",
+            "authors": [
+                {
+                    "first": "Kyle",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lucy",
+                    "middle": [
+                        "Lu"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mark",
+                    "middle": [],
+                    "last": "Neumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rodney",
+                    "middle": [],
+                    "last": "Kinney",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Weld",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Association for Computational Linguistics (ACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Automating biomedical evidence synthesis: Robotreviewer",
+            "authors": [
+                {
+                    "first": "Iain",
+                    "middle": [
+                        "James"
+                    ],
+                    "last": "Marshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jo\u00ebl",
+                    "middle": [],
+                    "last": "Kuiper",
+                    "suffix": ""
+                },
+                {
+                    "first": "Edward",
+                    "middle": [],
+                    "last": "Banner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Byron",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wallace",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Citances: Citation sentences for semantic analysis of bioscience text",
+            "authors": [
+                {
+                    "first": "Ariel",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Preslav I Nakov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marti",
+                    "middle": [],
+                    "last": "Schwartz",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hearst",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the SIGIR04 workshop on Search and Discovery in Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Where the truth lies: Explaining the credibility of emerging claims on the web and social media",
+            "authors": [
+                {
+                    "first": "Kashyap",
+                    "middle": [],
+                    "last": "Popat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Subhabrata",
+                    "middle": [],
+                    "last": "Mukherjee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jannik",
+                    "middle": [],
+                    "last": "Str\u00f6tgen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gerhard",
+                    "middle": [],
+                    "last": "Weikum",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the International World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Towards debiasing fact verification models",
+            "authors": [
+                {
+                    "first": "Tal",
+                    "middle": [],
+                    "last": "Schuster",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Darsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yun Jie Serene",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Yeo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Enrico",
+                    "middle": [],
+                    "last": "Filizzola",
+                    "suffix": ""
+                },
+                {
+                    "first": "Regina",
+                    "middle": [],
+                    "last": "Santus",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Barzilay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Bert for evidence retrieval and claim verification",
+            "authors": [
+                {
+                    "first": "Amir",
+                    "middle": [],
+                    "last": "Soleimani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christof",
+                    "middle": [],
+                    "last": "Monz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marcel",
+                    "middle": [],
+                    "last": "Worring",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Fever: a large-scale dataset for fact extraction and verification",
+            "authors": [
+                {
+                    "first": "James",
+                    "middle": [],
+                    "last": "Thorne",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andreas",
+                    "middle": [],
+                    "last": "Vlachos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "North American Association for Computational Linguistics (NAACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Fact checking: Task definition and dataset construction",
+            "authors": [
+                {
+                    "first": "Andreas",
+                    "middle": [],
+                    "last": "Vlachos",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sebastian",
+                    "middle": [],
+                    "last": "Riedel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the ACL 2014 Workshop on Language Technologies and Computational Social Science",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.3115/v1/W14-2508"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "liar, liar pants on fire\": A new benchmark dataset for fake news detection",
+            "authors": [
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wang",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Association for Computational Linguistics (ACL)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/P17-2067"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Huggingface's transformers: State-of-the-art natural language processing",
+            "authors": [
+                {
+                    "first": "Thomas",
+                    "middle": [],
+                    "last": "Wolf",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lysandre",
+                    "middle": [],
+                    "last": "Debut",
+                    "suffix": ""
+                },
+                {
+                    "first": "Victor",
+                    "middle": [],
+                    "last": "Sanh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Julien",
+                    "middle": [],
+                    "last": "Chaumond",
+                    "suffix": ""
+                },
+                {
+                    "first": "Clement",
+                    "middle": [],
+                    "last": "Delangue",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anthony",
+                    "middle": [],
+                    "last": "Moi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Pierric",
+                    "middle": [],
+                    "last": "Cistac",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tim",
+                    "middle": [],
+                    "last": "Rault",
+                    "suffix": ""
+                },
+                {
+                    "first": "R&apos;emi",
+                    "middle": [],
+                    "last": "Louf",
+                    "suffix": ""
+                },
+                {
+                    "first": "Morgan",
+                    "middle": [],
+                    "last": "Funtowicz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jamie",
+                    "middle": [],
+                    "last": "Brew",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ArXiv",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Scisummnet: A large annotated corpus and content-impact models for scientific paper summarization with citation networks",
+            "authors": [
+                {
+                    "first": "Michihiro",
+                    "middle": [],
+                    "last": "Yasunaga",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jungo",
+                    "middle": [],
+                    "last": "Kasai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rui",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [
+                        "Richard"
+                    ],
+                    "last": "Fabbri",
+                    "suffix": ""
+                },
+                {
+                    "first": "Irene",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dan",
+                    "middle": [],
+                    "last": "Friedman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dragomir",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Radev",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "AAAI",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Citance and abstract selection. Citing abstracts are identified for each seed document. A claim is written based on the citation in the citing abstract. Co-cited and distractor abstracts are added to the corpus.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The number of rationales supporting each claim. For instance, roughly 150 unstructured abstracts contain 2 rationales. The number of sentences per rationale.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Statistics on rationales. Most claims are supported by a single rationale, but structured abstracts are more likely to have two rationales. The great majority of rationales are a single sentence. Distribution showing the fraction of each abstract (in sentences) that is part of a rationale. Fraction of evidence abstracts in which each MESH term occurs.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "are double-oracle; in these experiments, weTable 1: Test set performance of our VERISCI system on SCIFACT, as measured by the sentence-level and abstractlevel performance evaluations defined in \u00a74.2. For the Oracle experiments, the first three columns in the table indicate whether each module in the pipeline has been replaced by an oracle, or uses a VERISCI system component.In Final system, we present the results of the full VERISCI pipeline.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": ". For RATIONALESELECTION, training on SCI-FACT alone produces good results, perhaps because domain-specific lexical cues are sufficient in most 12 Our FEVER-trained RATIONALESELECTION module achieves 79.9 sentence-level F1 on the FEVER test set, virtually identical to the value of 79.6 reported in DeYoung et al.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Comparison of different training datasets for RATIONALESELECTION and LABELPREDICTION, evaluated on the SCIFACT dev set.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Distribution of claim-abstract labels by traindev-test split in SCIFACT.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "The number of evidence documents supporting each claim. For instance, 37 claims are supported by 2 documents.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "The claim and evidence interfaces are shown in Figures 9 and 10 . ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 47,
+                    "end": 63,
+                    "text": "Figures 9 and 10",
+                    "ref_id": null
+                }
+            ],
+            "section": "C Annotation interfaces"
+        }
+    ]
+}

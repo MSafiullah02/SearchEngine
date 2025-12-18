@@ -1,0 +1,1280 @@
+{
+    "paper_id": "b66fda7dba43eb3ed1bd56e648fdf860eb63addb",
+    "metadata": {
+        "title": "Decentralized and Adaptive K -Means Clustering for Non-IID Data Using HyperLogLog Counters",
+        "authors": [
+            {
+                "first": "Amira",
+                "middle": [],
+                "last": "Soliman",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Sarunas",
+                "middle": [],
+                "last": "Girdzijauskas",
+                "suffix": "",
+                "affiliation": {},
+                "email": "sarunasg@kth.se"
+            },
+            {
+                "first": "Mohamed-Rafik",
+                "middle": [],
+                "last": "Bouguelia",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Halmstad University",
+                    "location": {
+                        "settlement": "Halmstad",
+                        "country": "Sweden"
+                    }
+                },
+                "email": "mohamed-rafik.bouguelia@hh.se"
+            },
+            {
+                "first": "Sepideh",
+                "middle": [],
+                "last": "Pashami",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Halmstad University",
+                    "location": {
+                        "settlement": "Halmstad",
+                        "country": "Sweden"
+                    }
+                },
+                "email": "sepideh.pashami@hh.se"
+            },
+            {
+                "first": "Slawomir",
+                "middle": [],
+                "last": "Nowaczyk",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Halmstad University",
+                    "location": {
+                        "settlement": "Halmstad",
+                        "country": "Sweden"
+                    }
+                },
+                "email": "slawomir.nowaczyk@hh.se"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The data shared over the Internet tends to originate from ubiquitous and autonomous sources such as mobile phones, fitness trackers, and IoT devices. Centralized and federated machine learning solutions represent the predominant way of providing smart services for users. However, moving data to central location for analysis causes not only many privacy concerns, but also communication overhead. Therefore, in certain situations machine learning models need to be trained in a collaborative and decentralized manner, similar to the way the data is originally generated without requiring any central authority for data or model aggregation. This paper presents a decentralized and adaptive k -means algorithm that clusters data from multiple sources organized in peer-topeer networks. Our algorithm allows peers to reach an approximation of the global model without sharing any raw data. Most importantly, we address the challenge of decentralized clustering with skewed non-IID data and asynchronous computations by integrating HyperLogLog counters with k -means algorithm. Furthermore, our clustering algorithm allows nodes to individually determine the number of clusters that fits their local data. Results using synthetic and real-world datasets show that our algorithm outperforms state-of-the-art decentralized k -means algorithms achieving accuracy gain that is up-to 36%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The predominant way of using machine learning (ML) involves collecting data to a centralized repository often in communication costly and privacy-invasive manner. Therefore, Federated Learning (FL) has been introduced as an alternative distributed and privacy-friendly approach. FL allows users to train models locally on their devices using their sensitive data, and communicate intermediate model updates to a central server without the need to centrally store the data [13] . Specifically, users start by contacting the central server and downloading the learning algorithm and a global model, that is common to all users. The algorithm trains its model locally on each device using user private data and computes update to the current global model. Afterwards, the new updates on the learning parameters obtained from the algorithm on the device of each user are sent to the central server for aggregation. The server integrates the new learning parameters and sends the aggregated global model back to each user. These interactions with the central server are repeated till reaching convergence. This distributed approach for model computation diminishes the need for central storage of raw data, hence, computation becomes distributed among users and their personal data never leaves their devices.",
+            "cite_spans": [
+                {
+                    "start": 472,
+                    "end": 476,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "FL can work very efficiently in many scenarios. The principal advantage of FL is the decoupling of global model training from the need for direct access to the raw data. However, FL has issues that can be related to system and data challenges. Scalability of FL is a major system challenge, especially in use-cases involving a large number of users (e.g., thousands of users) using and improving the global model at the same point. Additionally, data skewness represents one of the main data challenges for FL, since the data is fully distributed and is generated according to behaviours of participating users. Generating a single global model that accumulates all user behaviours might not produce the best model for particular categories of the users. Specifically, global averaging model enforces a bias towards the behavioural patterns provided by the majority of users, while suppressing the patterns of less significant users [20, 21] .",
+            "cite_spans": [
+                {
+                    "start": 933,
+                    "end": 937,
+                    "text": "[20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 938,
+                    "end": 941,
+                    "text": "21]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "It is important for distributed ML and FL to ensure that the training data is uniformly distributed (i.e., IID sampling that represents independent and identical random sampling) so that any resulting model represents unbiased estimate of the expected model parameters. However, with a huge number of users participating in the training of a FL model, there is no control over size and statistical properties of training data used at each device. Thus, it is unrealistic to assume that the data produced by many different users will always be IID data. Specifically, data points generated by users can be quite different as data on each node can be driven using different phenomena. Therefore, two randomly selected users are likely to compute very different updates. This leads to a statistical standpoint where assumptions need to be made for non-IID data [13] .",
+            "cite_spans": [
+                {
+                    "start": 858,
+                    "end": 862,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Recently, Peer-to-Peer (P2P) systems have been used as underlying communication frameworks to provide decentralized ML algorithms. The overall system can be thought of as a connected undirected graph with n vertices each representing a node. These nodes can be allowed to communicate randomly with any other node in the network, which shapes the underlying topology to a random graph [5, 12, 18, 22] . Also, the communication among nodes can be restricted to enforce a specific underlying graph topology, for example the communication can be only allowed for friendship ties in social networks or among geographically co-located IoT devices [1, 20, 21] .",
+            "cite_spans": [
+                {
+                    "start": 384,
+                    "end": 387,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 388,
+                    "end": 391,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 396,
+                    "end": 399,
+                    "text": "22]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 641,
+                    "end": 644,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 645,
+                    "end": 648,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 649,
+                    "end": 652,
+                    "text": "21]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we present a P2P k -means clustering algorithm. The general k -means algorithm takes input as an integer k and a set of m data points with d dimensions in R d . The goal is to cluster these data points by finding k centers that minimize the sum of the squared distances between each point and the closest center to which it can be assigned to form a cluster [14, 15] . Finding an exact solution to the k -means problem is known to be NP-hard, therefore existing algorithms adopt incremental optimization strategies [4, 14] . Our proposed algorithm extends the general k -means algorithm and allows nodes having distributed data to cooperate in P2P fashion to reach a clustering consensus using their solitary local data and leverage models from others peers.",
+            "cite_spans": [
+                {
+                    "start": 373,
+                    "end": 377,
+                    "text": "[14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 378,
+                    "end": 381,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 530,
+                    "end": 533,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 534,
+                    "end": 537,
+                    "text": "14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our P2P k -means algorithm executes in iterations, such that in each iteration nodes compute an approximation of the new centroids in a decentralized manner by collaboratively exchanging their local estimations and applying weighted averaging. Updating the centroids using weighted averaging function takes into account the number of data points that a node used to calculate its centroids. The more data points used in calculating a centroid, the higher the weight associated with this centroid while applying the averaging function. Differently form existing FL and general P2P k -means algorithms, our proposed algorithm deals with skewed data distributions as well as asynchronous updates of the cluster centroids. We allow nodes to have different pace in executing the exchange iterations, such that some nodes can be more actively engaged than others.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The active nodes can make the system biased toward the properties of their local data. Additionally, these nodes execute exchanges more often which makes their data to be over-represented when applying the weighted averaging function [8] . Naiive weighted averaging function fails to keep track of unique data points represented by a centroid, consequently it keeps accumulating the number of data points owned by active nodes each time they are engaged in an exchanging round. Therefore, our clustering algorithm employs HyperLogLog counters to correctly approximate the total number of data points used in calculating the centroids [6] . HyperLogLog is a probabilistic data structure, which provides a reasonable approximation of cardinality estimation. We integrate HyperLogLog counters so that nodes can keep track of distinct data points used so far in model training, hence allow our clustering algorithm to correctly approximate the number of data points in the network. Therefore, our clustering algorithm can operate under asynchronous computations and prevent model aggregation from being biased towards peers interacting with high frequency.",
+            "cite_spans": [
+                {
+                    "start": 234,
+                    "end": 237,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 634,
+                    "end": 637,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Decentralized data generation makes imbalanced data and missing classes imperative. The data is expected to be highly skewed due to the heterogeneous nature of participating nodes. A lot of work has been done for solving class imbalance and missing classes using data resampling, however most of these methods require access to the whole data, which is not applicable in decentralized systems [17] . To address these challenges, our clustering algorithm incorporates two different techniques to allow nodes decide the proper number of clusters that fit their local data. Particularly, when two nodes try to merge their local models represented by their centroids, our merging function applies k -means on centroids to group every pair of centroids that are close to each other. Then, our first approach to adaptively fix the number of cluster applies Bradley, Fayyad and Reina (BFR) algorithm to further merge the closest clusters together [19] . We provide another merging function using MinHash algorithm [3] .",
+            "cite_spans": [
+                {
+                    "start": 393,
+                    "end": 397,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 940,
+                    "end": 944,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1007,
+                    "end": 1010,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our contributions can be described as follows: 1) We provide a decentralized P2P k -means algorithm that can successfully handle skewed and non-IID data distribution among the participating nodes. 2) We provide a computational environment participating nodes to asynchronously compute clustering consensus in P2P networks. 3) We provide a novel adaptive k-means clustering algorithm that allow nodes to individually determine the number of clusters that fits their local data. 4) We provide experimental evaluation of the proposed decentralized and adaptive k -means algorithm using multiple synthetic as well as real-world dataset. The results show that our algorithm outperforms state-of-the-art decentralized M-Means algorithms achieving accuracy gain that is up to 36%.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The paper is organized as follows: in Sect. 2 and Sect. 3, we present an overview of existing centralized, distributed as well as P2P k -means algorithms. Section 4 introduces our proposed methods for P2P Adaptive k -means clustering algorithm. Section 5 shows the experimental evaluation of our proposed algorithm compared to the state-of-the-art P2P k -means algorithms. Finally, Sect. 6 concludes our paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Clustering is a technique that is used to partition elements in a dataset such that similar elements are assigned to same cluster while elements with different properties are assigned to different clusters. One of the earliest clustering techniques in the literature is the k -means clustering method [14, 15] . Given a set X = {x 1 ...x n } of m samples in R d , the k -means problem is to find the minimum variance clustering of the dataset into k clusters with centroids C, such that the following potential function is minimized,",
+            "cite_spans": [
+                {
+                    "start": 301,
+                    "end": 305,
+                    "text": "[14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 306,
+                    "end": 309,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Identifying these centroids implicitly defines the cluster to which each sample is assigned. Each data point is mapped to the cluster with the nearest mean, serving as a representation of the cluster. As defined, finding an exact solution to the k -means problem even for k = 2 is NP-hard [4] .",
+            "cite_spans": [
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "The k -means algorithm starts by randomly choosing k points in the vector representation space of input data, these points serve as the initial centroids of the clusters. Afterwards, all samples are each assigned to the centroid they are closest to. Then, for each cluster a new centroid is computed by averaging the feature vectors of all samples that are assigned to it. The process of assigning samples and recomputing centroids is repeated until the process converges.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Background"
+        },
+        {
+            "text": "Several distributed k -means algorithms have been proposed to cluster datasets that are distributed over different locations. These algorithms assume that there is a central coordinator that communicates with all other nodes in the distributed system. The clustering goal is to partition the distributed dataset, into k clusters consistent with the global clustering that can be obtained using the centralized algorithm. Some of these algorithms perform the process of computing the centroids of the clusters in a distributed manner using averaging techniques. The main idea is to generate centroids of local data at each computing node, then transmit them to the central coordinator which computes the average [7, 23] . Other algorithms generate summaries of local data at each node and send them to the central coordinator to perform the clustering algorithm using the collected summaries [10, 11] .",
+            "cite_spans": [
+                {
+                    "start": 711,
+                    "end": 714,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 715,
+                    "end": 718,
+                    "text": "23]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 891,
+                    "end": 895,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 896,
+                    "end": 899,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Decentralized clustering on distributed data using P2P has been studied recently. Some solutions introduce distributed k -means algorithms that construct a global set of artificial points to act as a proxy for the entire dataset [1, 16] . There are some solutions that consider P2P random networks and work in static settings, however they are aimed at computing basic average of centroids. Fellus et al. [5] propose a decentralized k -means algorithm which executes in communication rounds, and in each round nodes compute an approximation of the new centroids in a distributed manner.",
+            "cite_spans": [
+                {
+                    "start": 229,
+                    "end": 232,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 233,
+                    "end": 236,
+                    "text": "16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 405,
+                    "end": 408,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "It is clear that both distributed and decentralized k -means can be efficiently solved using collaborative averaging as well as summarizing techniques. However, the calculation of local approximation only succeed when the data is not skewed. As aforementioned, our main focus is to provide a decentralized P2P k -means method to handle non-IID data as well as asynchronous computations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In P2P k -means, we consider a set of n nodes V = {v i , 1 \u2264 i \u2264 n} which can communicate randomly with each other. On each node v i there is a local set of data points P i \u2286 R d , and the global dataset is P = n i=1 P i . The goal is to find a set of k centers which optimize cost function defined in (1) in a decentralized manner while preserving theoretical guarantees for approximating clustering cost without exchanging the local data among nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized K -Means"
+        },
+        {
+            "text": "In the beginning, we want to emphasize on the limitations of general methods in case of asynchronous scenarios with non-IID data distribution. General P2P k -means methods apply the steps of k -means while using the local data points available at each node after all nodes agree on the set of initial centroids. Then, each node performs the exchange procedure by selecting a random peer form the network to which it sends the computed centroids. We introduce two examples to further explain the consequences of update procedure. First, we consider a P2P network with number of nodes n = 3, such that nodes n 1 , n 2 , and n 3 , have data points with sizes equal to 30, 60, 90 data points, respectively. Also, we assume that the number of clusters equals to 3. Example 1. We assume that every node has data points from the three clusters, where each cluster is represented by one third of the number of points at each node (i.e. n 1 has 10 data points in each cluster, n 2 has 20, etc.). Node n 1 is the only active node to perform exchange iterations. Thus, n 2 and n 3 are going to apply the update operation as described in Algorithm (1). The update function applies simple averaging and treats the centroids generated by n 1 equally with the centroids of other peers, though for example n 3 uses more data points in computing its centroids. Accordingly, if the data owned by n 1 is not representative of the data owned by other peers, n 1 is causing deviation for the general clustering model, though it owns only less than 17% of total data points in the system.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "General P2P K -Means Algorithms and Their Limitations"
+        },
+        {
+            "text": "Update for k -means at node n i with centroids from n j Local centroids c",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1."
+        },
+        {
+            "text": "Before illustrating our second example, we want to briefly describe how weighted averaging can be executed in instead of non-weighting averaging. The centroid weight is going to be proportional to the number of data points used to calculate it. In this case, the update function takes an extra input that tells the number of data points belong to each cluster, i.e., nodes exchange the number of data points used to compute each centroid. For further exchange rounds, nodes have to update their counters to keep track of the number of data points used so far in generating the current centroids. Thus, nodes need to continuously accumulate the number of data points used to compute the centroids after every update operation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "KM-Clustering()"
+        },
+        {
+            "text": "Example 2. We assume that n 3 has a missing class, so the data points belong in two clusters not three. However, k -means algorithm splits the points into 3 clusters according to the input k = 3. Consider n 3 to be the active node in the first exchange round, so it exchanges its centroids with the number of their associated data points to n 1 and n 2 . Then, n 1 and n 2 perform weighted averaging and update their centroids and increase their counters with data points from n 3 . In the second exchange round, n 1 and n 2 are engaged together in exchange iteration. Now, when n 1 updates its centroids again using centroids of n 2 , number of data points used in weighted averaging is going to reflect what n 3 owns twice, as centroids of n 2 and n 1 both count data points of n 3 . Accordingly, data points owned by n 3 are going to be overrepresented, adding to this the fact that its centroids are not correct in representing the three clusters expected in the global model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "KM-Clustering()"
+        },
+        {
+            "text": "HyperLogLog (HLL) counters are extremely useful for big data as they dramatically decrease the amount of memory needed to approximate the exact cardinality estimation compared to other data structures [6] . HLL counters hash the input data into a bit sequence, while making sure that the hashing function distributes bits as evenly and uniformly as possible in the hashing space. Then, HLL counters encodes the generated hash representation of the input in their bit sequence. Regardless of how many times a particular value appears in the input, it is going to be hashed to the same value, hence encoded only once in the HLL bit sequence. The cardinality is estimated by calculating the maximum number of leading zeros in the binary representation of the generated bit sequence. If the maximum number of leading zeros observed is n, an estimate for the number of distinct elements in the input set is expected to be 2 n .",
+            "cite_spans": [
+                {
+                    "start": 201,
+                    "end": 204,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "P2P K -Means with HyperLogLog Counters"
+        },
+        {
+            "text": "Procedure GenerateHLL( (hll)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 2. Generate HyperLogLog function for k -means at node n i"
+        },
+        {
+            "text": "Interestingly, HLL counters have the property that they can be merged by combining their bit sequences [9] , such that generated representation contains the elements encoded in the two HLL counters. In our clustering algorithms we integrate HLL counters to address the limitations of general P2P k -means methods as described in the previous two examples. We start by executing a regular k -means at each node to generate the centroids using the local data. Afterwards, we create a HLL counter per cluster at each node as described in Algorithm (2) . The bit sequence of each HLL encodes the hash representation of the data points belonging to that cluster.",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 106,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 545,
+                    "end": 548,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 2. Generate HyperLogLog function for k -means at node n i"
+        },
+        {
+            "text": "When nodes get engaged in an exchange round, they communicate their computed centroids as well as HLL counters representing data seen so for in computing the centroids. We use HLL counters to estimate the number of unique data points for each centroid. The update function executes first a regular kmeans to find out the centroids to be merged, as shown in Algorithm (3), lines 1:2. We consider applying k -means instead of directly performing weighted averaging procedure as a first step to handle data skewness, such that two local centroids might be closer to each other and better being merged than combing them with worse options computed by other peers. We perform weighted averaging procedure using the estimated cardinalities as shown in lines 5:9. Lastly, nodes update their previous HLL counters by merging them with the received HLL counters, as described in line 10. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 2. Generate HyperLogLog function for k -means at node n i"
+        },
+        {
+            "text": "Procedure Update(c (j) k , (hll) (j) k ) 1 centroids \u2190 c (i) k \u222a c (j) k ; hll all \u2190 (hll) (i) k \u222a (hll) (j) k 2 cent merge \u2190 KM eans (centroids, k) // identify centroid pairs 3 i \u2190 0; a \u2190 0 ; b \u2190 0 4 for m \u2208 cent merge do /*; b \u2190 1 \u2212 a else b \u2190 cardy cardun ; a \u2190 1 \u2212 b else a \u2190 cardx cardun ; b \u2190 cardy cardun 9 c (i) i \u2190 a \u00d7 centroids[m[0]] + b \u00d7 centroids[m[1]] 10 hll (i) i \u2190 hll un ; i \u2190 i + 1 11",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 3. HyperLogLog update for k -means at node n i"
+        },
+        {
+            "text": "In our algorithm we provide two functions to adaptively detect the number of clusters at each node. Our first approach applies merging function using MinHash algorithm [3] . MinHash is widely used to estimate how similar two sets of points are. In our clustering algorithm, we create bit sequences similar to ones of HLL counters that encode data points using the MinHash algorithm. Having such bit sequences per cluster, nodes can evaluate how their data points are similar to data points used in other peers to calculate the centroids before performing the merge function. If there is an overlap in the MinHash bit sequences, then the centroids can be merged, otherwise no overlap indicates the clusters are not similar. Interestingly, this indicates that one of the nodes might not have the correct clustering results due to missing classes, and by adopting the centroids from the other node without changing them it can fix the cluster memberships of its local data. Our second approach is implemeted using BFR algorithm [19] to further merge the closest clusters together. We use BFR algorithm to computes the sum and sum of squares of each cluster in order to compute the standard deviation of points belonging to this cluster. The criterion for further merges can be determined by the gain in terms of cluster variance (i.e. lower value) after combining the data points in one cluster. The variance of merging the two clusters can still be computed using the sum and sum of squares of individual clusters.",
+            "cite_spans": [
+                {
+                    "start": 168,
+                    "end": 171,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1025,
+                    "end": 1029,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Adaptive Number of Clusters at Each Node"
+        },
+        {
+            "text": "We proceed with evaluating the performance of proposed clustering algorithm by comparing it with the state-of-the-art P2P k -means algorithms. We have implemented the competitor algorithms according to implementation provided by the original authors using C++. For each method we have used their default settings for the parameters as introduced by each algorithm. To evaluate the clustering accuracy, we have used the F1 score measure that is computed as harmonic mean of precision and recall. Precision reflects mixing of different groundtruth clusters into the extracted ones. Moreover, recall reflects the goodness of grouping nodes that belong to the same ground-truth cluster.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "We use the name DKM as an identifier of our P2P k -means clustering algorithm. The first method we use for comparison is cent that represents a centralized version of k -means algorithm. Then, we have fedps that is implemeted as a distributed version of k -means using FL paradigm, such that there is a dedicated centralized node responsible for model aggregation for other nodes in the system. The third method is agml, a dicentralized version of P2P k -means that allows nodes to exchage summaries representing their local data, then apply clustering using generated summaries [5] . Also, we implemented gdc as a P2P k -means algothim that that allows nodes to generate and exchange a global set of artificial points to act as a proxy for the entire dataset [16] . Finally, we use golf that is a P2P k -means implemented using gossip protocol [2] .",
+            "cite_spans": [
+                {
+                    "start": 579,
+                    "end": 582,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 760,
+                    "end": 764,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 845,
+                    "end": 848,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "K -Means Clustering Algorithms"
+        },
+        {
+            "text": "We have performed the comparison using some real-world as well as synthetic benchmark datasets available from UCI Machine Learning 1 and Fundamental clustering problem suite 2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "We use Daily and Sports Activities as well as PAMAP2 datasets. These two datasets comprise motion sensor data of some daily and sports activities each performed by different persons in their own style. Our objective is to cluster these activities into 3 categories: 1) low intense activities such as sitting and standing, 2) moderate activities such as walking or running on a treadmill, and 3) intense activities such as rowing and cycling. The first dataset contains 9,120 data points, while the second one contains 27,582 data points. We used 2D representation of the data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Datasets:"
+        },
+        {
+            "text": "Synthetic Datasets: We use Energy Time and S1 datasets that are generating as Gaussian clusters. The first dataset contains 4,096 data points into 2 Gaussian clusters. The second dataset has 5,000 data points clustered into 15 Gaussian clusters. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Real-World Datasets:"
+        },
+        {
+            "text": "For the following experiments, we create a P2P network with 100 nodes. Each node has its own local data repository and can communicate with any random subset of peers in the network. For IID test cases, we evenly distribute the training sets among the peers. Also, we distribute the data in non-IID manner, such that allow one third of the nodes to obtain 50% of the data points per each cluster, whereas the remaining data points are distributed randomly among the remaining nodes. We also create some highly unbalanced distribution, in which one third of the nodes in the network have missing classes among their allocated data points. Additionally, we create asynchronous computation scenario by assign nodes different speed to perform the exchange rounds. We split the network randomly in three parts, the first part remains idle, the second part performs only one exchange per computation round, while the last set are actively participating by performing up to three exchanges in one round. Figure 1 shows the evaluation of different P2P methods using the first dataset. As show, we report the accuracy in different use-cases: first (a) when we have IID data distribution and synchronous computation when all nodes have the same exchange pace. Then (b) when data becomes non-IID distributed. In (c) and (d) cases, we report the accuracy in case of asynchronous computations when data is distributed in IID and non-IID manner. The results confirm that general P2P methods work when data is uniformly distributed and nodes update their centroids with the same frequencies. Evaluation using PAMAP2, EnergyTime, and S1 datasets in the cases of asynchronous computations. Figure 2 reports the results of the remaining datasets in asynchronous computation scenarios. Results using PAMAP2, EnergyTime, and S1 confirm that our algorithm (DKM) is the only method capable of achieving accuracy comparable to the centralized version when we explore the expected real-world case scenarios of having non-IID data and asynchronous computations, while other methods fail to achieve acceptable accuracy.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 997,
+                    "end": 1005,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1673,
+                    "end": 1681,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Skewed Data and Asynchronous Computations"
+        },
+        {
+            "text": "This paper presents a novel decentralized as well as adaptive k -means clustering algorithm that is highly beneficial for dynamic and fully distributed environments. Our main contribution is to provide a decentralized k -means method for skewed data distribution and asynchronous computations in P2P networks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "We integrate HyperLogLog counters with our k -means algorithm to efficiently handle data skewness in such dynamic execution environment. Furthermore, our clustering algorithm allows nodes to individually determine the number of clusters that fits their local data. Our experimental evaluation confirms the ability of our algorithm to adapt to difficult scenarios in which existing P2P k -means methods fail to generate acceptable results.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Distributed k-means and k-median clustering on general topologies",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Balcan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ehrlich",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1995--2003",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Lightning fast asynchronous distributed kmeans clustering",
+            "authors": [
+                {
+                    "first": "\u00c1",
+                    "middle": [],
+                    "last": "Berta",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Heged\u0171s",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Orm\u00e1ndi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "On the resemblance and containment of documents",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Broder",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Proceedings of Compression and Complexity of SEQUENCES 1997 (Cat. No. 97TB100171)",
+            "volume": "",
+            "issn": "",
+            "pages": "21--29",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Clustering large graphs via the singular value decomposition",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Drineas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Frieze",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kannan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vempala",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vinay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Mach. Learn",
+            "volume": "56",
+            "issn": "1-3",
+            "pages": "9--33",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Decentralized k-means using randomized gossip protocols for clustering large datasets",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Fellus",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Picard",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-H",
+                    "middle": [],
+                    "last": "Gosselin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "2013 IEEE 13th International Conference on Data Mining Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "599--606",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "HyperLogLog: the analysis of a near-optimal cardinality estimation algorithm",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Flajolet",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u00c9",
+                    "middle": [],
+                    "last": "Fusy",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Gandouet",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Meunier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Discrete Mathematics and Theoretical Computer Science",
+            "volume": "",
+            "issn": "",
+            "pages": "137--156",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Distributed data clustering can be efficient and exact",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Forman",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "SIGKDD Explor",
+            "volume": "2",
+            "issn": "2",
+            "pages": "34--38",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Gossip learning: off the beaten path",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Giaretta",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u0160",
+                    "middle": [],
+                    "last": "Girdzijauskas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE International Conference on Big Data",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Hyperloglog in practice: algorithmic engineering of a state of the art cardinality estimation algorithm",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Heule",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nunkesser",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hall",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proceedings of the 16th International Conference on Extending Database Technology",
+            "volume": "",
+            "issn": "",
+            "pages": "683--692",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Towards effective and efficient distributed clustering",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Januzaj",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-P",
+                    "middle": [],
+                    "last": "Kriegel",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pfeifle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Workshop on Clustering Large Data Sets (ICDM 2003",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Distributed clustering using collective principal component analysis",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kargupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sivakumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Knowl. Inf. Syst",
+            "volume": "3",
+            "issn": "4",
+            "pages": "422--448",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Short: gossip-based sampling in social overlays",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Khelghatdoust",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Girdzijauskas",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "NETYS 2014",
+            "volume": "8593",
+            "issn": "",
+            "pages": "335--340",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Federated optimization: distributed machine learning for on-device intelligence",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kone\u010dn\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Mcmahan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ramage",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Richt\u00e1rik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1610.02527"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Least squares quantization in PCM",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lloyd",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "IEEE Trans. Inf. Theory",
+            "volume": "28",
+            "issn": "2",
+            "pages": "129--137",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Some methods for classification and analysis of multivariate observations",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Macqueen",
+                    "suffix": ""
+                }
+            ],
+            "year": 1967,
+            "venue": "Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability",
+            "volume": "1",
+            "issn": "",
+            "pages": "281--297",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "GDCluster: a general decentralized clustering algorithm",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Mashayekhi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Habibi",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Khalafbeigi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Voulgaris",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Van Steen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "27",
+            "issn": "7",
+            "pages": "1892--1905",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Learning pattern classification tasks with imbalanced data sets",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bouzerdoum",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Phung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Pattern Recognition. IntechOpen",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Gossip learning with linear models on fully distributed data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Orm\u00e1ndi",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Heged\u0171s",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jelasity",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Concurrency Comput. Pract. Experience",
+            "volume": "25",
+            "issn": "4",
+            "pages": "556--571",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Mining of Massive Datasets",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rajaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "David Ullman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "DIVa: decentralized identity validation for social networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Soliman",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bahri",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Carminati",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ferrari",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Girdzijauskas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "IEEE/ACM International Conference on Advances in Social Networks Analysis and Mining",
+            "authors": [],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "383--391",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "CADIVa: cooperative and adaptive decentralized identity validation model for social networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Soliman",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bahri",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Girdzijauskas",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Carminati",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ferrari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Soc. Network Anal. Min",
+            "volume": "6",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "DLSAS: distributed large-scale anti-spam framework for decentralized online social networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Soliman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Girdzijauskas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE 2nd International Conference on Collaboration and Internet Computing (CIC)",
+            "volume": "",
+            "issn": "",
+            "pages": "363--372",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Unsupervised distributed clustering",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Tasoulis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Vrahatis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Parallel and Distributed Computing and Networks",
+            "volume": "",
+            "issn": "",
+            "pages": "347--351",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Evaluation using daily and sports activities dataset.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2. Evaluation using PAMAP2, EnergyTime, and S1 datasets in the cases of asynchronous computations.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. This research has been conducted within the \"BIDAF: A Big Data Analytics Framework for a Smart Society\" (http://bidaf.sics.se/) project funded by the Swedish Knowledge Foundation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}
