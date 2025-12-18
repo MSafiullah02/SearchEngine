@@ -1,0 +1,3001 @@
+{
+    "paper_id": "7de05a701b454474787de52f876f6d17d4ca2afe",
+    "metadata": {
+        "title": "Relational Modeling for Robust and Efficient Pulmonary Lobe Segmentation in CT Scans",
+        "authors": [
+            {
+                "first": "Weiyi",
+                "middle": [],
+                "last": "Xie",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Colin",
+                "middle": [],
+                "last": "Jacobs",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Jean-Paul",
+                "middle": [],
+                "last": "Charbonnier",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Bram",
+                "middle": [],
+                "last": "Van Ginneken",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Pulmonary lobe segmentation in computed tomography scans is essential for regional assessment of pulmonary diseases. Recent works based on convolution neural networks have achieved good performance for this task. However, they are still limited in capturing structured relationships due to the nature of convolution. The shape of the pulmonary lobes affect each other and their borders relate to the appearance of other structures, such as vessels, airways, and the pleural wall. We argue that such structural relationships play a critical role in the accurate delineation of pulmonary lobes when the lungs are affected by diseases such as COVID-19 or COPD.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "In this paper, we propose a relational approach (RTSU-Net) that leverages structured relationships by introducing a novel non-local neural network module. The proposed module learns both visual and geometric relationships among all convolution features to produce self-attention weights.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "With a limited amount of training data available from COVID-19 subjects, we initially train and validate RTSU-Net on a cohort of 5000 subjects from the COPDGene study (4000 for training and 1000 for evaluation). Using models pre-trained on COPDGene, we apply transfer learning to retrain and evaluate RTSU-Net on 470 COVID-19 suspects (370 for retraining and 100 for evaluation). Experimental results show that RTSU-Net outperforms three baselines and performs robustly on cases with severe lung infection due to COVID-19.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "and lobe-wise assessment of pulmonary disorders is of clinical importance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Computed Tomography (CT) is the best way to image the lungs in vivo. COVID-19, the pandemic disease caused by the SARS-Cov2 virus is straining healthcare systems worldwide. A CT severity score can summarize the severity of the disease where each lobe is scored visually by radiologists on a scale from 0 to 5. The summation of these scores quantifies lung involvement on a scale from 0 to 25 [1] . The score provides a tool to assess disease severity and progression, which further benefits clinical decision making. To automate the CT severity score, lobe segmentation in COVID-19 scans is needed. CT scans of COVID-19 patients are affected by extensive patchy ground-glass region and consolidations and may even show lobes or complete lungs filled with pleural fluid. Automated lobe segmentation is highly challenging in scans with such extensive pathological changes.",
+            "cite_spans": [
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "[1]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Many automatic lobe segmentation approaches focused on finding visible fissures, assuming that the detected fissures equivalent to find the lobe segmentation by interpolation. Both early fissure enhancement filters [2] [3] [4] [5] and more robust supervised learning methods [6] relied heavily on hand-crafted features, thus hard to generalize. Moreover, because incomplete fissures are very common [7] , interpolation of boundaries based on visible fissures may not suffice to find the lobe borders reliably. Instead of finding fissures alone, anatomical relations between lobes and nearby airways, vessels, and the lung borders were exploited to account for incomplete fissures and damaged lung due to pathology [8] [9] [10] [11] .",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 218,
+                    "text": "[2]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 219,
+                    "end": 222,
+                    "text": "[3]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 223,
+                    "end": 226,
+                    "text": "[4]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 227,
+                    "end": 230,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 275,
+                    "end": 278,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 399,
+                    "end": 402,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 714,
+                    "end": 717,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 718,
+                    "end": 721,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 722,
+                    "end": 726,
+                    "text": "[10]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 727,
+                    "end": 731,
+                    "text": "[11]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Recent advances in convolution neural networks (CNN) provide a data-driven approach for more robust feature extraction in an end-to-end optimization process. Many works have successfully adopted CNNs in their lobe segmentation framework [12] [13] [14] [15] . In [12] , deep supervision was extensively used in the up-sampling path based on their V-Net design [16] along with the multi-tasking that segments lobe and lobe borders at the same time. [13] uses a relatively deeper architecture based on Dense-Net [17] to ensure a sufficient receptive field of extracted features. Global Geometric features were explored [14] as additional input channels to a convolution layer.",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 242,
+                    "end": 246,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 247,
+                    "end": 251,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 252,
+                    "end": 256,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 262,
+                    "end": 266,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 359,
+                    "end": 363,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 447,
+                    "end": 451,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 509,
+                    "end": 513,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 616,
+                    "end": 620,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "The use of multi-resolution input in a two-stage cascading CNNs to extract both global and local features has been proposed for lobe segmentation in CT by Gerard et al. [15] . Their first stage network was trained on low-resolution images to learn global features from the entire scan. The global features were added to the second stage network to provide contextual guidance, while the second stage network was designed to focus on capturing local details at a high resolution. Their framework has also been successfully applied for pulmonary fissure and lung segmentation tasks [18] , [19] . In this work, we also employ a two-stage approach, that is trained in an end-to-end fashion.",
+            "cite_spans": [
+                {
+                    "start": 169,
+                    "end": 173,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 580,
+                    "end": 584,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Although existing CNN approaches have achieved superior performance in lobe segmentation comparing to the feature engineering approaches, they may still be inefficient and limited in relational reasoning, such as capturing the interlobar relationships and other long-range relationships between lobes and other structures in the CT image. CNN approaches assumed that such relationships between objects and object parts in semantic segmentation could be implicitly learned directly from the CNN training process.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "However, as [20] , [21] have pointed out, the hierarchical feature representation computed using a sequence of stacked convolutional layers can be highly inefficient in inferring relations between convolution features. As higher-level features in CNNs commonly represent objects and object parts, instead of aggregating these features based on their semantic interactions, convolutional filters act as templates, where features are aggregated depending on the filter weights. This may cause inefficiency in capturing relations between features because filters weights are not invariant to permutations of features. In addition, convolution filters are limited to capture long-range relations due to the use of local kernels.",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 16,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 19,
+                    "end": 23,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "CT findings in patients of a COVID-19 infection [22] , [23] often include multiple regions with focal pathological changes, ranging from ground-glass to consolidations to organizing pneumonia. These changes occur more often in the lower lobes. Here the lobar boundaries can be deformed substantially. In these cases, information from other regions in the CT image may be crucial for locating and delineating a target lobe. Therefore, in this paper, we introduce a novel nonlocal neural network module to model the global structured relationships for pulmonary lobe segmentation. The proposed non-local neural network module computes a feature response at one location using both appearance and geometric features from all other positions at the scan-level. We call this approach a Relational two-stage U-net, or RTSU-Net, for short.",
+            "cite_spans": [
+                {
+                    "start": 48,
+                    "end": 52,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 55,
+                    "end": 59,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "The main contributions of this paper are as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "\u2022 We propose a novel non-local neural network module that can capture the global structured relationships between object and object parts in terms of their visual and geometric features for the lobe segmentation. The proposed RTSU-Net is robust and produces accurate lobe segmentations even for scans with severe pathology. \u2022 We used a multi-resolution framework similar to [15] , [18] , [19] , however, we train both stages in an end-to-end fashion. This gives the RTSU-Net the ability to capture the global object relationships at the full scan level from the first stage network while extracting local details at the second stage simultaneously in the same optimization process. \u2022 RTSU-Net is fast and memory-efficient, considering it consists of a cascade of two CNNs. RTSU-Net requires only a standard GPU with 12GB memory to train and takes around 30 seconds to produce lung and lobe segmentations for a full thoracic CT scan at test time. The time consumption includes the CNN inference time, preprocessing, and post-processing, excluding the time spent on IO.",
+            "cite_spans": [
+                {
+                    "start": 374,
+                    "end": 378,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 381,
+                    "end": 385,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 388,
+                    "end": 392,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "Although convolutional neural networks (CNNs) have achieved superior performance in a wide range of medical imaging segmentation tasks [16] , [24] , they are still limited in modeling object relationships, especially the long-range interactions. Several techniques have been proposed to account for the missing capability of relational reasoning in CNNs.",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 139,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 142,
+                    "end": 146,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "Poudel et al. [25] introduced recurrent neural networks to aggregate features across the axial slices for cardiac segmentation in multi-slice MRI. A known issue with recurrent network networks is that they suffer from vanishing gradients [26] and therefore are hard to train. The object relations could also be explicitly defined using Graph Models such as dense conditional random fields (CRF) [27] . However, due to their heavy computational demands, dense CRFs are often only used as the post-processing steps and optimized separately on a heuristic basis, making it hard for this approach to scale well.",
+            "cite_spans": [
+                {
+                    "start": 14,
+                    "end": 18,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 238,
+                    "end": 242,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 395,
+                    "end": 399,
+                    "text": "[27]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "Attention is widely used for various tasks such as machine translation, image and video classification, object detection, and semantic segmentation. Self-attention methods [28] , [29] capture contextual dependencies between words by computing the embedding at one word by a weighted summation of embeddings at all words in sentences. As one of the self-attention applications, a non-local neural network was proposed for semantic segmentation [30] by computing a global self-attention map for each feature based on all the other features in an input CNN feature map. The attention weights were determined by predefined similarity measurements between pairwise features in a linear-projected subspace, as an efficient way of modeling their conceptual relationships.",
+            "cite_spans": [
+                {
+                    "start": 172,
+                    "end": 176,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "There are several recent extensions of this non-local method in semantic segmentation. CCNet [31] was proposed to employ a simple criss-cross trick, which reduces the space and time complexity of the non-local module from O((H \u00d7 W ) \u00d7 (H \u00d7 W )) to O((H\u00d7W )\u00d7(H+W \u22121)) in two-dimensional images. Hu et al. [20] aggregated features based on both visual and geometric correspondence in a locally connected aggregation graph, thus lacking long-range relationships. A dynamical aggregation graph was proposed in [21] to capture both short and long-range relationships, but no geometric correspondence between features was used.",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 97,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 304,
+                    "end": 308,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 506,
+                    "end": 510,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "Our approach is motivated by the above works. Our selfattention module uses the criss-cross trick to collect global structured relationships between object and object parts in terms of their visual and geometric correspondence in the feature representation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "CT scans used in this study were obtained from two sources. We refer to the first set as the COPD set and the second set as the COVID-19 set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. DATA"
+        },
+        {
+            "text": "A large set of scans from subjects with COPD, ranging from mild to very severe, was obtained from the COPDGene [32] in the COPD data set. (b) gives the distribution of CO-RADS scores [1] across the training and test sets. CO-RADS score 1-6 indicates the level of suspicion for COVID-19 positive disease, ranging from very low, low, equivocal, high, very high, and confirmed positive from the reverse-transcription polymerase chain reaction (RT-PCR) tests, respectively. study [32] . This is a clinical trial with data from 21 imaging centers in the United States. In total, COPDGene enrolled 10,000 subjects. Each subject underwent both inspiration and expiration chest CT. Image reconstruction uses sub-millimeter slice thickness and in-plane resolution, with edge-enhancing and smooth algorithms. Data from COPDGene is publicly available and can be retrieved after submitting an ancillary study proposal (ANC-398 was used for this work). We randomly selected 5000 subjects and used only Phase I inspiration CT scans (one scan per subject). Subjects were randomly grouped into a training set (n = 4000) and a test set (n = 1000). Slice thickness ranged from 0.625-0.9mm and pixel spacing from 0.478-1.0mm. Most scans were performed using 200mAs a tube voltage of 120kVp and B31f and B35f reconstruction kernels. The CT protocols are detailed in [32] .",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 183,
+                    "end": 186,
+                    "text": "[1]",
+                    "ref_id": null
+                },
+                {
+                    "start": 476,
+                    "end": 480,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1346,
+                    "end": 1350,
+                    "text": "[32]",
+                    "ref_id": "BIBREF32"
+                }
+            ],
+            "ref_spans": [],
+            "section": "II. DATA"
+        },
+        {
+            "text": "The other data set was obtained from Radboud University Medical Center, Nijmegen, the Netherlands. On March 18, 2020, this institution implemented a low-dose non-contrast CT protocol and all patients who arrived at the hospital with suspicion of COVID-19 disease and inpatients for whom COVID-19 was considered a possibility underwent CT. In accordance with local guidelines, we only included scans from subjects who did not object to the use of their scans for research purposes and we worked with anonymized data. Permission for research use was obtained from our review board (file number CMO 2016-3045, Project 20027). It is the intention to share these scans via a national Dutch COVID-19 database.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. DATA"
+        },
+        {
+            "text": "We randomly selected 470 subjects and used one scan per subject by selecting the CT scan of the smallest slice thickness in a study. Scans have a pixel spacing between 0.5mm to 0.9mm and a slice thickness of 0.5 mm. Scans were performed using X-ray tube current ranging from 10mA to 493mA and a tube voltage of either 100 or 120kVp. Convolution kernels in reconstruction were lung kernels (FC83, FC86). 370 of these scans were used for training and the other 100 for testing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. DATA"
+        },
+        {
+            "text": "See Table I for the distribution of GOLD stages in the training and the test set for the COPD set and the distribution of CO-RADS scores [1] from the COVID-19 set. The CO-RADS scores defined the level of suspicion COVID-19 and were extracted from the radiology reports. Complete individual results of reverse-transcription polymerase chain reaction (RT-PCR) tests were not available at the time of anonymization of the data, but it is known that the majority of the test cases were positive for COVID-19 (these test cases overlap with the data used in [1] ).",
+            "cite_spans": [
+                {
+                    "start": 137,
+                    "end": 140,
+                    "text": "[1]",
+                    "ref_id": null
+                },
+                {
+                    "start": 552,
+                    "end": 555,
+                    "text": "[1]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 4,
+                    "end": 11,
+                    "text": "Table I",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "II. DATA"
+        },
+        {
+            "text": "From the two training data sets, we selected 100 scans as the validation set for the COPD set, and we selected 50 scans for validation from the COVID-19 set for retraining all the models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. DATA"
+        },
+        {
+            "text": "Lobe segmentation references were obtained from Thirona, a company that specializes in chest CT analysis. First, automated segmentation of the left and right lung was generated using a commercialized software (LungQ, Thirona, Nijmegen, NL), followed by manual refinement if needed. Second, automatic algorithms [6] , [9] , [33] were used to extract the lobar boundary with possible interpolation for incomplete fissures using information from nearby airways and vessels. Next, the automatically found lobar boundaries were manually corrected separately for the left and the right lung, by trained analysts with at least one year experience in annotating pulmonary structures on CT. Analysts repeatedly adjusted the control points on the auto-generated lobar boundaries until the updated lobar boundaries were satisfactory. All analysts have a medical background and have received extensive training in lung anatomy and segmenting lobes in CT imaging. In case of doubt, radiologists could be consulted.",
+            "cite_spans": [
+                {
+                    "start": 311,
+                    "end": 314,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 317,
+                    "end": 320,
+                    "text": "[9]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 323,
+                    "end": 327,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Reference Standard"
+        },
+        {
+            "text": "We define the lobe segmentation problem as a voxel-wise classification problem. Given a scan I, the goal is to predict the voxel labell i for every spatial location i, wherel i \u2208 the label set L = {0, 1, 2, 3, 4, 5} representing the background, left upper, left lower, right upper, right lower, and the right middle lobe, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "III. METHODS"
+        },
+        {
+            "text": "In this paper, we use a multi-resolution approach with two cascaded CNNs to capture both global context and local details for the lobe segmentation, as proposed in [15] . Our framework is depicted in Fig. 1 .",
+            "cite_spans": [
+                {
+                    "start": 164,
+                    "end": 168,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 200,
+                    "end": 206,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "III. METHODS"
+        },
+        {
+            "text": "Besides the use of a multi-resolution framework, we introduce a novel non-local module to capture structured relationships and our efficient network design allows end-to-end training of our multi-resolution framework. For each CNN, we place our proposed non-local module to aggregate relational information for the features at the coarsest resolution as these features commonly represent high-level semantics such as objects and objects parts [34] . The proposed non-local module computes visual and geometric correspondence between these features, naturally modeling relationships between objects and object parts. The use of geometric information is inspired by [14] . Also, the proposed non-local module can enlarge the receptive fields of these features because the computation of one non-local response involves all features in the feature map. We refer the CNN with the proposed non-local module at each stage to as relational U-Net (RU-Net), and the details are explained later in this section.",
+            "cite_spans": [
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 664,
+                    "end": 668,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "III. METHODS"
+        },
+        {
+            "text": "The first RU-Net reads an input scan at a down-sampled resolution to coarsely segment the lobes and lobe borders. These coarse outputs are subsequently upsampled to a higher resolution by trilinear interpolation. The high-resolution input scan and the output of the first RU-Net are concatenated and cropped into 3D patches as the input to train the second RU-Net to precisely segment lobes and lobe borders. The cascade of two relational U-Nets is trained end-to-end, allowing both local details and scan-level context to be learned in the same optimization process. Furthermore, we use the errors found in the predictions of the first RU-Net to optimally sample 3D patches for training the second stage, which encourages the second RU-Net to focus on the regions where the first RU-Net fails. This technique can be seen as a form of online hard example mining. [35] .",
+            "cite_spans": [
+                {
+                    "start": 863,
+                    "end": 867,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Cascading relational U-Nets"
+        },
+        {
+            "text": "The relational U-Net architecture (RU-Net) is a 3D U-Net architecture [24] with a smaller number of convolution filters and an additional non-local module. The RU-Net has three down-sampling layers in the encoding path, and each layer consists of two convolutions and a max-pooling operation. Following the down-sampling path, two more convolutions are used to double the number of convolution filters. We then place the non-local module before up-sampling. In the up-sampling path, three layers are used to reconstruct the resolution, and each contains one tri-linear interpolation, followed by two convolutions to reduce the interpolation artifacts. In the end, features are reshaped via a single 1x1x1 convolution in two parallel output branches, and each corresponds to a different learning objective; one produces 6-channel softmax probabilities for segmenting the background and the five lobes. The other provides a single channel probability map by sigmoid function for predicting the lobe border. Features from 3x3x3 convolutions are batch normalized and activated via a rectifier linear unit (ReLU). No dropout is used.",
+            "cite_spans": [
+                {
+                    "start": 70,
+                    "end": 74,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Relational U-Net"
+        },
+        {
+            "text": "The first RU-Net uses padded convolutions, whereas the second uses valid convolutions. The details regarding RU-Net network architecture on both stages are provided in Table II , where the names of the down-sampling layers are prefixed with 'Down', and the name of up-sampling layers are prefixed with 'Up'. The numbers listed are based on the execution order.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 168,
+                    "end": 176,
+                    "text": "Table II",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "B. Relational U-Net"
+        },
+        {
+            "text": "The original non-local neural network [30] for semantic segmentation computes the feature response at a position as ",
+            "cite_spans": [
+                {
+                    "start": 38,
+                    "end": 42,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "where y i at location i is computed as a weighted sum using the correspondence between the feature x i at the location i and all features indexed by j in the input feature map x. The feature correspondence between feature x i and x j is also called the self-attention in this context, computed by the pairwise function f , which is used to weigh the feature embedding g(x j ) before normalizing by \u03b6(x). For simplicity, g is set to a linear projection: g(x j ) = W g x j , and the pairwise function f can be the embedded Gaussian function using linear embeddings defined as f (x i , x j ) = e (W \u03b8 xi) T (W \u03c6 xj ) . We set the normalizing factor as \u03b6(x) = \u2200j f (x i , x j ). Then y becomes the softmax computation along the dimension j written, in matrix multiplication form, as y = sof tmax(x T W T \u03b8 W \u03c6 x)g(x). To make the input and output of the non-local module the same size, the y i is reshaped to have the same dimensions as the input x i by applying the linear reconstruction function r, r(y i ) = W r y i . Therefore, the non-local response at location j can be written as z i = W r y i + x i .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "The feature response z i automatically achieves a global receptive field with respect to the input. The computed selfattention map f (x i , x j ) captures the feature correlations, as relevant features would have higher attention responses.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "However, the original non-local module disregards the geometric correspondence between features, while [14] shows that introducing geometric coordinates improves the performance on lobe segmentation. Hence, we propose to compute nonlocal responses with a geometric term. Here, we denote \u00b5 i , \u00b5 j as geometric coordinates for the position i and j. \u00b5 i is the center coordinate of the receptive field of the feature at position i with respect to the original input image and rescaled to [0 \u223c 1] range by the size of the original input image. We note that if the feature map is produced from a cropped input, the center coordinate of the receptive field is then shifted according to the 3D patch offset to the original input image. The rescaled geometric coordinates are then shifted by 0.5 to have zero mean. \u03c4 (\u00b5 i , \u00b5 j ) is the pairwise function for measuring correlations. Then, the non-local response with geometric terms is defined as:",
+            "cite_spans": [
+                {
+                    "start": 103,
+                    "end": 107,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "A similar reparameterization can be applied using the softmax function row-wise under linear projections to reformulate Equation 2 into matrix multiplications:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "is parameterized as a dot product in a subspace projected using the linear transformation matrix W \u03b8 and W \u03c6 . Similarly, W \u03c9 and W \u03c1 are linear transformations that are used to project the geometric features \u00b5 into a subspace where their correspondence is measured by the pairwise kernel function \u03c4 , \u03c4 (\u00b5 i , \u00b5 j ) = max(0, \u00b5 T W T \u03c9 W \u03c1 \u00b5). Such correspondence is then trimmed at 0, to restrict geometric relations within a certain threshold.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "The Equation 3 however, has high computational cost because the self-attention map requires computing x T W T \u03b8 W \u03c6 x and \u00b5 T W T \u03c9 W \u03c1 \u00b5 on all pairs of locations. Each term has complexity in time and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "where C is the dimension of linear projected subspace and W, H, D denotes the width, height, and depth of a 3D feature map. To reduce computational complexity, we adopt the crisscross trick [31] , which has a time and space complexity of",
+            "cite_spans": [
+                {
+                    "start": 190,
+                    "end": 194,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "). In CCNet, Equation 2 is modified to:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "where \u2126j indicates the neighboring voxels with respect to j under criss-cross connectivity, such sparse connectivity requires having three recurrent criss-cross modules to cover all spatial locations in computation. Given the input feature x i , the non-local response z t i for a feature location i at each t-th recurrent criss-cross module can be written as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "At each recurrent step, the non-local response z t i is used as the input feature for computing the non-local response for the next recurrent step. For the size of scans used in this work, full global context can be achieved with three recurrent steps for a 3D input feature map. Therefore, we set T = 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. The Non-Local module"
+        },
+        {
+            "text": "As shown in Fig. 1 using the red dashed lines, we compute the mean square errors (MSE) between the lobe-wise softmax probabilities of the first RU-Net and the lobe reference standard. We then go through all sliding window 3D patches, and find K patches with the highest integral of MSE and use them for training the second RU-Net.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 12,
+                    "end": 18,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "D. Online Hard Example Mining"
+        },
+        {
+            "text": "K is set to 1.0 such that all patches are used to train at the beginning and continuously reduced until it reaches a coverage of only approximately 20% of the scan volume at the end of the training process. The proposed online hard example mining does not introduce extra forward and backward passes on the network, therefore the additional computational cost is trivial.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Online Hard Example Mining"
+        },
+        {
+            "text": "There are two learning objectives for each RU-Net: lobe segmentation and lobe border segmentation, inspired by [12] , [15] . Therefore, the final loss function is a summation of four terms, and each is the generalized Dice loss [36] . The lobe border reference is pre-computed from the lobe reference by detecting object boundaries.",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 118,
+                    "end": 122,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 228,
+                    "end": 232,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [],
+            "section": "E. Learning Objectives"
+        },
+        {
+            "text": "Let r be the segmentation reference with n-th voxel values r ln for the class label l andr ln be the predicted probabilistic map for the label l over n-th image voxel, then the generalized Dice loss is defined as: GLD = 1 \u2212 2 l w l n r lnrln l w l n r ln +r ln , with w l = 1/( N l n r ln ) 2 , where N l the in total number of voxels for the class label l in the segmentation reference. w l is to re-balance learning against the variance in object volumes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Learning Objectives"
+        },
+        {
+            "text": "As the COVID-19 pandemic emerged only recently, it was not possible to obtain a large amount of CT scans with annotations of COVID-19 patients. Therefore, we used a transfer learning approach in our experiments. For training of the models on the COVID-19 data, the models were initialized with the trained weights from our models developed on the COPD data set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "IV. EXPERIMENTS"
+        },
+        {
+            "text": "Training, validation, and testing of each experiment were carried out on a machine with a NVidia TitanX GPU with 12 GB memory. The methods were implemented using Python 3.6, Pytorch 1.1.0 library [37] . The trainable parameters of each method were initialized using Kaiming He initialization when training from scratch [38] and were optimized using stochastic gradient descent with a momentum of 0.9, and the initial learning rate set to 10e-6. The initial models were trained using CT scans from the COPD data set. Therefore, these models may not be familiar with the visual patterns in COVID-19 scans. For efficiently training on new visual patterns, all models were retrained using a combined loss between the generalized Dice loss (as we used to train the initial models) and top-K cross-entropy loss where K is set to 30% of all voxels in the input. The top-K cross-entropy loss was implemented simply as the voxel-wise cross-entropy loss but selecting only K voxels with the largest cross-entropy to back-propagate.",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 200,
+                    "text": "[37]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 319,
+                    "end": 323,
+                    "text": "[38]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Training details"
+        },
+        {
+            "text": "We compared our approach with three baselines, the wellknown 3D U-Net and two recently published methods for lobe segmentation in CT. . 1) 3D U-Net: We implemented 3D U-Net following the original paper [24] . The input is a mini-batch of two 132 \u00d7 132 \u00d7 132 3D patches randomly cropped from the preprocessed scan (refer to IV-D). As a result of using valid convolutions, the output of this network is 44\u00d744\u00d744 voxels. During test time, the softmax probabilities of all 3D patches are tiled together by sliding over the entire scan without overlaps to build up a scan-level probability map. The final prediction is then made by assigning each voxel to the label with the highest probability.",
+            "cite_spans": [
+                {
+                    "start": 202,
+                    "end": 206,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Comparison with previous work"
+        },
+        {
+            "text": "2) FRV-Net and PDV-Net: We compare the proposed method with two existing end-to-end lobe segmentation methods. FRV-Net [12] follows the design of the V-Net [16] and extensively uses the idea of deep supervision at almost all scales in the up-sampling pathways. PDV-Net [13] uses dense connections, following the DenseNet [17] , to design their network with a considerably large receptive field to capture contextual information. PDV-Net takes the entire CT scan as the input, thus potentially capable of learning the global information. Note that these two works have specific preprocessing and post-processing strategies. The input scan in FRV-Net is resized into a fixed size of 128 \u00d7 256 \u00d7 256 and intensities are clipped into the range [\u22121000 \u223c 400] HU. In PDV-Net, the input scan is resized into 128 \u00d7 512 \u00d7 512. We implemented both architectures following the paper at our best efforts.",
+            "cite_spans": [
+                {
+                    "start": 119,
+                    "end": 123,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 269,
+                    "end": 273,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 321,
+                    "end": 325,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Comparison with previous work"
+        },
+        {
+            "text": "To assess the contribution of the proposed non-local module in RTSU-Net, we performed several ablation studies. During these experiments, the models were trained from scratch using the COPD training set and retrained on COVID-19 and performance is measured on the COPD test set of 1000 cases and 100 COVID-19 cases. The performance of our proposed model was assessed without the geometric features in the non-local module, and without the non-local module in the relational two stage U-Net framework.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Ablation studies"
+        },
+        {
+            "text": "All training and test scans were standardized by clamping intensity values to the [\u22121200 \u223c 400] range before re-scaling into [0 \u223c 1]. Then all scans were down-sampled using trilinear interpolation to have a 256 \u00d7 256 in-plane resolution while zspacing is adjusted to make the scan isotropic.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Pre-processing and post-processing"
+        },
+        {
+            "text": "The input size of the second CNN for our proposed method consisted of two 116 \u00d7 116 \u00d7 116 sized 3D patches. The pre-processed scan was down-sampled by a factor of 2 using trilinear interpolation as the input for the first stage (padding with zeros are needed if the size on z axial is not divisible by 16). The softmax probability outputs of all 3D patches at the second stage were tiled together by sliding over the entire scan without overlaps to produce a scan-level probability map, which is used to generate the final prediction by assigning each voxel to the label with the highest probability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Pre-processing and post-processing"
+        },
+        {
+            "text": "As a post-processing step, the predictions were then upsampled by nearest neighbor interpolation to match the original resolution of the scans. All evaluations are performed by using predictions and reference segmentations at the original resolution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Pre-processing and post-processing"
+        },
+        {
+            "text": "The Intersection over Union (IOU), and average symmetric surface distance (ASSD) between predictions and segmentation references were used for quantitative evaluation of segmentation performance. The IOU between two binary masks X, Y is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Evaluation Metrics"
+        },
+        {
+            "text": "Denote two surfaces as S X ,S Y from the masks X, Y , and coordinate indices on the surface as x,y. The average symmetric surface distance (ASSD) is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Evaluation Metrics"
+        },
+        {
+            "text": "with d(\u00b7) being the Euclidean distance, and |S X | and |S Y | the surface area for S X and S Y , respectively. Besides the lobe-based measurements, we also evaluated the performance of all models in the lung segmentation task by taking the union of all lobes as the lung. Furthermore, we add a metric to measure fissure alignment by computing the average symmetric surface distance in the interlobar borders between the predictions and the segmentation references.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Evaluation Metrics"
+        },
+        {
+            "text": "The overall performance of the method was evaluated by computing the average of the per-lobe metrics. A Wilcoxon signed-rank test was employed to assess whether the performance difference was statistically significant (p < 0.01 with Bonferroni correction).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Evaluation Metrics"
+        },
+        {
+            "text": "Also, we computed the number of Multi-Adds operations (MAC) and the number of parameters to assess computational efficiency. We also provide a comparison with independent human readers on a subset of 100 subjects from the COPD data only. Table III reports the quantitative results on both data sets. The proposed method significantly outperformed the baseline methods and two published end-to-end lobe segmentation methods on both data set (p < 0.01 with Bonferroni correction) consistently in all measurements. Our model also exhibits more robust performance, considering the smaller standard deviations.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 238,
+                    "end": 247,
+                    "text": "Table III",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "E. Evaluation Metrics"
+        },
+        {
+            "text": "Box and whisker plots are provided in Fig. 2 . These plots show that for both the COVID-19 and the COPD cases, the right middle lobe is the most difficult to segment, which is not surprising given its known high variance in shape and the fact that the minor fissure is often incomplete or even absent. RTSU-Net clearly outperforms the other methods on both data sets. It can be also observed that there are less outliers with low IOU, indicating RTSU-Net is more robust.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 38,
+                    "end": 44,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "A. Quantitative results"
+        },
+        {
+            "text": "In terms of computational efficiency, the proposed method consumes even less memory than the baseline approach, with only a slight increase in the Multi-Adds operations (MAC). Hence, we conclude that the proposed method outperforms the other methods without introducing a substantial computational overhead. The proposed method processes a single scan at test time in 30 seconds on average, of which around 20 seconds are spent on model inference and the remainder on pre-and post-processing. Table IV shows the results of the ablation study, where we compare the two-stage cascading framework without non-local modules, the framework with non-local modules without the geometric term, and the RTSU-Net. The results on both the COPD and COVID-19 data demonstrate the added value of the non-local module and show that the introduction of the geometric features increases the performance over the nonlocal module alone. This effect is most pronounced for the surface distance metric.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 493,
+                    "end": 501,
+                    "text": "Table IV",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "A. Quantitative results"
+        },
+        {
+            "text": "In theory, the proposed non-local module can achieve a global receptive field in an efficient way instead of using aggressively down-sampled input or relying on much deeper CNN architectures. To measure the effective receptive field (ERF) size before and after the non-local operation, we computed the gradients \u2202F \u2202I i of the feature at the location i in the feature map F to the input image I. We run a forward pass for the first RU-Net on a CT scan from the COVID-19 test set. The ERF of the features at the same corresponding location before and after the non-local operation are visualized in Fig. 3 for three orthogonal slices.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 598,
+                    "end": 604,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "C. Effect of the Non-Local module"
+        },
+        {
+            "text": "(a) intra-lobe dependency (b) long-range dependency Fig. 4 : The Self-Attention weights (2nd row) from the proposed non-local module for the feature whose location is shown using the green spot in the original input scan (1st row). We use color map jet [39] for this plot. Two scans from the COVID-19 test set are shown. (a) demonstrates mostly the feature dependencies within the lobe in the clear lung. (b) indicates long-range dependencies are required when the target lobe is affected by disease.",
+            "cite_spans": [
+                {
+                    "start": 253,
+                    "end": 257,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 52,
+                    "end": 58,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "C. Effect of the Non-Local module"
+        },
+        {
+            "text": "The figure renders non-zero gradients in green and indicates the center of the ERF with a red square. The center is a mapped coordinate from the chosen feature in the feature map to the input image via up-sampling. Thus a slight shift may occur. The left image shows the ERF before the non-local operation is contained in a square due to the nature of stacked convolutions. However, the ERF after non-local on the right side shows a non-square distribution, reaching the other side of the lung. We, therefore, conclude that the non-local module can enlarge the effective receptive field dramatically.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Effect of the Non-Local module"
+        },
+        {
+            "text": "To study the structured relationships between features, we visualize the self-attention weights for the feature at location i given the feature map x and geometric features \u00b5. We run a forward pass for the first stage RU-Net on two CT scans from the COVID-19 test set. The attention weights are the i-th row vector in the self-attention matrix corresponding to f (x i , x j ) + \u03c4 (\u00b5 i , \u00b5 j ) from the equation 2. Figure V -C (a) shows the feature at the location i (green dot) mostly depends on the information within the lobe when the health lung is present. We can also clearly see the attention weights follows the lobe borders. Figure V-C (b) shows a case with multiple ground-glass lesions, where the interactions between the feature representing the region nearby the right middle lobe and features presenting other regions in the entire lung. Interestingly, we note that by introducing the geometric term in the non-local module, attention weights also correspond to the lung bounding box. Fig. 5 shows results for the 3D U-Net, PDV-Net [13] , FRV-Net [12] , and the RTSU-Net from top to bottom. For comparison, reference segmentations are provided in the bottom row. We selected three COPD (4-6 column) and three COVID-19 cases (1-3 column) with various levels of pathological and anatomical variations. We observed that all methods usually do not produce oversegmentation of the lungs. By capturing feature dependencies, we see that the proposed method generates generally smoother lobe borders and is even able to infer the approximately correct lobe shapes when the lung is filled with fluid (1st column).",
+            "cite_spans": [
+                {
+                    "start": 1045,
+                    "end": 1049,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1060,
+                    "end": 1064,
+                    "text": "[12]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 414,
+                    "end": 422,
+                    "text": "Figure V",
+                    "ref_id": null
+                },
+                {
+                    "start": 633,
+                    "end": 647,
+                    "text": "Figure V-C (b)",
+                    "ref_id": null
+                },
+                {
+                    "start": 998,
+                    "end": 1004,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "C. Effect of the Non-Local module"
+        },
+        {
+            "text": "To evaluate human performance, we asked two independent human readers (analysts) to manually segment the lobes from scratch, given segmentation of the lung. Their results are evaluated on a random set of 100 scans from the COPD test set. The human readers achieved 0.953 \u00b1 0.017 IOU and 0.501 \u00b1 0.193 ASSD (in mm) on average, while the RTSU-Net achieved 0.953 \u00b1 0.015 IOU and 0.541 \u00b1 0.231 ASSD. The human readers and the RTSU-Net method are both significantly better than the other methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Comparison with human readers"
+        },
+        {
+            "text": "In terms of lung segmentation, the analysts reached 0.974\u00b1 0.015 IOU and 0.34 \u00b1 0.214 ASSD on average, while the RTSU-Net achieved 0.977\u00b10.009 IOU and 0.325\u00b10.2 ASSD on average.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Comparison with human readers"
+        },
+        {
+            "text": "Regarding the fissure alignment, the analysts reached 0.686\u00b10.361 ASSD on average while the RTSU-Net achieved 0.835 \u00b1 0.398 ASSD on average. We conclude that the RTSU-Net method performs comparably to humans for segmenting the lung and the lobes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "E. Comparison with human readers"
+        },
+        {
+            "text": "We have applied our method to the 55 scans of the LOLA11 challenge, available on https://lola11.grand-challenge.org/. This is an independent test set in which approximately half of these scans are very difficult to segment due to the presence of gross pathology. Lobar borders are completely invisible in some of these scans.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "F. Validation on LOLA11"
+        },
+        {
+            "text": "Our method (submission date May 3, 2020) reaches a mean IOU of 0.9197 for the lobe segmentation and 0.9706 in lung segmentation. This score is comparable to the other top participants and ranks #2 for automatic lobe segmentation methods, after submission of a not yet published variant of LobeNet (submission date November 20, 2019). ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "F. Validation on LOLA11"
+        },
+        {
+            "text": "We have presented a novel method using relational twostage convolution neural networks for segmenting pulmonary lobes in CT images. The proposed method is capable of capturing visual and geometric correspondence between highlevel convolution features, which may represent the relationships between objects and object parts. This proposed nonlocal module can also be used to effectively and efficiently enlarge the receptive field of convolution features. This module can be easily used as a common neural network layer in other computer vision tasks such as object detection and classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "We show in our results that learning feature dependencies improves the lobe segmentation performance significantly on the COPD and the COVID-19 data set. The average symmetric distance metric in the ablation study shows that using geometric features is effective for generating more precise object boundaries. This can also be observed from the qualitative results, where the lobe boundaries from the proposed method are more consistent with the reference lobe shapes. Without depending on prior lung segmentation, our approach serves as an end-to-end lobe segmentation framework that can be used for lung segmentation as well, by taking the union of lobes per lung.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "In terms of computational efficiency, our method maintains the same level of Multi-Adds operations (MAC) as the standard 3D U-Net and two other approaches previously proposed for pulmonary lobe segmentation. It requires even fewer trainable parameters compared to the standard 3D U-Net. Our method can be trained and tested on a consumerlevel GPU with 12 GB memory, and speed at test time is around 30 seconds for a full resolution CT scan (20 seconds for deep learning inference and 10 for pre-processing and postprocessing).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "For segmenting the lobes in scans of COPD patients, the previously published LobeNet method [15] reported excellent performance on 1076 scans from COPDGene, with an ASSD of 0.138 mm, well below the voxel resolution and well below what RTSU-Net and independent human analysts achieved in a set of 100 COPDGene scans in this study (Sect. V-E). These metrics are not directly comparable as [15] used a different set of scans and a reference partly provided by a software package. For future studies, it would be interesting to directly compare both approaches. On LOLA11, LobeNet outperformed RTSU-Net by a very small margin. We noticed failures of RTSU-Net on scans with abnormalities distinct from what occurred in the COPD and COVID-19 training data.",
+            "cite_spans": [
+                {
+                    "start": 92,
+                    "end": 96,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 387,
+                    "end": 391,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "Segmentation of lobes in scans of patients with severe pneumonia due to COVID-19 is not an easy task. In this work, we used only 370 COVID-19 CT scans for training. Thanks to pre-training on 4000 COPD scans, we still obtained good results with a small training set, and we were able to provide lobe segmentations robust to the presence of ground-glass, consolidations, and crazy paving.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "Lobe segmentation is an important prerequisite for accurate quantification of lung damage in COVID-19 CT scans. Fig. 5 shows that the standard 3D U-Net (2nd row), PDV-Net (3rd row), and FRV-Net (4th row) may miss areas of consolidation (3rd column) while the RTSU-Net found the lobes accurately. RTSU-Net also performs reasonably well when this lobe is completely filled with pleural fluid (first column). Nevertheless, we also see that sometimes the border of the segmentations of the proposed method is incorrect (3rd column, the right upper lobe shows a slight oversegmentation across the lobar borders towards the shoulder),",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 112,
+                    "end": 118,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "We hypothesize that a larger training set would further improve performance, especially for cases with gross pathological changes that are not yet well represented in the current training scans. Nevertheless, the results presented here are sufficient for further analysis, and we believe that they will prove useful in automated per-lobe severity scoring. This is a topic for future research.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        },
+        {
+            "text": "We freely share our segmentation algorithm on https://grand-challenge.org/algorithms/ and provide results for public data such as the scans from https://coronacases.org/.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "VI. DISCUSSION AND CONCLUSION"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "CO-RADS -a categorical CT assessment scheme for patients with suspected COVID-19: definition and evaluation",
+            "authors": [
+                {
+                    "first": "Standardized",
+                    "middle": [],
+                    "last": "Reporting",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Radiology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "https:/pubs.rsna.org/doi/abs/10.1148/radiol.2020201473"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Extraction algorithm of pulmonary fissures from thin-section CT images based on linear feature detector method",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kubo",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Niki",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Nakagawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Eguchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kaneko",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Moriyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Omatsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kakinuma",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Yamaguchi",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "IEEE Trans Nucl Sci",
+            "volume": "46",
+            "issn": "6",
+            "pages": "2128--2133",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Extraction of pulmonary fissures from thin-section CT images using calculation of surface-curvatures and morphology filters",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kubo",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Niki",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Eguchi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kaneko",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kusumoto",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Moriyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Omatsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kakinuma",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Nishiyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mori",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "ICIP",
+            "volume": "2",
+            "issn": "",
+            "pages": "637--640",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Pulmonary fissure segmentation on CT",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Betke",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Ko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Med Image Anal",
+            "volume": "10",
+            "issn": "4",
+            "pages": "530--547",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A computational geometry approach to automated pulmonary fissure segmentation in CT examinations",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Leader",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Knollmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Fuhrman",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Sciurba",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gur",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "28",
+            "issn": "5",
+            "pages": "710--719",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Supervised enhancement filters: application to fissure detection in chest CT scans",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Van Rikxoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Ginneken",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Klik",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Prokop",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "27",
+            "issn": "1",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Radiographic anatomy of the interlobar fissures: a study of 100 specimens",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Raasch",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Carsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Lane",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "O&apos;callaghan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Heitzman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "AJR Am J Roentgenol",
+            "volume": "138",
+            "issn": "6",
+            "pages": "1043--1049",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "New tools for computer assistance in thoracic CT. part 1. functional analysis of lungs, lung lobes, and bronchopulmonary segments",
+            "authors": [
+                {
+                    "first": "J.-M",
+                    "middle": [],
+                    "last": "Kuhnigk",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Dicken",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zidowitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bornemann",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Kuemmerlen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Krass",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-O",
+                    "middle": [],
+                    "last": "Peitgen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yuval",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-H",
+                    "middle": [],
+                    "last": "Jend",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Rau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Radiographics",
+            "volume": "25",
+            "issn": "2",
+            "pages": "525--536",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Automatic segmentation of pulmonary lobes robust against incomplete fissures",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Van Rikxoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Prokop",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "De Hoop",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Viergever",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Pluim",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Ginneken",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "29",
+            "issn": "6",
+            "pages": "1286--1296",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Automatic segmentation of the pulmonary lobes from chest CT scans based on fissures, vessels, and bronchi",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lassen",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Van Rikxoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kerkstra",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Ginneken",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-M",
+                    "middle": [],
+                    "last": "Kuhnigk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "32",
+            "issn": "2",
+            "pages": "210--222",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Pulmonary lobe segmentation with probabilistic segmentation of the fissures and a groupwise fissure prior",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Bragman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Mcclelland",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Jacob",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Hurst",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hawkes",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "36",
+            "issn": "8",
+            "pages": "1650--1663",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "End-to-end supervised lung lobe segmentation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Ferreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sousa",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Galdran",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Sousa",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Campilho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "in IJCNN",
+            "volume": "",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Fast and automatic segmentation of pulmonary lobes from chest CT using a progressive dense V-network",
+            "authors": [
+                {
+                    "first": "A.-A.-Z",
+                    "middle": [],
+                    "last": "Imran",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hatamizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Ananth",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tajbakhsh",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Terzopoulos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Comput Methods Biomech Biomed Eng Imaging Vis",
+            "volume": "",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Automated segmentation of pulmonary lobes using coordination-guided deep neural networks,\" in ISBI",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chi",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Hua",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1353--1357",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Pulmonary lobe segmentation using a sequence of convolutional neural networks for marginal learning",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Gerard",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Reinhardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ISBI",
+            "volume": "",
+            "issn": "",
+            "pages": "1207--1211",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "V-net: Fully convolutional neural networks for volumetric medical image segmentation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Milletari",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Navab",
+                    "suffix": ""
+                },
+                {
+                    "first": "S.-A",
+                    "middle": [],
+                    "last": "Ahmadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "3DV",
+            "volume": "",
+            "issn": "",
+            "pages": "565--571",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Densely connected convolutional networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "4700--4708",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Fissurenet: A deep learning approach for pulmonary fissure detection in CT images",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Gerard",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Patton",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Christensen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Bayouth",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Reinhardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans Med Imaging",
+            "volume": "38",
+            "issn": "1",
+            "pages": "156--166",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Multi-resolution convolutional neural networks for fully automated segmentation of acutely injured lungs in multiple species",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Gerard",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Herrmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Kaczka",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Musch",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fernandez-Bustamante",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Reinhardt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Med Imag Anal",
+            "volume": "60",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Local relation networks for image recognition",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ICCV",
+            "volume": "",
+            "issn": "",
+            "pages": "3464--3473",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Dynamic graph message passing networks",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Arnab",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Torr",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1908.06955"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Chest CT findings in coronavirus disease-19 (COVID-19): relationship to duration of infection",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bernheim",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Mei",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Fayad",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Diao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Shan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jacobi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Radiology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Radiological findings from 81 patients with COVID-19 pneumonia in Wuhan, China: a descriptive study",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Alwalid",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Lancet Infect Dis",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "3D U-Net: learning dense volumetric segmentation from sparse annotation",
+            "authors": [
+                {
+                    "first": "\u00d6",
+                    "middle": [],
+                    "last": "I\u00e7ek",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Abdulkadir",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Lienkamp",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Ronneberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "MICCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "424--432",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Recurrent fully convolutional neural networks for multi-slice mri cardiac segmentation,\" in Reconstruction, segmentation, and analysis of medical images",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Poudel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lamata",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Montana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "83--94",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "On the difficulty of training recurrent neural networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pascanu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "1310--1318",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Efficient multi-scale 3D CNN with fully connected CRF for accurate brain lesion segmentation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kamnitsas",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Ledig",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Newcombe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Kane",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Menon",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Rueckert",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Glocker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Med Imag Anal",
+            "volume": "36",
+            "issn": "",
+            "pages": "61--78",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Neural machine translation by jointly learning to align and translate",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bahdanau",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1409.0473"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Shazeer",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Parmar",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Uszkoreit",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Gomez",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u0141",
+                    "middle": [],
+                    "last": "Kaiser",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Polosukhin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Non-local neural networks",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "in CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "7794--7803",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Ccnet: Criss-cross attention for semantic segmentation",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1811.11721"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Genetic epidemiology of COPD (COPDGene) study design",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Regan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hokanson",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Make",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lynch",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Beaty",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Curran-Everett",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Silverman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Crapo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "COPD",
+            "volume": "7",
+            "issn": "1",
+            "pages": "32--43",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Automatic segmentation of the pulmonary lobes from fissures, airways, and lung borders: evaluation of robustness against missing data",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Van Rikxoort",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Prokop",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "De Hoop",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Viergever",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Pluim",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Van Ginneken",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "263--271",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Rich feature hierarchies for accurate object detection and semantic segmentation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Donahue",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "580--587",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Training region-based object detectors with online hard example mining",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shrivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Girshick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "761--769",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Sudre",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Vercauteren",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ourselin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Cardoso",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "DLMIA",
+            "volume": "",
+            "issn": "",
+            "pages": "240--248",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Automatic differentiation in PyTorch",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Paszke",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gross",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chintala",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Devito",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Desmaison",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Antiga",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lerer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "NIPS Autodiff Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Delving deep into rectifiers: Surpassing human-level performance on imagenet classification",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ICCV",
+            "volume": "",
+            "issn": "",
+            "pages": "1026--1034",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "A survey of colormaps in visualization",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Hansen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "IEEE Trans Vis Comput Graph",
+            "volume": "22",
+            "issn": "8",
+            "pages": "2051--2069",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "The overview of our lobe segmentation framework with a cascade of two CNNs. At each stage, a CNN (RU-Net) uses the proposed non-local module to capture the structured relationships between objects and object parts. The output from the RU-Net I is concatenated with the cropped 3D patches as the input for RU-Net II.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Box and whisker plots of IOU per-lobe for different methods on the COPD data set (top) and the COVID-19 data set (bottom).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Effective Receptive Field (ERF) before the non-local module (2nd row) and after (3rd row) by running forward pass for the first RU-Net on a CT scan from the COVID-19 test set. The green area indicates non-zero gradients (with respect to the input scan) of a feature at a location in the input scan corresponding to the red square (1st row).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Qualitative comparison of segmentation results for six representative test cases. The left three columns show COVID-19 cases, the right three columns show COPD cases. From top to bottom: input image, 3DU-Net baseline, PDV-Net, FRV-Net, the proposed RTSU-Net, and the segmentation reference. right upper, right middle, right lower, left upper, left lower lobes.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Characteristics of the two data sets used in this study. (a) lists the distribution of GOLD stages and other classes, see",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Architectures for the first and the second stage of the relational U-Nets. The convolution filters are named by the kernel sizes K and number of filters N as K \u00d7 K \u00d7 K, N (stride 1 for all). Non-local linear embedding parameters are defined in Eqs.(3) and(5). denotes the operation performed in dual paths.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Quantitative results on the COPD and COVID-19 test sets. IOU and ASSD (in mm) metrics are given in mean \u00b1 standard deviation. Boldface denotes the result significantly better than others (p < 0.01 with Bonferroni correction).RUL, RML, RLL, LUL, LLL: Right upper, Right middle, Right lower, Left upper, Left lower lobes. Overall: per-lobe mean.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Ablation study on the both data set for the nonlocal module (Non-local) and the geometric features (Geometric) into the two-stage cascading framework. Boldface denotes that a result is significantly better than others in the same column (p < 0.01 with Bonferroni correction).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

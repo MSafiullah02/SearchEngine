@@ -1,0 +1,1657 @@
+{
+    "paper_id": "7a1b250142e047eaa008e7ada45b24a9fe1f415d",
+    "metadata": {
+        "title": "Exploiting the Matching Information in the Support Set for Few Shot Event Classification",
+        "authors": [
+            {
+                "first": "Viet",
+                "middle": [],
+                "last": "Dac",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Oregon",
+                    "location": {
+                        "settlement": "Eugene",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Lai",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Franck",
+                "middle": [],
+                "last": "Dernoncourt",
+                "suffix": "",
+                "affiliation": {},
+                "email": "dernonco@adobe.com"
+            },
+            {
+                "first": "Thien",
+                "middle": [
+                    "Huu"
+                ],
+                "last": "Nguyen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Oregon",
+                    "location": {
+                        "settlement": "Eugene",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The existing event classification (EC) work primarily focuses on the traditional supervised learning setting in which models are unable to extract event mentions of new/unseen event types. Few-shot learning has not been investigated in this area although it enables EC models to extend their operation to unobserved event types. To fill in this gap, in this work, we investigate event classification under the few-shot learning setting. We propose a novel training method for this problem that extensively exploit the support set during the training process of a few-shot learning model. In particular, in addition to matching the query example with those in the support set for training, we seek to further match the examples within the support set themselves. This method provides more training signals for the models and can be applied to every metriclearning-based few-shot learning methods. Our extensive experiments on two benchmark EC datasets show that the proposed method can improve the best reported few-shot learning models by up to 10% on accuracy for event classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Event Classification (EC) is an important task of Information Extraction (IE) in Natural Language Processing (NLP). The target of EC is to classify the event mentions for some set of event types (i.e., classes). Event mentions are often associated with some words/phrases that are responsible to trigger the corresponding events in the sentences. For example, consider the following two sentences:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "(1) The companies fire the employee who wrote anti-diversity memo. (2) The troops were ordered to cease fire",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In these examples, an EC system should be able to classify the word \"fire\" in the two above sentences as an Employment-Termination event and an Attack event, respectively. As demonstrated by the examples, a notable challenge in EC is that the similar surface forms of the words might convey different events depending on the context. Two main methods have been employed for EC. The first approach explores linguistic features (e.g., syntactic and semantic properties) to train statistical models [9] . The second approach, on the other hand, focuses on developing deep neural network models (e.g., convolutional neural network (CNN) and recurrent neural network (RNN)) to automatically learn effective features from large scale datasets [5, 13] . Due to the development of the deep learning models, the performance for EC has been improved significantly [14, 16, 17, 19, 23] .",
+            "cite_spans": [
+                {
+                    "start": 496,
+                    "end": 499,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 737,
+                    "end": 740,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 741,
+                    "end": 744,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 854,
+                    "end": 858,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 859,
+                    "end": 862,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 863,
+                    "end": 866,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 867,
+                    "end": 870,
+                    "text": "19,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 871,
+                    "end": 874,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The current EC models mainly employ the traditional supervised learning setting [17, 19] where the set of event types for classification has been predetermined. However, once a model is trained on the datasets with the given set of event types, it is unable to detect event mentions of unseen event types. To extend EC to new event types, a common solution is to annotate additional training data for such new event types and re-train the models, which is extremely expensive. It is thus desirable to formalize EC in the few-shot learning setting where the systems need to learn to recognize event mentions for new event types from a handful of examples. This is, in fact, closer to how humans learn to do tasks and make the EC models more applicable in practice. However, to our knowledge, there has been no prior work on few-shot learning for EC.",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 84,
+                    "text": "[17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 85,
+                    "end": 88,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In few-shot learning, we are given a support set and a query instance. The support set contains examples from a set of classes (e.g. events in EC). A learning model needs to predict the class, to which the query instance belongs, among the classes presented in the support set. This is done based on the matching information between the query example and those in the support set. To apply this setting to extract the examples of some new type, we need to collect just a few examples of the new type and add them to the support set to form a new class. Afterward, whenever we need to predict whether a new example has the new type or not, we can set it as the query example and perform the models in this setting.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In practice, we often have some existing datasets (denoted by D) with examples for some pre-defined types. The previous work on few-shot learning has thus exploited such datasets to simulate the aforementioned few-shot learning setting to train the models [26] . Basically, in each episode of the training process, a subset of the types in D is sampled for which a few examples are selected for each type to serve as the support set. Some other examples are also chosen from the remaining examples of each sampled type to establish the query points. The models would then be trained to correctly map the query examples to their corresponding types in the support set based on the context matching of the examples [7] .",
+            "cite_spans": [
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 713,
+                    "end": 716,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "One potential issue with this training procedure is that the training signals for the models only come from the matching information between the query examples and the examples in the support set. The available matching information between the examples in the support set themselves is not yet explored in the existing few-shot learning work [26, 28] , especially for the NLP tasks [7] . While this approach can be acceptable for the tasks in computer vision, it might not be desirable for NLP applications, especially for EC. Overall, datasets in NLP are much smaller than those in computer vision, thus limiting the variety of the context for training purposes. The ignorance of the matching information for the examples in the support set might cause inefficiency in using the training data for EC where the models cannot fully exploit the available information and fail to achieve good performance. Consequently, in this work, we propose to simultaneously exploit the matching information between the examples in the support set and between the query examples with the examples in the support set to train the few-shot learning models for EC. This is done by adding additional terms in the loss function (i.e., the auxiliary losses) to capture the matching knowledge between the examples in the support set. We expect that this new training technique can better utilize the training data and improve the performance of few-shot learning in EC.",
+            "cite_spans": [
+                {
+                    "start": 342,
+                    "end": 346,
+                    "text": "[26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 347,
+                    "end": 350,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 382,
+                    "end": 385,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We extensively apply the proposed training method on different metric learning models for few-shot learning on two benchmark EC datasets. The experiments show that the new training technique can significantly improve all the considered few-shot learning methods over the two datasets with a large performance gap. In summary, the contribution of this work includes: (i) for the first time in the literature, we study the few-shot learning problem for event Classification, (ii) we propose a novel training technique for the few-shot learning models based on metric learning. The proposed training method exploits the matching information between the examples in the support set as additional training signals, and (iii) we achieve the state-of-the-art performance for EC on the few-shot learning setting, functioning as the baselines for the future research in this area.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Early studies in event classification mainly focus on designing linguistic features [1, 9, 12] for statistical models. Due to the development of deep learning, many advanced network architectures have been investigated to advance the event classification accuracy [5, 13, [17] [18] [19] 21, 22] . However, none of them investigates the few-shot learning problem for EC as we do in this work. Although some recent studies have considered a related setting where event types are augmented with some keywords [3, 11, 24] , these works do not explicitly examine the few-shot learning setting as we do in this work. Some other efforts on zero-shot learning for event classification [8] are also related to our work in this paper.",
+            "cite_spans": [
+                {
+                    "start": 84,
+                    "end": 87,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 88,
+                    "end": 90,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 91,
+                    "end": 94,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 264,
+                    "end": 267,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 268,
+                    "end": 271,
+                    "text": "13,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 272,
+                    "end": 276,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 277,
+                    "end": 281,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 282,
+                    "end": 286,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 287,
+                    "end": 290,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 291,
+                    "end": 294,
+                    "text": "22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 506,
+                    "end": 509,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 510,
+                    "end": 513,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 514,
+                    "end": 517,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 677,
+                    "end": 680,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Few-shot learning facilitates the models to learn effective latent features without large scale data. The early studies apply transfer learning to fine-tune the pre-trained models, exploiting the latent information from the common classes with adequate instances [2, 4] . Metric learning, on the other hand, learns to model the distance distribution among the observed classes [10, 26, 28] . Recently, the idea of a fast learner that can generalize to a new concept quickly is introduced in meta-learning [6, 25] . Among these methods, metric-learning is more explainable and easier to train and implement compared to transfer learning and meta-learning. Notably, the prototypical networks in metric learning achieve state-of-the-art performance on several FSL benchmarks and show its robustness against noisy data [7, 26] . Although many FSL methods are proposed for image recognition [6, 10, 25, 26, 28] , there have been few studies investigating this setting for NLP problems [7, 29] .",
+            "cite_spans": [
+                {
+                    "start": 263,
+                    "end": 266,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 267,
+                    "end": 269,
+                    "text": "4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 377,
+                    "end": 381,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 382,
+                    "end": 385,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 386,
+                    "end": 389,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 505,
+                    "end": 508,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 509,
+                    "end": 512,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 815,
+                    "end": 818,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 819,
+                    "end": 822,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 886,
+                    "end": 889,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 890,
+                    "end": 893,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 894,
+                    "end": 897,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 898,
+                    "end": 901,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 902,
+                    "end": 905,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 980,
+                    "end": 983,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 984,
+                    "end": 987,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The task of few-shot event classification is to predict the event type of a query example x given a support set S and a set of event type T = {t 1 , t 2 , . . . , t N } (N is the number of event types). In few-shot learning, S contains a few examples for each event type in T . For convenience, we denote the support set as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "where (s j i , a j i , t i ) indicates that the a j i -th word in the sentence s j i is the trigger word of an event mention with the event type t i , and K 1 , K 2 , . . . , K N are the numbers of examples in the support set for each type t 1 , t 2 , . . . , t N respectively. For simplicity, we use w 1 , w 2 , . . . , w l to represent the word sequence for some sentence with length l in this work.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "Similarly, the query example x can also be represented by x = (q, p, t) where q, p and t represent the query sentence, the position of the trigger word in the sentence, and the true event type for this event mention respectively. Note that t \u2208 T is only provided in the training time and the models need to predict this event type in the test time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "In practice, the numbers of support examples in S (i.e., K 1 , . . . , K N ) may vary. However, to ease the processing and speed up the training process with GPU, similar to recent studies in FSL [7] , we employ the N-way K-shot FSL setting. In this setting, the numbers of instances per class in the support set are equal (K 1 = . . . = K N = K > 1) and small (K \u2208 {5, 10}).",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "Note that to evaluate the few-shot learning models for EC, we would need the training data D train and the test data D test . For few-shot learning, it is crucial that the sets of event types in D train and D test are disjoint. The event type set T in each episode would then be a sample of the sets of event types in D train or D test , depending on the training and evaluation time respectively. Also, as mentioned in the introduction, in one episode of the training process, a set of query examples (i.e., the query set) would be sampled so it involves the similar event types T as the support set, and the examples for each type in the query set would be different from those in the support set. At the test time, the classification accuracy of the models over all the examples in the test set would be evaluated.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "The few-shot learning framework for EC in this work follows the typical metric learning structures in the prototypical networks [7, 26] , involving three major components: instance encoder, prototypical module, classifier module.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 132,
+                    "end": 135,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Instance Encoder: Given a sentence s = {w 1 , w 2 , . . . , w l } and the position of the trigger word a (i.e., w a is the trigger word of the event mention in s and (s, a) can belong to an example in S or the query example), following the common practice in EC [5, 19] , we first convert each word w i \u2208 s into a real-valued vector to facilitate the neural computation in the following steps. In particular, in this work, we represent each word w i using the concatenation of the following two vectors:",
+            "cite_spans": [
+                {
+                    "start": 262,
+                    "end": 265,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 266,
+                    "end": 269,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "-The pre-trained word embedding of w i : this vector is expected to capture the hidden syntactic and semantic information for w i [15] . -The position embedding of w i : this vector is obtained by mapping its relative distance to the trigger word w a (i.e., i \u2212 a) to an embedding vector in the position embedding table. The position embedding table is initialized randomly and updated during the training process of the models. The purpose of the position embedding vectors is to explicitly inform the models of the position of the trigger word in the sentence [5] .",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 134,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 562,
+                    "end": 565,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "After converting w i into a representation vector e i , the input sentence s becomes a sequence of representation vectors E = e 1 , e 2 , . . . , e l . Based on this sequence of vectors, a neural network architecture f would be used to transform E into an overall representation vector v to encode the input example (s, m) (i.e., v = f (s, m)). In this work, we investigate two network architectures for the encoding function f , i.e., one early architecture for EC based on CNN and one recent popular architecture for NLP based on Transformers:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "CNN Encoder: This model applies the temporal convolution operation with some window size k and multiple filters over the input vector sequence E, producing a hidden vector for each position in the input sentence. Such hidden vectors are then aggregated via the max-pooling operation to obtain the overall representation vector v for (s, m) [5, 7] .",
+            "cite_spans": [
+                {
+                    "start": 340,
+                    "end": 343,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 344,
+                    "end": 346,
+                    "text": "7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Transformer Encoder: This is an advanced model to encode sequences of vectors based on attention mechanism without recurrent neural network [27] . The transformer encoder involves multiple layers; each of them consumes the sequence of hidden vectors from the previous layer to generate the sequence of hidden vectors for the current layer. The first layer would take E as the input while the hidden vector sequence returned by the last layer (i.e., the vector at the position a of the trigger word) would be used to constitute the overall representation vector v in this case. Each layer in the transformer encoder is composed of two sublayers (i.e., a multi-head self-attention layer and a feedforward layer) augmented with a residual connection around them [27] .",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 759,
+                    "end": 763,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Prototypical Module: The prototypical module aims to compute a single prototype vector to represent each class in T of the support set. In this work, we consider two versions of this prototypical module in the literature. The first version is from the original prototypical networks [26] . It simply obtains the prototype vector c i for a class t i using the average of the representation vectors of the examples with the event type t i in the support set S:",
+            "cite_spans": [
+                {
+                    "start": 283,
+                    "end": 287,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "The second version, on the other hand, comes from the hybrid attentionbased prototypical networks [7] . The prototype vector is a weighted sum of the representation vectors of the examples in the support set. The example weights (i.e., the attention weights) are determined by the similarity of the examples in the support set with respect to the query example x = (q, p, t):",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 101,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "In this formula, is the element-wise multiplication and sum is the summation operation done over all the dimensions of the input vector.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Classifier Module: In this module, we compute the probability distribution over the possible types for x in T using the distances from the query example x = (q, p, t) to the prototypes of the classes/event types T in the support set:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "where d is a distance function, and c i and c j are the prototype vectors obtained in either Eq. (2) or Eq. (3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "In this paper, we consider three popular distance functions in different fewshot learning models using metric learning: -Cosine similarity in matching networks (called Matching) [28] -Euclidean distance in the prototypical networks. Depending on whether the prototype vectors are computed with Eq. 2 or 3, we have two variations of this distance function, called as Proto [26] , and Proto+Att (i.e., in hybrid attention-based prototypical networks [7] ) respectively. -Learnable distance function using convolutional neural networks in relation networks (called Relation)",
+            "cite_spans": [
+                {
+                    "start": 178,
+                    "end": 182,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 372,
+                    "end": 376,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Given the probability distribution P (y|x, S), the typical way to train the few shot learning framework is to optimize the negative log-likelihood function for x (with t as the ground-truth event type for x) [7, 26] : ",
+            "cite_spans": [
+                {
+                    "start": 208,
+                    "end": 211,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 212,
+                    "end": 215,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Let Q be some integer that is less than K (i.e., 1 \u2264 Q < K). For each type t i , we randomly select Q examples from S i (called the auxiliary query examples), forming the auxiliary query set",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "We unify the sets S S i to constitute an auxiliary support set S S while the union of S Q i serves as the auxiliary query set:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Given the auxiliary support set S S , we seek to enhance the training signals for the few-shot models by matching the examples in the auxiliary query set S Q with S S . Specifically, we first use the same networks in the instance encoder and prototypical modules to compute the auxiliary prototypes for the classes in T of the auxiliary support set S S . For each auxiliary example z = (s z , a z , t z ) \u2208 S Q (s z , a z and t z are the sentence, the trigger word position and the event type in z respectively), we use the network in the classifier module to obtain the probability distribution P (.|z, S S ) over the possible event types for z based on the auxiliary support set S S . Afterward, we enforce that the models can correctly predict the event types for all the examples in the auxiliary query sets S Q i given the support set S S by introducing the auxiliary loss function:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "Eventually, the overall loss function to be optimized to train the models in this work is: L(x, S) = L query (x, S) + \u03bbL aux (S) where \u03bb is a trade-off parameter between the main loss function and the auxiliary loss function. For convenience, we call the training method with the auxiliary loss function for few shot learning in this section LoLoss (i.e., leave-out loss) in the following experiments.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Few-Shot Learning for Event Classification"
+        },
+        {
+            "text": "We evaluate all the models in this study on the ACE 2005. ACE 2005 involves 33 event subtypes which are categorized into 8 event types: Business, Contact, Conflict, Justice, Life, Movement, Personnel, and Transaction. The TAC KBP dataset, on the other hand, contains 38 event subtypes for 9 event types. Due to the larger numbers of the event subtypes, we will use the subtypes in these datasets as the classes for our few-shot learning problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets and Hyper-Parameters"
+        },
+        {
+            "text": "As For the hyper-parameters, similar to the prior work [7] , we evaluate all the models using N -way K-shot FSL settings with N, K \u2208 {5, 10}. For training, we avoid feeding the same set of event subtypes in every batch to make training batches more diverse. Thus, following [7] , we sample 20 event subtypes for each training batch while still keeping either 5 or 10 classes in the test time.",
+            "cite_spans": [
+                {
+                    "start": 55,
+                    "end": 58,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 274,
+                    "end": 277,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets and Hyper-Parameters"
+        },
+        {
+            "text": "We initialize the word embeddings using the pre-trained GloVe embeddings with 300 dimensions. The word embeddings are updated during the training time as in [20] . We also randomly initialize the position embedding vectors with 50 dimensions. The other parameters are selected based on the development data of the datasets, leading to similar parameters for both ACE 2005 and TAC KBP 2015. In particular, the CNN encoder contains a single CNN layer with window size 3 and 250 filters. We manage to use this simple CNN encoder to have a fair comparison with the previous study [7] . The Transformer encoder contains 2 layers with a context size of 512 and 10 heads in the attention mechanism. The number of examples per class in the auxiliary query sets Q is set to 2 while the trade-off parameter \u03bb in the loss function is 0.1. Table 1 shows the accuracy of the models (i.e., Matching, Proto, Proto+Att, and Relation) on the ACE 2005 test dataset, using the CNN encoder and Transformer encoder. There are several observations from the table. First, comparing the instance encoders, it is clear that the transformer encoder is significantly better than the CNN encoder across all the possible few-shot learning models and settings for EC. Second, comparing the few-shot learning models, the prototypical networks significantly outperform Matching and Relation with a large performance gap across all the settings. Among the prototypical networks, Proto+Att achieves better performance than Proto, thus confirming the benefits of the attention-based mechanism for the prototypical module. Third, comparing the pairs (5-way 5-shot vs 5-way 10-shot) and (10-way 5 shot vs 10 way 10 shot), we see that the performance of the models would be almost always better with larger K (i.e., the number of examples per class in the support set) on different settings, consistent with the natural intuition about the benefit of having more examples for training. Most importantly, we see that training the models with the LoLoss procedure would significantly improve the models' performance. This is true across different few-shot learning models, N-way K-shot settings, and encoder choices. The results clearly demonstrate the effectiveness of the proposed training procedure to exploit the matching information between examples in the support set for few-shot learning for EC. For simplicity, we only focus on the best few-shot learning models (i.e., the prototypical networks) and the Transformer encoder under 5-way 5-shot and 10-way 10-shot in the following analysis. Even though we show the results in fewer settings and models in Table 2 and 3, the same  trends are observed for the other models and settings as well.  Table 2 additionally reports the accuracy of Transformer-based models on the TAC KBP 2015 dataset. As we can see from the table, most of our observations for the ACE 2005 dataset still hold for TAC KBP 2015, once again confirming the advantages of the proposed LoLoss technique in this work. ",
+            "cite_spans": [
+                {
+                    "start": 157,
+                    "end": 161,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 576,
+                    "end": 579,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 828,
+                    "end": 835,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 2622,
+                    "end": 2718,
+                    "text": "Table 2 and 3, the same  trends are observed for the other models and settings as well.  Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Datasets and Hyper-Parameters"
+        },
+        {
+            "text": "In this section, we seek to evaluate the robustness of the few-shot learning models against the possible noise in the training data. In particular, in each training episode where a set of examples is sampled for each type in T to form the query set Q, we simulate the noisy data by randomly selecting a portion of the examples in Q for label perturbation. Essentially, for each example in the selected subset of Q, we change its original label to another random one in T , making it a noisy example with an incorrect label. By varying the size of the selected portion in Q for label perturbation, we can control the level of noise in the training process for FSL in EC. Table 3 shows the accuracy of the Proto+Att model on the ACE 2005 test set that employs the Transformer encoder with or without the LoLoss training procedure for different noise rates. As we can see from the table, the introduction of noisy data would, in general, degrade the accuracy of the models (i.e., comparing the cells in Table 3 with the Proto+Att based model in Table 1) . However, over different noise rates and N way K shot settings, the Proto+Att model trained with LoLoss is still always significantly better than those without LoLoss. The performance gap is substantial that is at least 4.5% over different settings. In fact, we see that LoLoss can improve Proto+Att in the noisy setting (i.e., at least 4.5%) more significantly than those in the setting without noisy data (i.e., at most 3.3% on the 5 way 5 shot and 10 way 10 shot settings in Table 1 ). Such evidence further confirms the effectiveness and robustness against noisy data of LoLoss for few-shot learning due to its exploitation of the matching information between the examples in the support set.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 670,
+                    "end": 677,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1000,
+                    "end": 1007,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 1042,
+                    "end": 1050,
+                    "text": "Table 1)",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1530,
+                    "end": 1537,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Robustness Against Noise"
+        },
+        {
+            "text": "In this paper, we perform the first study on few-shot learning for event classification. We investigate different metric learning methods for this problem, featuring the typical prototypical network framework with several choices for the instance encoder (i.e., CNN and Transformer). In addition, we propose a novel technique, called LoLoss, to train the few-shot learning models for EC based on the matching information for the examples in the support set. The proposed LoLoss technique is applied to different few-shot learning methods for different datasets and settings that altogether help to significantly improve the performance of the baseline models. In the future, we plan to examine LoLoss for few-shot learning for other NLP and vision problems (e.g., relation extraction, image classification).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "The stages of event extraction",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Ahn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the Workshop on Annotating and Reasoning about Time and Events",
+            "volume": "",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Deep learning of representations for unsupervised and transfer learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of ICML Workshop on Unsupervised and Transfer Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Seed-based event trigger labeling: how far can event descriptions get us?",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bronstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Dagan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ACL-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Learning many related tasks at the same time with backpropagation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Event extraction via dynamic multipooling convolutional neural networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "In: ACL-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Model-agnostic meta-learning for fast adaptation of deep networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Finn",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Abbeel",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Levine",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Hybrid attention-based prototypical networks for noisy few-shot relation classification",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Zero-shot transfer learning for event extraction",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Voss",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ACL",
+            "volume": "",
+            "issn": "",
+            "pages": "2160--2170",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Refining event extraction through cross-document inference",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Siamese neural networks for one-shot image recognition",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Koch",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zemel",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ICML Deep Learning Workshop",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Extending event detection to new types with learning from keywords",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Lai",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 5th Workshop on Noisy User-generated Text",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Constructing information networks using one single model",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Exploiting argument information to improve event detection via supervised attention mechanisms",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Similar but not the same: word sense disambiguation improves event detection via neural representation matching",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "New york university 2016 system for KBP event nugget: a deep learning approach",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Meyers",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Joint event extraction via recurrent neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "A two-stage approach for extending event detection to new types via neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 1st ACL Workshop on Representation Learning for NLP (RepL4NLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Event detection and domain adaptation with convolutional neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "In: ACL-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Relation extraction: perspective from convolutional neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 1st NAACL Workshop on Vector Space Modeling for NLP (VSM)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Modeling skip-grams for event detection with convolutional neural networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Graph convolutional networks with argument-aware pooling for event detection",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Grishman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "One for all: neural joint modeling of entities and events",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Nguyen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Event detection and co-reference with minimal supervision",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Meta-learning with memory-augmented neural networks. In: ICML",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Santoro",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bartunov",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Botvinick",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wierstra",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lillicrap",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Prototypical networks for few-shot learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Snell",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Swersky",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zemel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Matching networks for one shot learning",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lillicrap",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wierstra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Diverse few-shot text classification with multiple metrics",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.07513"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "we want to maximize the numbers of examples in the training data, for each dataset (i.e., ACE 2005 or TAC KBP 2015), we choose the event subtypes in 4 event types that have the least number of examples in total and split at the ratio 1:1 into the test and development classes. Following this heuristics to select the classes, the event types used for training data in ACE 2005 involve Business, Contact, Conflict, and Justice while the event types for testing and development data are Life, Movement, Personnel, and Transaction. For TAC KBP 2015, the training classes include Business, Contact, Conflict, Justice, and Manufacture while the test and development classes consist of Life, Movement, Personnel, and Transaction. Finally, due to the intention to follow the prior work on fewshot learning with 10 examples per class in the support set and 5 examples per class in the query set for training [7], we remove the examples of any subtypes whose have less than 15 examples in the training, test and development sets of the datasets.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Matching the Examples in the Support Set: The typical loss function for few-shot learning in Eq. 5 aims to learn by matching the query example x with the examples in the support set S via the prototype vectors. An issue with this mechanism is it only employs the matching signals between the query example and the support examples for training. This can be acceptable for large datasets (e.g., in computer vision) where many examples can play the role of the query examples to provide sufficient training signals for the learning process. However, for EC, the available datasets are often small (e.g., the ACE 2005 dataset with only about a few thousands of annotated event mentions), making the sole reliance on the query examples for training signals less efficient. In other words, the few-shot learning framework might not be trained well with the limited data for the query matching for EC. Consequently, in this work, we propose to introduce more training signals for few-shot learning for EC by additionally exploiting the matching information among the examples in the support set themselves. In particular, as there are multiple examples (although only a few) per class/type in the support set, we select a subset of such examples for each type in S and enforce the models to be able to match such the selected examples to their corresponding types in the remaining support set.Formally, let S i",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Accuracy of event classification on ACE-2005 dataset. +LoLoss indicates the use of the auxiliary loss.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Accuracy of the models with the Transformer encoder on the TAC-KBP test dataset. +LoLoss indicates the use of the auxiliary loss.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "The accuracy on the ACE-2005 test set with different noise rates.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

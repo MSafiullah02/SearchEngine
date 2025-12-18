@@ -1,0 +1,1065 @@
+{
+    "paper_id": "8ec3521b690eb62824c1f5ac1230b99d3654c424",
+    "metadata": {
+        "title": "Fast Community Detection with Graph Sparsification",
+        "authors": [
+            {
+                "first": "Jesse",
+                "middle": [],
+                "last": "Laeuchli",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Deakin University",
+                    "location": {
+                        "settlement": "Geelong",
+                        "country": "Australia"
+                    }
+                },
+                "email": "j.laeuchli@deakin.edu.au"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "A popular model for detecting community structure in large graphs is the Stochastic Block Model (SBM). The exact parameters to recover the community structure of a SBM has been well studied, and many methods have been proposed to recover a nodes' community membership. A popular approach is to use spectral methods where the Graph Laplacian L of the given graph is created, and the Fiedler vector of the graph is found. This vector is then used to cluster nodes in the same community. While a robust method, it can be expensive to compute the Fiedler vector exactly. In this paper we examine the types of errors that can be tolerated using spectral methods while still recovering the communities. The two sources of error considered are: (i) dropping edges using different sparsification strategies; and (ii) inaccurately computing the eigenvectors. In this way, spectral clustering algorithms can be tuned to be far more efficient at detecting community structure for these community models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Stochastic Block Models. Detecting communities through clustering is an important problem in a wide variety of network applications characterized by graphs [1, 3] . However, it can be difficult to study the accuracy of clustering on arbitrary graphs. To aid network analysis, generative models are frequently introduced. One popular model is the Stochastic Block Model (SBM) [2] . In this model a number of nodes n with community memberships are given, and the connectivity of vertices p and q within (and between) the communities are also specified. For a given graph with parameters G(n, p, q), we define a = pn, b = qn. It has been shown that the community structure can only be recovered when (a \u2212 b) 2 > 2(a + b) [14] . While models of more than two communities are sometimes studied, in this paper we restrict our attention to the case where the number of communities is fixed at two. There are two reasons for this. The first is that there is more theory available to work with. The second is that in practice it is often the custom when seeking communities in a graph to recursively cluster the nodes into two groups and then continue recursively, since this approach lends itself to high performance computing [4] . A two community model is therefore relevant to real-world approaches and worthy of study. Our goal in this paper is to discuss the question of how we can recover the communities of a SBM faster, by applying graph sparsification and inaccurate eigenvector computation, without harming the accuracy of our recovery methods. Additionally, we show how we can leverage recent research on nearly linear-time solvers to capitalize on the sparser graphs we obtain.",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 159,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 160,
+                    "end": 162,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 375,
+                    "end": 378,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 718,
+                    "end": 722,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1219,
+                    "end": 1222,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Background and Motivation"
+        },
+        {
+            "text": "A popular approach to clustering is to find the Fiedler vector of the graph Laplacian L [4] . This is faster the sparser L is. Given a matrix L, we say that matrixL is similar iff for all x,",
+            "cite_spans": [
+                {
+                    "start": 88,
+                    "end": 91,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Matrices that are similar to each other by the criteria of Eq. (1) share similar eigenvectors and eigenvalues [5] . While fast methods exist for computing such similar matrices through sparsification [5] , it is unclear how errors in eigenvector approximation translate into errors in the communities recovered. Answering this question is a key contribution of this paper.",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 113,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Spectrum of SBM Matrices. Since we will make extensive use of the spectrum of the different matrix representations of a Stochastic Block Model (SBM), we review the known results here, and provide some new ones. First we consider the spectrum of a two community adjacency matrix. Define a = np, b = nq, where p is the probability of a connection between nodes inside the community, and q is the probability of a connection between nodes in different communities. Then the average instance of a SBM model with these parameters can be represented in the form,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "where 1 = (1, 1, 1, . . . , 1)/ \u221a n and u = (1, 1 . . . , \u22121, \u22121, . . . )/ \u221a n. Any particular instance A of a SBM drawn from this distribution of matrices can be represented as A = < A > + X, where X is a random Wigner matrix. Because the eigenvalues of X follow the famous semicircle law, the spectrum of A also follows such a distribution [14] , with the exception of the two largest eigenvalues. The distribution of the bulk of the eigenvalues follows the equation,",
+            "cite_spans": [
+                {
+                    "start": 342,
+                    "end": 346,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "The radius of the bulk of the spectrum of A is given as below, with the center of the semi-circle being at 0.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Finally we also have the two largest eigenvalues of A given as below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "We note that the eigenvectors of A are randomly distributed vectors on the unit sphere except for the top two eigenvectors. The top two eigenvectors are perturbed versions of the vectors of < A > [14] .",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 200,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "We will also be interested in the spectrum and the eigenvectors of the scaled Laplacian L of instances of our SBM. The bulk of the spectrum of L is also known to follow a semi-circle distribution [11] . If we denote the average degree of the SBM asd, then the distribution of the bulk of the eigenvalues follows the equation,",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 200,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "The radius of the bulk of the spectrum are as below, with the center of the semi-circle being at 1.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Avrachenkov et. al [11] states that the other non-trivial eigenvalue of L remains to be characterized, so we briefly show that the eigenvalues outside the semi-circle are as below and bound their deviation from this mean, since our algorithms will make use of this information.",
+            "cite_spans": [
+                {
+                    "start": 19,
+                    "end": 23,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "We have \u03bb 1 = 0, since L is a Laplacian. If A is a regular graph, then the value for \u03bb 2 is directly computable from the eigenvalues of A, as above. Since SMBs are close to regular, with each node having the same average degree of a + b, we need to show that the deviation from the mean is small and with high probability will not change the result. From Lutzeyer and Walden [16] we have that the error of applying this linear transform of the eigenvalues of A, in order to obtain the eigenvalues of L, is 3 dmax\u2212dmin dmax+dmin . We can then use the Chernoff concentration bounds to show that this error goes to zero with high probability.",
+            "cite_spans": [
+                {
+                    "start": 375,
+                    "end": 379,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "The elements of the rows of A are drawn from a binomial distribution, with n/2 of them with probability p, and n/2 of them with probability q. For each diagonal element of L, we then have,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Since we have n diagonal elements, the probability that none exceed this bound can be computed as,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "The error in our approximation for \u03bb 2 is then",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Taking the limit as n increases we then have,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Finally, we state two properties of L that we will make use of later. We can write",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Recall that the eigenvectors of X are randomly distributed on the unit sphere. Then for any",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Alternatively, we have",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Overall Approach. We now outline our overall problem. We would like to accelerate spectral algorithms for Stochastic Block Models (SBMs) while still recovering the communities accurately. Our main approach is to analyze the impact of two different types of error on SBM algorithms. The first is 'edge dropping'. We investigate two strategies for dropping edges which allow us to recover the communities despite, in some cases, having significantly fewer edges than the original problem. While the idea of sparsifying graphs in order to more efficiently recover communities is not new, our contribution is to determine the level of sparsification that can take place while still recovering communities. Our second approach is to stop convergence of the eigensolver early. We analyze 'power iteration', and show that for many SBM instances the solver does not need to be run to convergence. We choose power iteration both because the analysis is simple, and because in conjunction with nearly linear-time solvers, and the dropping strategy previously mentioned, we can design extremely efficient algorithms. This is because power iteration based on these solvers are O(m) complexity. In some cases we can reduce the number of edges by orders of magnitude, making these solvers very attractive.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "The foundation of both these methods is a careful use of the model parameters and the known results for the spectra of SBM models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Spectral Sparsification."
+        },
+        {
+            "text": "Sampling with Effective Resistance. The main idea is that for a given Stochastic Block Model (SBM) we know when we can recover the communities based on the parameters a, b of the model. While it is sometimes assumed that these parameters are known, Mossel et al. [7] gives Eq. (15) for recovering the parameters of an unknown SBM, where |E| is the number of edges in the graph, k n = log 1/4 (n) , and X kn is the number of cycles of length k n in the graph. While X kn is difficult to compute, Mossel et al. shows that this can be well approximated by counting the number of non-backtracking walks in the graph that can be made in O(n) time. They then obtain a linear-time algorithm for estimating a, b by showing that a \u2248d n +f n , and b \u2248d n \u2212f n where,",
+            "cite_spans": [
+                {
+                    "start": 263,
+                    "end": 266,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 495,
+                    "end": 508,
+                    "text": "Mossel et al.",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Once we obtain an estimate for a, b then we can estimate how much we should sparsify the graph to ensure that (a \u2212 b) 2 > 2(a + b), while still dropping edges to obtain a much sparser matrix, for which we can obtain the Fiedler Vector much faster. We can also estimate the percentage of the nodes we will recover using the equation [14] . In order to understand the percentage of the edges of the graph that we should sample we need to consider what the odds are they we will sample an edge connecting two nodes inside a community, against the odds that they will sample an inter-community edge. Ideally we would only sample edges inside the communities, since this would make the communities trivial to detect. Unfortunately, it has been shown by Luxburg et al. [9, 10] that for SBM as n \u2192 \u221e, the effective resistance of a given edge (i, j) in the graph tends toward 1 di + 1 dj . Since the degrees of the nodes in this model are O(n), the variation between effective resistances will be small, and will in any case not reflect the community structure of the graph. At this point our spectral sparsifier will be selecting edges essentially at random. While Luxburg et al. state that theoretical results suggest that the effective resistances could degenerate only for very large graphs, their experimental results show that this behaviour arises even for small communities of 1, 000 vertices.",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 763,
+                    "end": 766,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 767,
+                    "end": 770,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "While in some sense this is a drawback, since this result is telling us we may as well sample randomly, our algorithm can still function, and we can save the cost of computing the effective resistances. For (a \u2212 b) 2 > 2(a + b) to hold true, there must be significantly more intra-community edges than inter-community ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "If we are sampling randomly with spectral sparsification, we should still sample more of the desired edge type, since more of this type exist and we are sampling each edge with roughly the same probability. If we have probabilities p, q, and number of nodes n, then the expected value for the number of edges is shown in Eq. (16) . We can then compute the probability of sampling an intra-community or inter-community edge as in Eq. (17) . If we take S samples, Eq. (18) shows the estimatedp,q for our sparsified graph. We then have\u00e2 =pn,b =qn, which can be used to decide if the communities can be recovered.",
+            "cite_spans": [
+                {
+                    "start": 325,
+                    "end": 329,
+                    "text": "(16)",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 433,
+                    "end": 437,
+                    "text": "(17)",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Correcting Effective Resistance. While Luxburg et al. [10] show that as n \u2192 \u221e the effective resistance eff a,b for a SBM degenerates to (1/d i + 1/d j ) for two nodes i, j, there are various methods known for correcting this. One of these is to multiply by the sum of the degrees. While this does not correct the issue in and of itself, since the effective resistance between every pair of nodes converges to two, the variance around two may be meaningful. Using these \"scaled\" effective resistances captures the community structure of a SBM, and sparsifying by these resistances can cause us to find the community structure of an SBM very quickly. These scaled effective resistances can be obtained by taking the scaled Laplacian L of our SBM, and applying the same algorithm that is used to estimate the effective resistance of L. Given the constants a, b, we can calculate the average difference in scaled effective resistance between edges both inside the communities and outside. This is useful because it allows us to predict on average how much we should sample to ensure (a \u2212 b) 2 > 2(a + b), given the increased chance of sampling intercommunity edges.",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Recall that eff a,b = e a L \u2020 e a + e b L \u2020 e b \u2212 2e a Le b . Using our knowledge of the spectrum of L, we can compute the average values of these terms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "We see that the effective resistance inside the group on average is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "otherwise. This allows us to amend our estimates for\u00e2 andb. If we let r be the ratio between the effective resistance of the two links, then Eq. (21) gives the scaledp ,q .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "We note that our method above does have a potential drawback for very small graphs. This is because we need to sample \u0398(n log(n)) edges to avoid the graph being disconnected [12] . As graphs become large this should be a nonissue because we have lim n\u2192\u221e (pn\u2212qn) 2 \u22122(pn+qn) nlogn = \u221e, which indicates that our sampling criteria will require more edges than needed to ensure connectivity.",
+            "cite_spans": [
+                {
+                    "start": 174,
+                    "end": 178,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Computing the Eigenvector Using Inverse Power Iteration. One of the challenges of spectral methods is computing the eigenvectors needed for clustering, since this can be expensive. Given a nearly linear-time solver, one can compute the eigenvectors of a scaled graph Lapalcian in nearly time in the order of the number of elements of L [6] , by using Inverse Power Iteration. This is attractive given our edge dropping strategy, where we may reduce the number of edges by several orders of magnitude for favourable graphs.",
+            "cite_spans": [
+                {
+                    "start": 336,
+                    "end": 339,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "An additional feature is that it is possible to calculate a stopping criteria for the eigensolver that will allow us to recover the communities, even though the eigenvector has not fully converged. This is a desirable property, since full convergence can be slow. While the bound for our stopping criteria is not tight, it nevertheless is significantly faster than would otherwise be the case for full convergence.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Recall that for the power iteration we have an initial state c 1 \u03bb 1 v 1 +. . . c n \u03bb n v n . On average the c i terms will be of approximately the same size. We are attempting to compute the eigenvector u = (1, 1 . . . , \u22121, \u22121, . . . )/ \u221a n. After each iteration of the power method we have a resultant vector which consists of the desired eigenvector u, and some sum of the other eigenvectors. We need to compute the likely contribution from the other eigenvectors. Once these contributions are smaller than O( 1 \u221a n ) with high probability, we can stop the iteration, because the signal from the desired eigenvector will dominate the calculation, and allow for the correct community assignment.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 208,
+                    "end": 231,
+                    "text": "(1, 1 . . . , \u22121, \u22121, .",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "We need to compute the average contribution from the remaining eigenvectors at each iteration. We begin by computing the average size for each component of the other eigenvectors. Assuming all the c i are equal, we have \u03bb 2 (u + \u03bbi \u03bb2 k v). The eigenvectors v are randomly distributed around the unit sphere, as in Wigner matrices. We know from O'Rourke and Wang [17] , that the elements of these eigenvectors are normally distributed variables, N (0, 1 n ). Multiplying N (0, 1 n ) by \u03bbi \u03bb2 k we have N (0, ( \u03bbn \u03bb2 ) 2k 1 n ) after k iterations. We then have that each component of the sum of the eigenvectors v are normal variables N (0, \u03a3( \u03bbn \u03bb2 ) 2k 1 n ). We can now use Chebyshev's inequality to compute the probability that a component of the sum of the eigenvectors v is greater than 1 \u221a n , the size of the components of the dominant eigenvector u as follows,",
+            "cite_spans": [
+                {
+                    "start": 363,
+                    "end": 367,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Using our knowledge of the density of the spectrum of L, we can compute the probability in Eq. (22), for L \u2020 as follows,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "Once we know the probability of a single component of the eigenvector being greater than the 1 \u221a n , we can use this in a binomial distribution to calculate how many elements we are likely to incorrectly classify. We can, either stop when k is large enough to imply this is close to zero, or when the number is the same order as the error introduced by the perturbation of the main eigenvector from the addition of the random eigenvectors to < A >, as given in [13] .",
+            "cite_spans": [
+                {
+                    "start": 461,
+                    "end": 465,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods and Technical Solutions"
+        },
+        {
+            "text": "While spectral clustering is robust for matrices with high average degrees (cf. Saade et al. [8] ), for very sparse matrices that have low degree entries the technique may struggle to recover the communities when the graph approaches the theoretical limits of community detection. This issue is exacerbated by the fact that we are dropping edges, and thus may create such problematic cases. To combat this we use the method of regularized spectral clustering method given in Saade et al. [8] . Given a regularization parameter \u03c4 , and the matrix J with constant entries 1 n , the authors first define the regularized adjacency matrix A \u03c4 as,",
+            "cite_spans": [
+                {
+                    "start": 93,
+                    "end": 96,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "Similarly they define the regularized diagonal as D \u03c4 as,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "Then the regularized scaled Laplacian is given as,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "We note that the Fiedler vector of this matrix can be computed using the power method using nearly linear-time sparse solvers. D \u22121/2 \u03c4 AD \u22121/2 \u03c4 is symmetric and diagonally dominate so we can make use of nearly linear-time solvers to ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "Using Eq. (27) we can then proceed to compute the Fielder vector using power iteration. In order to determine when to stop the power iteration we proceed in the same way as in Computing the Eigenvector Using Inverse Power Iteration by determining the spectrum L \u03c4 . We begin by noting that L \u03c4 has the same spectrum as D",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "\u03c4 , except that the top eigenvalue is increased by the rank one update D \u22121/2 \u03c4 \u03c4 JD \u22121/2 \u03c4 , as discussed in Ding and Zhou [15] . Since we will project out this eigenvector when performing power iteration, we then only need to consider the density function of D \u22121/2 \u03c4 \u03c4 AD \u22121/2 \u03c4 . By the same argument that we used Eq. (12), we can show that as n increases, whp this density function is given by,",
+            "cite_spans": [
+                {
+                    "start": 124,
+                    "end": 128,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "Our Algorithm. We now present our algorithm. We first obtain (or the user provides) an estimate for the Stochastic Block Model (SBM) parameters. We then obtain the scaled effective resistances eff of the elements of the scaled Laplacian L, which we then use to create a probability density function. We note that we modify the probability density function to sample the edges that have a low effective resistance over those that have a high resistance, since these are the edges that make up our community. This approach is slightly different from the standard algorithm of Spielman and Srivastava [5] , which seeks to sample the highest resistance edges. Next we compute the estimated p, q we will obtain after sparsification, using either Eq. (18) or (21), depending on our sampling strategy, and based on this we decide how much sparsification we can safely apply. After creating our new matrix, we then obtain the relevant eigenvector, depending on whether we are using the Laplacian or the Regularized Laplacian from Eq. (26). While the best performance we obtained was by using the scaled effective resistance, depending on what solver is available, this may not always be the most effective strategy. This is because obtaining the scaled effective resistances using the method of Spielman and Srivastava [5] , requires us to solve a number of linear systems. If a nearly linear time solver is available, this will take O(m) time, where m is the number of edges before our dropping strategy. This will dominate the cost of the computation, and we will not get significant speed-up from using power iteration, which is of order O(m ), where m again is the number of sparsified edges. In the case of our examples this is clearly sub-optimal, since we can reduce m several orders of magnitude and still recover the communities, even when we are dropping edges randomly. In this case it makes sense not to use the scaled effective resistance. On the other hand, in practice, we may wish to use a different eigensolver, since the code for these may be more mature. In this case, the cost of the eigensolver may dominate, especially since the cost of applicable solvers (such as Lanczos-based solvers), does not entirely depend on m. In this case the use of scaled effective resistance sampling may be more effective.",
+            "cite_spans": [
+                {
+                    "start": 598,
+                    "end": 601,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1311,
+                    "end": 1314,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Regularized Spectral Clustering."
+        },
+        {
+            "text": "We now present some experimental results. We first examine the difference between effective-resistance and scaled-effective resistance, and how closely they follow the predicted percentage of recovery. Additionally, we investigate the time needed to compute the eigenvectors of the sparsified versus the unsparsifed matrix, and our convergence criteria for the Fiedler Vector.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "Recovery of Communities. We now examine the success of our method in recovering the communities with the given sparsification. In Figs. 1a we see that using the Regularized Laplacian we can quickly recover almost all the nodes correctly, at around the sparsification level, predicted by Eqs. (18) and (21). This also highlights the impact of using the scaled effective resistance for sampling, with the method converging faster, and following the prediction of Eq. (21) more closely. We note that for both sampling methods the percent of edges we preserve is very small, of the order of 10 \u22123 of the original graph for the Scaled Effective Resistance method.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "In Fig. 1b , we try the real-world example of Saade et al. [8] , where the authors attempt to partition two blogging communities by their political alignment. This is an interesting example because the communities are difficult to recover, requiring the use of regularization techniques, and because the graph structure is not exactly captured by the SBM model. Further this graph is quite small with only 1, 222 nodes, meaning that the graph may be disconnected, as discussed earlier in Sect. 2. Despite these difficulties, we are still able to recover the communities even after a significant amount of sparsification is applied, at the point that our criteria indicate we should be successful. Time Saved in Eigenvector Calculation. One of the main motivations of this work is to obtain the correct community labels while spending less time computing the require eigenvectors. Since we are able to recover the communities, despite applying large amounts of sparsification, we would expect our eigensolver to converge faster. Exactly how fast depends on the solver. For the eigensolver shown in Spielman and Teng [6] , built on top of their nearly linear-time solver and constructed solely to find the Fiedler vector of the Laplacian, our time to compute the eigenvector would depend on the number of elements of our graph.",
+            "cite_spans": [
+                {
+                    "start": 59,
+                    "end": 62,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1115,
+                    "end": 1118,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Fig. 1b",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "Since we have reduced the number of elements by multiple orders of magnitude when sampling with scaled effective-resistance we would get a multiple order of magnitude speed-up. Unfortunately, these solvers are not available for use in production code, so we do not benchmark them here. When using the off-the-shelf solver available in Matlab to find the desired eigenvector, with our best method we achieve essentially an order of magnitude speed-up. This is because the solvers used by this method are not optimized for graphs in the way that the solver of Spielman and Teng. The observed speed-up can be seen in Table 1b .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 614,
+                    "end": 622,
+                    "text": "Table 1b",
+                    "ref_id": null
+                }
+            ],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "While we do not have a nearly linear-time solver to fairly benchmark our Inverse Power method, we are able to test the number of iterations required to obtain 10 \u22128 accuracy vs the number of iterations recommended by our stopping criteria, seen in Table 1a . In all four cases all the community nodes were recovered, even though the sparsification was of the order of O(10 \u22123 ). ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 248,
+                    "end": 256,
+                    "text": "Table 1a",
+                    "ref_id": null
+                }
+            ],
+            "section": "Empirical Evaluation"
+        },
+        {
+            "text": "In this paper we explored the use of sparsifying by effective resistance and scaled effective resistances in order to recover sparsify SBMs, as well as effective stopping criteria for eigensolvers used for community detection. The main goal is to obtain faster solutions while still being confident in our ability to recover the communities. We have provided a method that determines the number of samples needed, depending on the type of sampling used. We found that the community structure can be recovered even when the matrix becomes very sparse. Since SBMs are a commonly studied model for clustering, this method is widely applicable. We leave several areas open for future work. While SBMs are widely studied, the model has certain intrinsic limits which prevent it from modeling certain real-world networks well. We would like to provide a similar analysis for more complex community models, in particular models which have a nonconstant average degree. We could then apply our model to a larger variety of real-world graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Community structure in social and biological networks. Proc. Natl. Acad. Sci. USA 99",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Girvan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E J"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "7821--7826",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Algorithms for graph partitioning on the planted partition model",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Condon",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Karp",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Random Struct. Algor",
+            "volume": "18",
+            "issn": "",
+            "pages": "116--140",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Community detection and stochastic block models: recent developments",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Abbe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "18",
+            "issn": "1",
+            "pages": "6446--6531",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Partitioning sparse matrices with eigenvectors of graphs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Pothen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Simon",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Liou",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "SIAM. J. Matrix Anal. Appl",
+            "volume": "11",
+            "issn": "3",
+            "pages": "430--452",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Graph Sparsification by effective resistances",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Spielman",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 40th Annual ACM symposium on Theory of computing",
+            "volume": "",
+            "issn": "",
+            "pages": "563--568",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Nearly linear time algorithms for preconditioning and solving symmetric, diagonally dominant linear systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Spielman",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Teng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "SIAM J. Matrix Anal. Appl",
+            "volume": "35",
+            "issn": "3",
+            "pages": "835--885",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Reconstruction and estimation in the planted partition model",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Mossel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Neeman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sly",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Probab. Theory Relat. Fields",
+            "volume": "162",
+            "issn": "3",
+            "pages": "431--461",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s00440-014-0576-6"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Impact of regularization on spectral clustering",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Saade",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Krzakala",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zdeborov\u00e1",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Ann. Stat",
+            "volume": "44",
+            "issn": "",
+            "pages": "1765--1791",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Getting lost in space: Large sample analysis of the resistance distance",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radl",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "23",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Hitting and commute times in large random neighborhood graphs",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radl",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "15",
+            "issn": "",
+            "pages": "1751--1798",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Spectral properties of random matrices for stochastic block model",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Avrachenkov",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Cottatellucci",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kadavankandy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "WiOpt",
+            "volume": "",
+            "issn": "",
+            "pages": "25--29",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "A general framework for graph sparsification",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Fung",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hariharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Harvey",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Panigrahi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "STOC 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "6--08",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Spectral partitioning of random graphs",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Mcsherry",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings 42nd IEEE Symposium on Foundations of Computer Science",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Graph spectra and the detectability of community structure in networks",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Nadakuditi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Phys. Rev. Lett",
+            "volume": "108",
+            "issn": "18",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Eigenvalues of rank-one updated matrices with some applications",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Appl. Math. Lett",
+            "volume": "20",
+            "issn": "12",
+            "pages": "1223--1226",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Comparing graph spectra of adjacency and Laplacian matrices",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lutzeyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Walden",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Eigenvectors of random matrices: a survey",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "O&apos;rourke",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Comb. Theory Ser. A",
+            "volume": "144",
+            "issn": "",
+            "pages": "361--442",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "we can compute L \u22121 \u03c4 using the Sherman-Morrison formula which allows us to solve L \u22121 \u03c4 in terms of D",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "INPUT: adj matrix A, boolean S for using scaled effective resistance (eff ), regularization parameter \u03c4 RETURN: partition p[p,q]=EstParam(A) { Est param using eqn. (15)} if S == True then L = CreateScaledLap(A); eff = EstResistance(L) { Est resistance using Spielman and Srivastava [5]} pdf = (eff \u2212min(eff )) ((eff \u2212min(eff ))) {Normalize distribution} pdf = 1 \u2212 pdf {Sample the low resistance nodes} S=0 {Init. number of samples} while (\u00e2 \u2212b ) 2 \u2212 2(\u00e2 +b ) \u2264 0 do Increase S [\u00e2 b ]= EstSparseAB(p,q,S) {est\u00e2 b using eqn. (21)} end while [i j]= find(A) [ni nj]= randsample(S,pdf); {Sample S with pdf} else [i j]= find(A) [ni nj]= randsample(S); {Sample S with uniform distribution} end if A=sparse(i(ni), j(nj),1, size(A,1), size(A,2)) {Create the Sparsified Adjacency Matrix} D\u03c4 = CreateDiag(A)+\u03c4 {Create Degree Matrix } L\u03c4 = D =powermethod(L\u03c4 ); {Get eigenvector} [i p]= sort(v) {Get permutation} return p A Comment on Complexity.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "(a) Results of recovering the communities using regularization after sparsification SBM (10000, 0.5, 0.3). Shows the results for Effective resistance and Scaled Effective Resistance as well as predicted recovery. (b) Results of recovering the communities using regularization after sparsification for the political blog example. This example shows the effect of sparsification on a small graph, where there is an interval between the sparsification criteria, and the point at which the graph is connected.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "We would like to acknowledge the efforts of Professor Peter W. Eklund, who helped make this paper possible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements."
+        }
+    ]
+}

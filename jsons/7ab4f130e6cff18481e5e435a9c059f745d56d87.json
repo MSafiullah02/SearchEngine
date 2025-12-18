@@ -1,0 +1,4577 @@
+{
+    "paper_id": "7ab4f130e6cff18481e5e435a9c059f745d56d87",
+    "metadata": {
+        "title": "A generative adversarial context encoder for long audio inpainting",
+        "authors": [
+            {
+                "first": "Andr\u00e9s",
+                "middle": [],
+                "last": "Marafioti",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Austrian Academy of Sciences",
+                    "location": {
+                        "addrLine": "Wohllebengasse 12-14",
+                        "postCode": "1040",
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Piotr",
+                "middle": [],
+                "last": "Majdak",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Austrian Academy of Sciences",
+                    "location": {
+                        "addrLine": "Wohllebengasse 12-14",
+                        "postCode": "1040",
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Nicki",
+                "middle": [],
+                "last": "Holighaus",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Austrian Academy of Sciences",
+                    "location": {
+                        "addrLine": "Wohllebengasse 12-14",
+                        "postCode": "1040",
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Nathana\u00ebl",
+                "middle": [],
+                "last": "Perraudin",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Austrian Academy of Sciences",
+                    "location": {
+                        "addrLine": "Wohllebengasse 12-14",
+                        "postCode": "1040",
+                        "settlement": "Vienna",
+                        "country": "Austria"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We introduce GACELA, a generative adversarial network (GAN) designed to restore missing musical audio data with a duration ranging between hundreds of milliseconds to a few seconds, i.e., to perform long-gap audio inpainting. While previous work either addressed shorter gaps or relied on exemplars by copying available information from other signal parts, GACELA addresses the inpainting of long gaps in two aspects. First, it considers various time scales of audio information by relying on five parallel discriminators with increasing resolution of receptive fields. Second, it is conditioned not only on the available information surrounding the gap, i.e., the context, but also on the latent variable of the conditional GAN. This addresses the inherent multi-modality of audio inpainting at such long gaps and provides the option of user-defined inpainting. GACELA was tested in listening tests on music signals of varying complexity and gap durations ranging from 375 ms to 1500 ms. While our subjects were often able to detect the inpaintings, the severity of the artifacts decreased from unacceptable to mildly disturbing. GACELA represents a framework capable to integrate future improvements such as processing of more auditory-related features or more explicit musical features.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Audio signals frequently suffer from undesired localized corruptions. These corruptions can be a product of issues during the recording, packet-loss in transmission, or a faulty storage such as a scratched vinyl record. Although the corruptions may have different roots, the study of their removal can be unified as the restoration of localized lost information, usually called audio inpainting [1] . This restoration has also been referred to in the literature as audio interpolation and extrapolation [2, 3] , or waveform substitution [4] . For short corruptions affecting less than a few tens of milliseconds, the goal of audio inpainting algorithms has been to recover the lost information exactly [5] . But as the corruptions affect longer periods of time, that goal becomes unrealistic. For long corruptions, audio inpainting algorithms attempt to reduce the damage by preventing audible artifacts and introducing new coherent information. The new information needs to be semantically compatible, a challenging task for for music, which often has a strict underlying structure with long dependencies. Previous work [6] tried to exploit this structure by repurposing information already available in the signal instead of generating new information. This approach has obivous downsides as it expects music to have repetitions and it usually modifies the length of the corruption. Others [7] have proposed methods that do generate new information, but aim at exact reconstruction and therefore fail to generalize for corruptions over tens of milliseconds.",
+            "cite_spans": [
+                {
+                    "start": 395,
+                    "end": 398,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 503,
+                    "end": 506,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 507,
+                    "end": 509,
+                    "text": "3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 537,
+                    "end": 540,
+                    "text": "[4]",
+                    "ref_id": null
+                },
+                {
+                    "start": 702,
+                    "end": 705,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1121,
+                    "end": 1124,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1392,
+                    "end": 1395,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this contribution, we propose a novel audio inpainting algorithm that generates new information and is specifically designed to address corruptions in the range between hundreds of milliseconds and seconds. In particular, we study the algorithm for the reconstruction of musical signals, i.e., a mix of sounds from musical instruments organized in time. Further, we assume that areas of lost information are separated in time, such that the local information surrounding the gap, the context, is reliable and can be exploited. The proposed algorithm relies on a generative adversarial network (GAN) [8] conditioned on the encoded context information. We refer to the algorithm as a context encoder following [9, 7] . Our context encoder aims at generating content that matches the sound characteristics and respects the semantic cohesion of the available bordering information. In this contribution, we explain our design choices and we provide a thorough evaluation of our context encoder to determine factors with the largest potential for future improvement. Our software and trained models, complemented by instructive examples, is available at https://andimarafioti.github.io/GACELA/.",
+            "cite_spans": [
+                {
+                    "start": 602,
+                    "end": 605,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 711,
+                    "end": 714,
+                    "text": "[9,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 715,
+                    "end": 717,
+                    "text": "7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The term \"audio inpainting\" was coined by Adler et al. to describe a large class of inverse problems in audio processing [1] . Their own work, however, mostly studied the restoration of gaps in audio signals. Generally, audio inpainting problems are concerned with audio represented as data in some feature domain and assume that chunks of that data are corrupted yielding gaps in the representation.",
+            "cite_spans": [
+                {
+                    "start": 121,
+                    "end": 124,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "The number and duration of the gaps as well as the type of corruption is manifold. For example, in declicking and declipping, corruptions may be frequent, but mostly confined to disconnected time-segments of few milliseconds duration or less. We refer to this as inpainting of short gaps. On the other hand, gaps on a scale of hundreds of milliseconds or even seconds may happen, e.g., when reading partially damaged physical media, in live music recordings, when unwanted noise originating from the audience needs to be removed, or in audio transmission with a total loss of the connection between transmitter and receiver lasting for seconds. In such cases we attempt to inpaint long gaps.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "For inpainting short gaps, various solutions have been proposed. [1] proposed a framework based on orthogonal matching pursuit (OMP), which has inspired a considerable amount of research exploiting TF sparsity [10, 11, 12, 5] or structured sparsity [13, 14, 15] . As discussed in [5] , such methods do not extend well to longer gaps, see also [16] for a recent study of sparsity-based audio inpainting. Other methods for short gap inpainting and relying on TF representations rely, e.g., on a regression model [17] , or nonnegative matrix and tensor factorization [18, 19, 20] . More recently, a powerful framework has been proposed for various audio inverse problems [21] including time-domain audio inpainting, source separation [22] , and declipping [23] even in a multichannel scenario [24] .",
+            "cite_spans": [
+                {
+                    "start": 65,
+                    "end": 68,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[10,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 215,
+                    "end": 218,
+                    "text": "11,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 219,
+                    "end": 222,
+                    "text": "12,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 223,
+                    "end": 225,
+                    "text": "5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 249,
+                    "end": 253,
+                    "text": "[13,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 254,
+                    "end": 257,
+                    "text": "14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 258,
+                    "end": 261,
+                    "text": "15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 280,
+                    "end": 283,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 343,
+                    "end": 347,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 510,
+                    "end": 514,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 564,
+                    "end": 568,
+                    "text": "[18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 569,
+                    "end": 572,
+                    "text": "19,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 573,
+                    "end": 576,
+                    "text": "20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 668,
+                    "end": 672,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 731,
+                    "end": 735,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 753,
+                    "end": 757,
+                    "text": "[23]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 790,
+                    "end": 794,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "Interpolation algorithms based on linear prediction coding (LPC) [25] are flexible enough to cover various gap lengths, but pose strong assumptions on stationarity of the distorted signal [26, 3, 27] . Nonetheless, they outperform the aforementioned short gap methods on gap durations above 50 ms [5] . Despite a recent contribution by the authors proposing a neural context encoder to perform inpainting of medium duration gaps [7, 28] , LPC is still, in our opinion, amongst the most promising methods for inpainting medium duration gaps.",
+            "cite_spans": [
+                {
+                    "start": 65,
+                    "end": 69,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 188,
+                    "end": 192,
+                    "text": "[26,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 193,
+                    "end": 195,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 297,
+                    "end": 300,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 429,
+                    "end": 432,
+                    "text": "[7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 433,
+                    "end": 436,
+                    "text": "28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "On the other hand, for inpainting long gaps, i.e., gaps exceeding several hundred milliseconds, recent methods leverage repetition and determine the most promising reliable segment from uncorrupted portions of the input signal. Restoration is then achieved by inserting the determined segment into the gaps. These methods do not claim to restore the missing gap perfectly, they aim at plausibility. For example, exemplar-based inpainting was proposed based on a graph encoding spectro-temporal similarities within an audio signal [6] . Other examples of long gap audio inpainting by means of exemplars include [29, 30, 31, 32, 33] . Not aiming for accurate recovery of the missing information, but instead for a plausible solution, numerical criteria are ill-suited for assessing the success of long gap inpainting, which usually requires extensive perceptual evaluation.",
+            "cite_spans": [
+                {
+                    "start": 530,
+                    "end": 533,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 610,
+                    "end": 614,
+                    "text": "[29,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 615,
+                    "end": 618,
+                    "text": "30,",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 619,
+                    "end": 622,
+                    "text": "31,",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 623,
+                    "end": 626,
+                    "text": "32,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 627,
+                    "end": 630,
+                    "text": "33]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "Starting around 2019, several groups of researchers have attempted to tackle the audio inpainting problem using deep neural networks and TF representations. In [34] , spectrogram inpainting from combined audio and video information is proposed, while [35] considers inpainting of time-frequency masked speech data. The context encoder presented in [7, 28] is specifically targeted to medium duration gaps. The pre-print [36] seems to be the first to evaluate the inpainting of slightly longer gaps (100 to 400 ms) with neural networks, comparing several models originally proposed for general conditioned audio synthesis with the graph-based method [6] , as well as the authors' own proposal for a deep neural system for audio inpainting. Generally speaking, deep audio inpainting seems to be a particularly tough instance of conditioned deep neural audio synthesis, since the conditioning only contains indirect information about the content to be generated, which nonetheless needs to be seamlessly inserted into the existing reliable audio.",
+            "cite_spans": [
+                {
+                    "start": 160,
+                    "end": 164,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 251,
+                    "end": 255,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 348,
+                    "end": 351,
+                    "text": "[7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 352,
+                    "end": 355,
+                    "text": "28]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 420,
+                    "end": 424,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 649,
+                    "end": 652,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related audio-inpainting algorithms"
+        },
+        {
+            "text": "There have been many attempts to synthesize audio using neural networks. However, neural audio synthesis remains a particularly challenging task because of the presence of complex structures with dependencies on various temporal scales. Neural audio synthesizers are often conditioned to reduce the dependencies on larger temporal scales [37, 38] , but even then the networks that finally synthesize the signal are fairly sophisticated [39, 40, 41, 42, 43, 44] . This can be partially explained by these networks modeling audio as a time representation with a high temporal resolution; audio time signals usually have at least 16,000 samples per second. In contrast, when modeling audio as a time-frequency (TF) representation, the temporal resolution is a parameter of the model. In fact, TF representations of audio are widely applied to neural networks, e.g., for solving discriminative tasks, in which they outperform networks directly trained on the waveform [45, 46, 47] . TF representations are also commonly chosen to condition neural synthesizers [48, 49] , e.g., Tacotron 2 [50] relies on noninvertible mel-frequency spectrograms and Timbretron [51] relies on the constant-Q transform. In those cases, the gen-eration of a time-domain signal from the TF coefficients is then achieved by training a conditional neural synthesizer to act as a vocoder. Despite recent improvements in neural synthesizers modeling audio in the TF domain [52, 53, 54] , the state-of-the-art neural synthesizers still model audio in the time domain.",
+            "cite_spans": [
+                {
+                    "start": 338,
+                    "end": 342,
+                    "text": "[37,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 343,
+                    "end": 346,
+                    "text": "38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 436,
+                    "end": 440,
+                    "text": "[39,",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 441,
+                    "end": 444,
+                    "text": "40,",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 445,
+                    "end": 448,
+                    "text": "41,",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 449,
+                    "end": 452,
+                    "text": "42,",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 453,
+                    "end": 456,
+                    "text": "43,",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 457,
+                    "end": 460,
+                    "text": "44]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 964,
+                    "end": 968,
+                    "text": "[45,",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 969,
+                    "end": 972,
+                    "text": "46,",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 973,
+                    "end": 976,
+                    "text": "47]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 1056,
+                    "end": 1060,
+                    "text": "[48,",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 1061,
+                    "end": 1064,
+                    "text": "49]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 1084,
+                    "end": 1088,
+                    "text": "[50]",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 1155,
+                    "end": 1159,
+                    "text": "[51]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 1443,
+                    "end": 1447,
+                    "text": "[52,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 1448,
+                    "end": 1451,
+                    "text": "53,",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 1452,
+                    "end": 1455,
+                    "text": "54]",
+                    "ref_id": "BIBREF55"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related deep-learning techniques / audio synthesis with ML"
+        },
+        {
+            "text": "We can obtain valuable insights on the design of a neural synthesizer for audio inpainting from music synthesizers. Modeling music has proven particularly difficult due to a wide range of timescales in dependencies from pitch and timbre (short-term), through rhythm (medium-term) to song structure (long-term) [55, 38] . The long-range dependencies can be addressed by synthesizing music in multiple steps. Different features have been proposed as intermediate representations [56, 57, 58] , with a common symbolic one being MIDI [59, 55, 60] . Conditioning neural synthesizers with neurally generated MIDI has many advantages: 1) it is analogous to the discrete structure embedded in music's generative process, in the words of [55] : \"a composer creates songs, sections, and notes, and a performer realizes those notes with discrete events on their instrument, creating sound\". 2) MIDI is easy to interpret and modify. Users can interact with MIDI pieces generated from a network before the neural synthesizer plays them. On the other hand, MIDI's major drawback is that in order to learn from it, one needs large-scale annotated datasets. For piano music, [55] addressed this by creating such a dataset, but for general music we have not found a suitable dataset.",
+            "cite_spans": [
+                {
+                    "start": 310,
+                    "end": 314,
+                    "text": "[55,",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 315,
+                    "end": 318,
+                    "text": "38]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 477,
+                    "end": 481,
+                    "text": "[56,",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 482,
+                    "end": 485,
+                    "text": "57,",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 486,
+                    "end": 489,
+                    "text": "58]",
+                    "ref_id": "BIBREF59"
+                },
+                {
+                    "start": 530,
+                    "end": 534,
+                    "text": "[59,",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 535,
+                    "end": 538,
+                    "text": "55,",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 539,
+                    "end": 542,
+                    "text": "60]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 729,
+                    "end": 733,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                },
+                {
+                    "start": 1159,
+                    "end": 1163,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related deep-learning techniques / audio synthesis with ML"
+        },
+        {
+            "text": "inpainting system: GACELA Our generative adversarial context encoder (GACELA) targets music inpainting in long gaps, i.e., in the range between hundreds of milliseconds and seconds. In this range, there are usually multiple plausible solutions for music inpainting and we consider the task as multimodal. For example, on a gap where originally a single chord was played, there could be several other chords that fill in the gap while still sounding plausible. For each chord there are even several variations: different intensities or onsets for each note. The multi-modality present at this range needs to be taken into account to model the task. Considering that a standard regression loss models a unique solution, it would lead to an average of the possible solutions and it is a bad fit for the task at this range. To solve this challenge, we model the task with a GAN, which is able to model the distribution of possible gap replacements instead of producing a single candidate. GANs rely on two competing neural networks trained simultaneously in a two-player min-max game: The generator produces new data from samples of a random variable; The discriminator attempts to distinguish between these generated and real data. During the training, the generator's objective is to fool the discriminator, while the discriminator attempts to learn to better classify real and generated (fake) data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The"
+        },
+        {
+            "text": "An overview of our end-to-end audio generation is presented in Fig. 1 . As in [7] , we consider the audio signal s consisting of the gap s g and the context signals before and after the gap, s b and s a , respectively. The signal s is transformed into mel-scale time-frequency spectrograms (mel spectrograms) and unreliable time frames, i.e., those that have nonnegligible overlap with the gap, are discarded. The remaining mel coefficients form the preceding context S b and succeeding context S a . After further dimensionality reduction, the contexts serve to condition the generator. The output of the generator is a log-magnitude STFT S g , from which an audio signal is synthesized using established methods for phaseless reconstruction.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 81,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 63,
+                    "end": 69,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "The"
+        },
+        {
+            "text": "The proposed adversarial context encoder is comprised of a generator network and five discriminator networks, which consider the (generated or real) audio content in the gap region and its context at different scales. Each discriminator receives the generated (or real) gap data, as well as different amounts of context, encoded either as logmagnitude short-time Fourier coefficients or mel spectrograms, depending on the scale of the considered context. The generator, a context encoder conceptually split into two identical border encoder networks and one decoder network, is conditioned on the real border data encoded as mel spectrograms. Such conditioning is commonly achieved in GANs by supplying auxiliary data to both the generator and the discriminator, further specifying the generator's task. To date, several formulations of conditional architectures have been proposed [61] . In this contribution, we opt to condition solely on the close-range context, i.e., few seconds of TF audio data preceding and succeeding the gap. Converting the time-domain audio into a log-magnitude time-frequency representation partially solves the problem of scales, since a large number of audio samples are represented by a small number of time frames in the timefrequency representation. Hence, all audio data is transformed into, and represented by, log-magnitude short-time Fourier spectrograms and sometimes further processed into mel spectrograms [62] . The latter is the de-facto standard for a perceptually motivated dimensionality-reduced time-frequency representation and is well-suited as a basic encoding for larger scale conditioning data, when reduced precision is sufficient or even desired. The former on the other hand provides a redundant, highly detailed and interpretable representation of audio from which the source signal can be reconstructed in excellent quality by means of recent algorithms for phaseless reconstruction [63, 64, 65, 66] .",
+            "cite_spans": [
+                {
+                    "start": 882,
+                    "end": 886,
+                    "text": "[61]",
+                    "ref_id": "BIBREF62"
+                },
+                {
+                    "start": 1446,
+                    "end": 1450,
+                    "text": "[62]",
+                    "ref_id": "BIBREF63"
+                },
+                {
+                    "start": 1939,
+                    "end": 1943,
+                    "text": "[63,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 1944,
+                    "end": 1947,
+                    "text": "64,",
+                    "ref_id": "BIBREF65"
+                },
+                {
+                    "start": 1948,
+                    "end": 1951,
+                    "text": "65,",
+                    "ref_id": "BIBREF66"
+                },
+                {
+                    "start": 1952,
+                    "end": 1955,
+                    "text": "66]",
+                    "ref_id": "BIBREF68"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The"
+        },
+        {
+            "text": "The software was implemented in PyTorch [67] and is publicly available, as well as every trained model here discussed. 1 The audio processing blocks described in the next subsection are computed using the Tifresi package [68] . For computing the STFT and mel representations, Tifresi depends on LTFATpy [69] and librosa [70] , respectively. ",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 44,
+                    "text": "[67]",
+                    "ref_id": "BIBREF69"
+                },
+                {
+                    "start": 119,
+                    "end": 120,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 221,
+                    "end": 225,
+                    "text": "[68]",
+                    "ref_id": "BIBREF70"
+                },
+                {
+                    "start": 303,
+                    "end": 307,
+                    "text": "[69]",
+                    "ref_id": "BIBREF71"
+                },
+                {
+                    "start": 320,
+                    "end": 324,
+                    "text": "[70]",
+                    "ref_id": "BIBREF72"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The"
+        },
+        {
+            "text": "In addition to the network architecture, the proposed training-and generation-time pipelines require some simple, fixed signal processing blocks to transform the data at various points in the processing chain.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "\u2022 STFT: Computes the log-magnitude STFT spectrogram of the input audio waveform. Optionally, the STFT phase can be stored for later use. In the provided implementation, all STFTs are computed using truncated Gaussian windows with a hop size of a = 256 and M = 1024 frequency channels, following the guidelines proposed in [53] , leading to a representation with redundancy M/a = 4.",
+            "cite_spans": [
+                {
+                    "start": 322,
+                    "end": 326,
+                    "text": "[53]",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "\u2022 ISTFT: Given a log-magnitude STFT and matching STFT phase, the ISTFT block performs STFT inversion. Inversion is matched to the STFT block in the following sense: When log-magnitude and phase input equal the output of STFT, the waveform output of ISTFT equals the waveform input of STFT. See [71, 72, 73] for more information on how to invert redundant STFTs.",
+            "cite_spans": [
+                {
+                    "start": 294,
+                    "end": 298,
+                    "text": "[71,",
+                    "ref_id": "BIBREF73"
+                },
+                {
+                    "start": 299,
+                    "end": 302,
+                    "text": "72,",
+                    "ref_id": "BIBREF74"
+                },
+                {
+                    "start": 303,
+                    "end": 306,
+                    "text": "73]",
+                    "ref_id": "BIBREF75"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "\u2022 PGHI: Constructs a candidate phase for a given logmagnitude STFT spectrogram by means of phase gradient heap integration [63] . The output phase can be combined with the input spectrogram for use with ISTFT.",
+            "cite_spans": [
+                {
+                    "start": 123,
+                    "end": 127,
+                    "text": "[63]",
+                    "ref_id": "BIBREF64"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "\u2022 MEL: Computes a mel-scale spectrogram from a given log-magnitude STFT spectrogram. In the provided implementation, all mel spectrograms are set to have 80 filters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "\u2022 Time-Averaging (TA X): Reduces the time dimension of a log-magnitude STFT spectrogram or MEL spectrogram by a factor of X, where X is a positive integer. Dimensionality reduction is achieved by averaging every X successive time frames of the input spectrogram.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "At generation time, the audio processing blocks are used to preprocess the generator input and during audio synthesis from the generator output as shown in Figures 1 and 2 . During training, the discriminator input is preprocessed as well, as shown in Figure 3 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 156,
+                    "end": 171,
+                    "text": "Figures 1 and 2",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 252,
+                    "end": 260,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Processing stages"
+        },
+        {
+            "text": "We use PGHI [63] over competing phaseless reconstruction algorithms such as Griffin-Lim [74] or LeRoux's weighted least squares [66] for various reasons: PGHI is non-iterative, highly efficient and often outperforms other algorithms in terms of perceptual reconstruction quality, sometimes even significantly [63, 75, 64 ].",
+            "cite_spans": [
+                {
+                    "start": 12,
+                    "end": 16,
+                    "text": "[63]",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 88,
+                    "end": 92,
+                    "text": "[74]",
+                    "ref_id": "BIBREF76"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[66]",
+                    "ref_id": "BIBREF68"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[63,",
+                    "ref_id": "BIBREF64"
+                },
+                {
+                    "start": 314,
+                    "end": 317,
+                    "text": "75,",
+                    "ref_id": "BIBREF77"
+                },
+                {
+                    "start": 318,
+                    "end": 320,
+                    "text": "64",
+                    "ref_id": "BIBREF65"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Processing stages"
+        },
+        {
+            "text": "Generator: The overall structure of the generator is shown in Fig. 2 . The preceding and succeeding contexts are each provided to their associated encoder network after passing through the preprocessing chain, consisting of an STFT block, followed by a MEL and TA 4 block. Both encoders share the same architecture: 4 convolutional layers with stride 2 and ReLU activations. Parameters are not shared between the encoders. Both encoder outputs and a realization of the latent variable are concatenated and passed to the decoder. The latent variable is drawn from a 128-dimensional uniform distribution. The decoder itself is comprised of a fully-connected layer with output size 8192, followed by 4 transposed convolution layers with Figure 2 : Overview of the generation process. At training time, the generator output is forwarded to the discriminators. During generation, an audio waveform is generated by processing the output with the PGHI and ISTFT blocks. stride 2, further 2 convolutional residual layers and a final transposed convolution layer. The decoder output has exactly the shape of the gap in the original log-magnitude STFT spectrogram and is interpreted as log-magnitude STFT coefficients for the purpose of synthesis and propagation through the discriminators. For more details about the generator, refer to the accompanying code implementation. Discriminators: We adapt the multi-scale architecture from [76] to TF representations, with five discriminators operating on five different time scales and two different frequency representations. In the audio domain, multiple discriminators operating on different scales have successfully been used as well [42] , where the authors directly process time-domain audio. In the proposed architecture, all discriminators are supplied with time-frequency spectrograms and between successive discriminators, the receptive field is increased by a factor of two, see Fig. 3 . Every discriminator has five convolutional layers with stride 2. While the first two discriminators, with smaller receptive field, process log-magnitude STFT spectrograms directly, further discriminators process mel coefficients. Since the increased receptive field is achieved by time-averaging, the number of input time frames is equal for all discriminators. On the other hand, the input mel spectrograms supplied to discriminators 3 through 5 posses a reduced number of frequency channels, such that these discriminators were allocated 4 times less channels in every convolutional layer. For more details about the discriminators, refer to the accompanying code implementation.",
+            "cite_spans": [
+                {
+                    "start": 1425,
+                    "end": 1429,
+                    "text": "[76]",
+                    "ref_id": "BIBREF78"
+                },
+                {
+                    "start": 1674,
+                    "end": 1678,
+                    "text": "[42]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 62,
+                    "end": 68,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 734,
+                    "end": 742,
+                    "text": "Figure 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 1926,
+                    "end": 1932,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "The adversarial context encoder"
+        },
+        {
+            "text": "The main objective of the evaluation is to determine to which extent our system can restore localized corruptions in different types of musical signals. We want to determine 1) the effect of the complexity level of the musical signal on the inpainting performance and 2) the effect of the gap length on the inpainting performance. To address 1), we built five different datasets of musical signals with increasing complexity from two types of audio signals: audio synthesized from MIDI files and recorded from physical instruments. For 2), the system was trained with an in- serted gap size of either 375ms, 750 ms or 1,5 s. For these two tests, we evaluated the inpainting quality by means of listening tests.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation methods"
+        },
+        {
+            "text": "The second objective of the evaluation is to better understand how the system performs the inpainting to facilitate improving it in the future and to gain insight for the development of other similar systems. Since our system relies on PGHI for phase reconstruction, we evaluated the impact of the PGHI on the audio inpainting. Further, we investigate the influence of the latent variable on the generator and the processing of context data by the encoder. Finally, we compare our method to the one presented in [6] .",
+            "cite_spans": [
+                {
+                    "start": 512,
+                    "end": 515,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation methods"
+        },
+        {
+            "text": "We expect the success of our method to be correlated to the complexity of the music it is trained on. We tested this hypothesis with listening tests. To do so, we trained the method on different datasets with increasing complexity. The first two datasets were synthesized from MIDI data using pretty midi [77] , specifically it's fluidsynth API. We generated just one instrument and set that instrument to the piano program 1 so that the whole dataset would have the same sound complexity and to reduce the variability in the datasets. In total, we trained networks with five complexity levels, out of which four surpassed an initial informal evaluation, such that they were considered for the listening tests. Therefore, we tested 4 complexity levels, with 3 conditions per case, and 12 songs, giving us a total of 144 stimuli per block for this test.",
+            "cite_spans": [
+                {
+                    "start": 305,
+                    "end": 309,
+                    "text": "[77]",
+                    "ref_id": "BIBREF79"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "1) Simple midi. The simplest case we handled was 'hand-written' MIDI data. Here, the MIDI annotations have little variation since they are written down by humans on a quantized structure. For this case, we used the Lakh MIDI dataset [78] , a collection of 176,581 unique MIDI files, 45,129 of which have been matched and aligned to entries in the Million Song Dataset [79] . The Lakh MIDI dataset was generated with the goal of facilitating largescale music information retrieval, both symbolic (using the MIDI files alone) and audio content-based (using information extracted from the MIDI files as annotations for the matched audio files).",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[78]",
+                    "ref_id": "BIBREF80"
+                },
+                {
+                    "start": 368,
+                    "end": 372,
+                    "text": "[79]",
+                    "ref_id": "BIBREF81"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "2) Midi recorded from human performances. For the second complexity level, we used MIDI data that was extracted from performances on a piano. Here, the added complexity is the lack of a strict musical structure such as the precise tempo present from level 1). For this case, we used the Maestro dataset [55] , a dataset containing over 200 hours of paired audio and MIDI recordings from ten years of International Piano-e-Competition. In this competitions, virtuoso pianists perform on Yamaha Disklaviers which, in addition to being concert-quality acoustic grand pianos, utilize an integrated high-precision MIDI capture and playback system. The MIDI data includes key strike velocities and sustain/sostenuto/una corda pedal positions. The repertoire is mostly classical, including composers from the 17th to early 20th century.",
+            "cite_spans": [
+                {
+                    "start": 303,
+                    "end": 307,
+                    "text": "[55]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "3) Audio recordings of piano performances. For the third complexity level, we used real recorded performances of grand pianos. These are the same pieces from the second complexity level. This level adds the sound complexity of a real instrument compared to a simple midi synthesized sound.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "4) Free music. The fourth level of complexity is the last one we used for the listening tests. For this, we wanted to test the system on a broader scenario including a more general definition of music. On this level, the added complexity is the interaction between several real instruments. To remove some variation from the dataset, we trained the network on a single genre at the time, in this case either rock or electronic music (for the listening test we only used rock samples). For this complexity level, we used the free music archive dataset (FMA, [80] ), particularly, a subset we generated by segmenting the 'small' dataset by genre.",
+            "cite_spans": [
+                {
+                    "start": 557,
+                    "end": 561,
+                    "text": "[80]",
+                    "ref_id": "BIBREF82"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "FMA is an open and easily accessible dataset, usually used for evaluating tasks in musical information retrieval. The small version of FMA is comprised of 8,000 30-s segments of songs with eight balanced genres sampled at 44.1 kHz.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity levels"
+        },
+        {
+            "text": "We expect the success of our method to be correlated to the length of the gap. To test this hypothesis, we trained different networks on different gap lengths and evaluated them with listening tests. We kept the network structure as fixed as possible, such that Fig. 3 still applies to every network trained for this experiment. The selected gap lengths were either 372 ms, 743 ms or 1486 ms. Since we expect the effect of the gap length to be independent from the effect of the complexity of the music, we trained all networks on the third complexity level: real piano recordings. To evaluate the gap durations, we included two additional conditions to the listening tests 2 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 262,
+                    "end": 268,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Gap durations"
+        },
+        {
+            "text": "We performed listening tests to determine the effects of the complexity level and the gap length on the inpainting performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "Subjects. Candidates completed a self-assessment questionnaire about their music listening habits. For the evaluation, only candidates who listened to at least 4 hours of music per week were considered. In total, 8 subjects were selected for the test. They were paid on an hourly basis. Before the experiment, the subject was informed about the purpose and procedure of the experiment and five exemplary files were presented: 1) a sound with a gap, 2) the same sound with a click, 3) the same sound with a poor reconstruction, 4) the same sound with a good but detectable reconstruction, and 5) the original sound. Any questions with respect to the procedure were clarified.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "Task. The task was similar to that from [6] . In each trial, the subject listened to a sound stimulus and was asked to pay attention to a potential artifact. A slider scrolled horizontally while the sample was played indicating the current position within a stimulus. The subject was asked to tag the artifact's position by aligning a second slider with the beginning of the perceived artifact. Then, while listening again to the same stimulus, the subject was asked to confirm (and re-align if required) the slider position and answer the question \"How poor was it\" The possible answers were: (0) no issue (\"Kein Fehler\"), (1) not disturbing (\"Nicht st\u00f6rend\"), (2) mildly disturbing (\"Leicht st\u00f6rend\"), and (3) not acceptable (\"Nicht akzeptabel\").",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 43,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "Then, the subject continued with the next trial by tapping the \"next\" button.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "Conditions. Three conditions were tested: inpainted, clicked and reference (original). For the inpainted condition, the song was corrupted at a random place with a gap and then reconstructed with our method. The reconstructed song was cropped 2 to 4 seconds (randomly varying) before and after the gap resulting in samples of 4.4 to 9.5-s duration. For the reference condition, the same cropped segment was used. The reference condition did not contain any artifact and was used to estimate the sensitivity of a subject. For the click condition, a click was superimposed to the cropped segment at the position where the random gap started. The artifact in this condition was used as a reference artifact and was clearly audible.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "Across our datasets, the differences between songs are larger that in a single song, so we do not test the same song more than once. Instead, for each test 12 songs were used. The combination of complexity levels and gap lengths described in the remainder of this section resulted in a block of 168 stimuli. All stimuli were normalized in level. Within the block, the order of the stimuli and conditions was random. Each subject was tested with two blocks, resulting in 336 trials per subject in total. Subjects were allowed to take a break at any time, with two planned breaks per block. For each subject, the test lasted approximately three hours.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Listening tests"
+        },
+        {
+            "text": "In order to evaluate the influence of the phase reconstruction algorithm, PGHI, we computed the objective difference grade (ODG, [81] ), which corresponds to the subjective difference grade used in human-based audio tests, derived from the perceptual evaluation of audio quality. ODG ranges from 0 to \u22124 with the interpretation shown in Tab. 1; it was computed using the implementation provided with [82] . In our evaluation, the ODG was calculated on signals with the phase in the gap discarded and reconstructed using PGHI.",
+            "cite_spans": [
+                {
+                    "start": 129,
+                    "end": 133,
+                    "text": "[81]",
+                    "ref_id": "BIBREF83"
+                },
+                {
+                    "start": 400,
+                    "end": 404,
+                    "text": "[82]",
+                    "ref_id": "BIBREF84"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Objective difference grade (ODG)"
+        },
+        {
+            "text": "ODG Impairment 0 Imperceptible -1",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective difference grade (ODG)"
+        },
+        {
+            "text": "Perceptible, but not annoying -2 Slightly annoying -3",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective difference grade (ODG)"
+        },
+        {
+            "text": "Annoying -4",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective difference grade (ODG)"
+        },
+        {
+            "text": "Very annoying ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Objective difference grade (ODG)"
+        },
+        {
+            "text": "In order to assess the impact of the phase reconstruction on the inpainting quality, we evaluated the ODG of the real Table 2 : PGHI's mean ODG accross 64 songs for different datasets signals against signals which consisted of unaltered magnitude coefficients and PGHI applied only to recover the phase on the gap. This way, we were able to estimate the impact the PGHI will have for an output of the network that does not present problems at a STFT level. Additionally, since we apply ODG to the full signals used on the listening tests, we also compute the ODG for the click signals, to corroborate that ODG is sensitive to localized distortions. The mean ODG obtained for 64 songs in the datasets used for the listening tests for both PGHI applied to the phase coefficients in the gap and a click applied at the beginning of the gap is presented in Table 2 . From this, we can see that on the two MIDI datasets and the maestro recordings, the effect of PGHI would be very hard for listeners to detect, and even then it would not be annoying. On the other side, the click would always be easy to detect and annoying. For the most complex dataset, i.e., free music, the influence of PGHI was between imperceptible and perceptible but not annoying, and the influence of the click was perceptible and between not annoying and slightly annoying. This indicates that for the considered datasets, the effect of PGHI on the overall quality of the results will be small.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 118,
+                    "end": 125,
+                    "text": "Table 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 852,
+                    "end": 859,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Impact of the phase reconstruction"
+        },
+        {
+            "text": "We condition the generator not only on the encoded context, but also on the latent variable, a random variable drawn from a uniform distribution. We expect different realizations of the random variable to output different solutions for the task. However, this might not be the case: It has been reported that GANs with strong conditioning information do not rely heavily on the additional noise input distribution [83, 84, 42] . In order to evaluate whether the generator output changes depending on the latent variable, we generate, for the same context drawn from the complexity level 3, several different outputs, only changing the latent variable realization.",
+            "cite_spans": [
+                {
+                    "start": 414,
+                    "end": 418,
+                    "text": "[83,",
+                    "ref_id": "BIBREF85"
+                },
+                {
+                    "start": 419,
+                    "end": 422,
+                    "text": "84,",
+                    "ref_id": "BIBREF86"
+                },
+                {
+                    "start": 423,
+                    "end": 426,
+                    "text": "42]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Effect of the latent variable"
+        },
+        {
+            "text": "The mean and standard deviation of the generated spectrograms for eight different samples from the latent variable and eight different contexts from the maestro dataset are shown in Fig. 4 . We can see here that the mean is not completely blurred, but the standard deviation is not small. This indicates that the output does drastically change with the different samples from the latent variable, but there is still significant variation. Going into more ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 182,
+                    "end": 188,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Effect of the latent variable"
+        },
+        {
+            "text": "Our system encodes the context of the lost information in order to use it as conditioning for a generative network. A key variable here is how much context is encoded by the system since the amount of context is proportional to the computation time. Therefore, we evaluate how the context is being exploited by the network; we provide the encoder with different contexts drawn from the complexity level 3 and analyse the output it produces. Since the encoder is comprised only of convolutional layers, and convolution is translation equivariant, the encoder outputs preserves the localization of the information. Hence by analysing the output, we know which part of the input mel-spectrogram was encoded for the network to decode a solution for the gap. Fig. 6 shows different spectrograms that were given as input to the encoder before the gap and the average encoded output across channels. The sparse nature of the code tells us that the encoder puts his attention mostly on the two time bins adjacent to the gap. In the signal domain, this corresponds to roughly 1.4 seconds of audio content, when the full context represents 5.6 seconds. While not displayed, the situation is symmetric for the post-gap encoder. Fig. 7 shows different channels of the encoders output for one particular input. We observe here that even though the mean is focusing on the information closer to the gap, the rest of the mel-spectrogram is still useful and encoded. Figure 6 : Two repeated rows where top is input spectrograms for the encoder (after time and mel average) and bottom is the encoder output averaged across channels.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 754,
+                    "end": 760,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 1217,
+                    "end": 1223,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF5"
+                },
+                {
+                    "start": 1451,
+                    "end": 1459,
+                    "text": "Figure 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "Attention of the encoder"
+        },
+        {
+            "text": "Even though both the similarity graph algorithm (SGA) and our method inpaint gaps of audio content in a similar range, they rely on very different conditions: a) SGA should have sufficient material to compute the similarity graph on and find a suitable solution, e.g., a full song. In contrast, the neural network only takes a few seconds of audio context. b) SGA does not require any training and can adapt to multiple datasets and gap lengths, while our network needs hours of re-training for each new type of music and (currently) target gap length. c) SGA may modify the length of the gap, as well as the total length of the song and some uncorrupted audio content at the border of the gap. Our method only replaces the corrupted portion of the song. d) Once trained, filling the gap using the network is computationally more efficient than SGA. Since the conditions for both methods are so different, they suffer from different drawbacks. SGA always fills the gap with content that has the same audio quality as the rest of the piece, since it fills the gap with content from the piece. However, the two transitions between the borders around the gap can be unnatural if the algorithm picks an unsuitable gap replacement. Furthermore, this selection relies crucially on the existence of a good replacement in the current song. Eventually, SGA results can be erratic with the reconstruction being either very good or relatively poor with a good/poor ratio depending highly on the specific piece of music it is applied to. Our network is limited differently as it can only access a few seconds of information around the gap and only works on the type of data it has been trained on. Therefore, the perceived disturbances in the gap reconstruction are different from SGA. In general, the quality of the reconstruction is more uniform and the transitions are not the main source of artifacts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Comparison to the similarity graph algorithm."
+        },
+        {
+            "text": "Under these considerations, a comparison to SGA in terms of listening tests is outside of the scope of this contribution. There are conditions for which SGA provides an optimal solution: A localized corruption within a repetitive song, where the solution does not need to be computed quickly and a change in song duration is unproblematic. On the other side, our method can handle other conditions such as streamed signals where the full content is not available, signals that present repetitive corruptions in intervals such that long context is not available, or signals without repetition. Nevertheless, we applied our method trained on the complexity level 4 to the rock songs used for the listening tests in [6] and provide them on the webpage 4 .",
+            "cite_spans": [
+                {
+                    "start": 713,
+                    "end": 716,
+                    "text": "[6]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Comparison to the similarity graph algorithm."
+        },
+        {
+            "text": "and severity. Detection results are shown in the left panel of Fig.  8 . The average detection rates for the click, inpainting, and reference conditions were 99.9\u00b10.4%, 84.7\u00b19.3%, and 15.6\u00b17.3%, respectively. The almost perfect detection rate and small variance in the click condition demonstrates a good attention of our subjects, for whom even a single click was clearly audible. The clearly non-zero rate in the reference condition shows that our subjects were highly motivated to find artifacts. The detection rate in the inpainted condition was between those from the reference and click conditions. Note that the reference condition did not contain any artifacts, thus, the artifact detection rate in that condition is here referred to as the false-alarm rate. The large variance of the false-alarm rate shows that it is listener-specific. Thus, for further analysis, the detection rates from the inpainted condition were related to the listener specific false-alarm rate, i.e., the sensitivity index d' was used [85] . The false-alarm rate can be considered as a reference for guessing, thus, d' = 1 indicates that the artifacts was detected at the level of chance rate. The leftcenter panel of Fig. 8 shows the statistics of d' for the inpainting and the click conditions. For the click condition, the average across all subjects was 8.2 \u00b1 5.2, again demonstrating a good detectability of the clicks. For the inpainting condition, the average d' was 6.9 \u00b1 4.2, i.e., slightly below that of the click. A t-test performed on listeners' d' showed a significant (p = 0.018) difference from click-detection, indicating that our listeners, as a group, were less able to detect the inpainting than the click condition.",
+            "cite_spans": [
+                {
+                    "start": 1019,
+                    "end": 1023,
+                    "text": "[85]",
+                    "ref_id": "BIBREF87"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 63,
+                    "end": 70,
+                    "text": "Fig.  8",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 1202,
+                    "end": 1208,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "General perceptual impact: detection"
+        },
+        {
+            "text": "The center-right panel of Fig. 8 shows the statistics of the severity ratings reported in the real, inpainted and click conditions. For the click condition, the ratings were close to 3 (\"not acceptable\") with an average across all subjects of 2.83 \u00b1 0.33. This indicates that on average, our subjects rated the clicks as not acceptable. In contrast, for the inpainted condition, the average rating was 1.41\u00b10.26, between \"not disturbing\" and \"mildly disturbing\". This average considers undetected inpainted signals, rated with a 0. The average rating for detected inpainted signals was 1.66 \u00b1 0.24. This is still significantly (p < 0.001) lower than the severity of the clicks as revealed by a paired t-test calculated between the ratings for clicks and inpainted for detected artifacts. This indicates that when the inpainting artifacts were perceived, their severity was rated significantly lower than that of the clicks. Additionally, when the reference signals were classified as having an artifact, they were on average rated across all subjects with 1.21\u00b10. 22 .",
+            "cite_spans": [
+                {
+                    "start": 1064,
+                    "end": 1066,
+                    "text": "22",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 26,
+                    "end": 32,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "General perceptual impact: detection"
+        },
+        {
+            "text": "The right panel of Fig. 8 shows the average correlation coefficients between the perceived position of the inpainting and its actual position. The correlations indicate that as soon as our subjects detected an artifact, they had some estimate of its position within the stimulus. For the clicks, the higher correlation indicates that our subjects were able to exactly determine and report the position of the click.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 19,
+                    "end": 25,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "General perceptual impact: detection"
+        },
+        {
+            "text": "The left panel of Fig. 9 shows the percentages of artifact perceived for every condition as a function of the complexity level. The click was perfectly detected on every complexity level, but the false-alarm rate varied across the complexities. The center panel of Fig. 9 shows the statistics of sensitivity to detect an artifact as a function of the complexity level. The sensitivity index is related to the false-alarm rate, as can be seen in the large variations on the click sensitivity. In order to perform an statistical analysis, we did a three-way ANOVA on the sensitivities with the factors subject, complexity level, and type of distortion (inpainted and click) and their two-level interactions. The main effect of distortion was significant (p < 0.001) indicating that the inpainting significantly reduced the rate of perceived artifacts.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 18,
+                    "end": 24,
+                    "text": "Fig. 9",
+                    "ref_id": null
+                },
+                {
+                    "start": 265,
+                    "end": 271,
+                    "text": "Fig. 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Effect of the complexity level"
+        },
+        {
+            "text": "The main effect of complexity was significant (p < 0.001) and its interaction with the type of distortion was significant (p = 0.007) as well. A multiple post-hoc comparison Figure 9 : Effect of the complexity level. Left: Statistics of the detection rate. Center: Sensitivity representing ability to detect artifacts shown as statistics (as in Fig. 8 ) and averages \u00b11 standard errors resulting from a threeway ANOVA. Right: Ratings of artifact severity shown as statistics (black: real; grey: inpainted; blue: click) and averages \u00b11 standard errors resulting from a two-way ANOVA. Click: sounds distorted with a click. Inpaint: sounds distorted with a gap of 750 ms and then inpainted by the GAN.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 174,
+                    "end": 182,
+                    "text": "Figure 9",
+                    "ref_id": null
+                },
+                {
+                    "start": 345,
+                    "end": 351,
+                    "text": "Fig. 8",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Effect of the complexity level"
+        },
+        {
+            "text": "(Tukey-Kramer test) showed that for the complexity levels of one and two, the rates in the click conditions were significantly (p < 0.05) higher and lower, respectively, when compared to those for levels of three and four. This indicates that our subjects had a lower false-alarm rate in the most simple, MIDI-based piano sounds aligned to a regular grid, but higher in the still simple but not so-regular grid-based and more natural MIDI-generated piano sounds. Given such a tiny change in the tested sound material, the origin of such a large change in the detection rates can be explained by having our experiment run into ceiling effects -The obtained sensitivities were high and well above the chance rate (d = 1 ). Thus, the observed effect of individual complexity levels might be more related to random fluctuations at a ceiling of well detectable events than to a systematic impact of a factor. Thus, while we conclude that inpainting generally reduced the detection rate, more insight can be gained from the analysis of severity ratings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effect of the complexity level"
+        },
+        {
+            "text": "The right panel of Fig. 9 shows the ratings of artifact severity when an artifact was detected. We have performed a two-way ANOVA on the severity ratings with the factors subject and complexity level 5 . The effect of the level was significant (p = 0.038) indicating that across all subjects, the severity of the artifacts increased with the complexity. Despite its significance, the effect was small with all average ratings for inpaintings detected as artifacts being between \"not disturbing\" and \"mildly disturbing\".",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 19,
+                    "end": 25,
+                    "text": "Fig. 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Effect of the complexity level"
+        },
+        {
+            "text": "In summary, the network performance changed with the complexity of the music. For the detection rates, the results were not conclusive on the effect of the complexity. Nevertheless, the artifact severity ratings did vary per complexity, being better at lower complexities and showing that for every level of complexity the subjects found the inpainting to be better than 'mildly disturbing'. The left panel of Fig. 10 shows the statistics of sensitivity to detect an artifact as a function of the length of the gap on the third level of complexity (piano recordings). In order to perform an statistical analysis, we have performed a three-way ANOVA on the sensitivities with the factors subject, length of the gap, and type of distortion (inpainted and click) and their two-level interactions. The main effect of distortion was significant (p < 0.001) indicating that the inpainting significantly reduced the rate of perceived artifacts. But in this case, the interaction between the distortion and the length of the gap was not significant (p = 0.4), indicating that the improvement did not depend on the length of the gap. This is shown in that panel by averages and \u00b11 standard errors as a function of the complexity for the two types of distortion.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 410,
+                    "end": 417,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Effect of the complexity level"
+        },
+        {
+            "text": "The right panel of Fig. 10 shows the ratings of artifact severity when an artifact is detected. Their average values on the short inpainting (375 ms), medium inpainting (750 ms) and long inpainting (1500 ms) were 1.56\u00b10.24, 1.61\u00b10.27, and 1.77\u00b10.45, respectively. This indicates that on average, our subjects rated the inpainting results between \"not disturbing\" and \"mildly disturbing\", even for the longer gaps of 1500 ms. We performed a two-way ANOVA on the severity ratings with the factors subject and length of the gap. The effect of the length of the gap was not significant (p = 0.17), indicating that the ratings did not change with the gap length. When performing the same analysis on the full rating of the gaps (including non-detected gaps, rated as 0), the effect remained not significant (p = 0.07).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 19,
+                    "end": 26,
+                    "text": "Fig. 10",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Effect of the gap duration."
+        },
+        {
+            "text": "In summary, the network performance did not change significantly for gaps between 375 ms and 1500 ms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effect of the gap duration."
+        },
+        {
+            "text": "We introduced GACELA, a system for the restoration of localized audio information in gaps with a duration ranging between hundreds of milliseconds and seconds. GACELA is based on a conditional GAN and represents a further development based off our previous context encoder designed for audio inpainting of gaps up to tens of milliseconds [7] . The improvements consider two aspects. First, GACELA handles various time scales of audio information by considering five parallel discriminators with increasing resolution of receptive fields to prompt the generator's output to consider these time scales. Second, GACELA incorporates the inherent multi-modality of audio inpainting at this gap-duration range by being conditioned not only on the available information surrounding the gap but also on the latent variable of the conditional GAN. This provides the user with the option to fill-in the gap depending on his/her needs.",
+            "cite_spans": [
+                {
+                    "start": 338,
+                    "end": 341,
+                    "text": "[7]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusions and outlook"
+        },
+        {
+            "text": "GACELA was evaluated numerically and in listening tests 6 . While under laboratory conditions our subjects were able to detect most of the inpaintings, the artifact severity was rated between \"not disturbing\" and \"mildly disturbing\". The detection rate and the severity ratings depended on the complexity of the sounds defined by the method of audio generation (MIDI vs. recordings) and number of instruments. The inpainted segments were more likely to be detected in sounds with larger complexity, with an exception found for the simplest complexity level represented as MIDI-generated piano music generated from artificial MIDI scores. Interestingly, our subjects were most sensitive to any type of corruption applied within this complexity level, confounding this part of results. The inpainting quality of GACELA did not change significantly for inpainting gaps with a duration ranging between 350 ms and 1500 ms. While it seems like GACELA could be applied to even longer gaps, we assume that the inpainting quality will drastically change at some gap duration. Also, as the training time increases with the gap and context durations -GACELA might require improvements in order to be able to deal with significantly longer gaps.",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 57,
+                    "text": "6",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusions and outlook"
+        },
+        {
+            "text": "The results of our evaluation show the urgency of lowering the artifact-detection rate in the future. This is a very ambitious goal for long audio inpainting. The goal is to design a system receiving a new piece of music and generating a sound that is so similar that an attentive listener is not be able detect any artifacts. To this end, we expect future systems to better exploit auditory features and musical structures. In GACELA, the auditory features are represented by the compressed mel-spectrograms (conditioning the generator and input for three discriminators). In the future, generators directly producing features of an auditory space might provide improvements. A promising avenue in this regard are Audlet frames, i.e., invertible TF systems adapted to perceptually-relevant frequency scales [86] . GACELA aims to preserve the musical structure by relying on discriminators handling various temporal scales separately. More explicit features such as beat-and chord-tracking, incorporated to both the training of neural networks as well as their assessment might further improve the inpainting quality in future systems.",
+            "cite_spans": [
+                {
+                    "start": 808,
+                    "end": 812,
+                    "text": "[86]",
+                    "ref_id": "BIBREF88"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusions and outlook"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Audio inpainting",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Adler",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Emiya",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Jafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elad",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gribonval",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Plumbley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "IEEE Transactions on Audio, Speech and Language Processing",
+            "volume": "20",
+            "issn": "3",
+            "pages": "922--932",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "A method for long extrapolation of audio signals",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kauppinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kauppinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Saarinen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Journal of the Audio Engineering Society",
+            "volume": "49",
+            "issn": "12",
+            "pages": "1167--1180",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Restoration of a discrete-time signal segment by interpolation based on the left-sided and right-sided autoregressive parameters",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Etter",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "IEEE Transactions on Signal Processing",
+            "volume": "44",
+            "issn": "5",
+            "pages": "1124--1135",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Waveform substitution techniques for recovering missing speech segments in packet voice communications",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "IEEE Transactions on Acoustics, Speech and Signal Processing",
+            "volume": "34",
+            "issn": "6",
+            "pages": "1440--1448",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Introducing spain (sparse audio inpainter)",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Mokr\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Z\u00e1vi\u0161ka",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajmic",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vesel\u1ef3",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2019 27th European Signal Processing Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Inpainting of long audio segments with similarity graphs",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Perraudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Balazs",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE/ACM Transactions on Audio, Speech and Language Processing",
+            "volume": "",
+            "issn": "99",
+            "pages": "1--1",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A context encoder for audio inpainting",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marafioti",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Perraudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Speech, and Language Processing",
+            "volume": "27",
+            "issn": "",
+            "pages": "2362--2372",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Generative adversarial nets",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pouget-Abadie",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mirza",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Warde-Farley",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ozair",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Courville",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in neural information processing systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2672--2680",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Context encoders: Feature learning by inpainting",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Pathak",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Krahenbuhl",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Donahue",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. of CVPR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "A constrained matching pursuit approach to audio declipping",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Adler",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Emiya",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jafari",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elad",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gribonval",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Plumbley",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. of ICASSP. IEEE",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Sparse non-local similarity modeling for audio inpainting",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Toumi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Emiya",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ICASSP -IEEE International Conference on Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Sparsity and cosparsity for audio declipping: a flexible non-convex approach",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kiti\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Bertin",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gribonval",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "LVA/ICA 2015 -The 12th International Conference on Latent Variable Analysis and Signal Separation",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "AUDASCITY: AUdio Denoising by Adaptive Social CosparsITY",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Gaultier",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kiti\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Bertin",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gribonval",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "25th European Signal Processing Conference (EUSIPCO)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Audio Declipping with Social Sparsity",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Siedenburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kowalski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "D\u00f6rfler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proc. of ICASSP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Audio inpainting: Evaluation of time-frequency representations and structured sparsity approaches",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Lieb",
+                    "suffix": ""
+                },
+                {
+                    "first": "H.-G",
+                    "middle": [],
+                    "last": "Stark",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Signal Processing",
+            "volume": "153",
+            "issn": "",
+            "pages": "291--299",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Audio inpainting: Revisited and reweighted",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Mokr\u1ef3",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajmic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:2001.02480"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Interpolation of missing data values for audio signal restoration using a gabor regression model",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Wolfe",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Godsill",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proc. of ICASSP",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Computational auditory induction as a missing-data model-fitting problem with bregman divergence",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "Le"
+                    ],
+                    "last": "Roux",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kameoka",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ono",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "De Cheveigne",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sagayama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Speech Communication",
+            "volume": "53",
+            "issn": "5",
+            "pages": "658--676",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Missing data imputation for time-frequency representations of audio signals",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Smaragdis",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Raj",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shashanka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Journal of signal processing systems",
+            "volume": "65",
+            "issn": "3",
+            "pages": "361--370",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Score guided audio restoration via generalised coupled tensor factorisation",
+            "authors": [
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "\u015eim\u015fekli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Y\u0131lmaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Cemgil",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proc. of ICASSP",
+            "volume": "",
+            "issn": "",
+            "pages": "5369--5372",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Solving timedomain audio inverse problems using nonnegative tensor factorization",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bilen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ozerov",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "P\u00e9rez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Transactions on Signal Processing",
+            "volume": "66",
+            "issn": "21",
+            "pages": "5604--5617",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Joint audio inpainting and source separation",
+            "authors": [
+                {
+                    "first": "\u00c7",
+                    "middle": [],
+                    "last": "Bilen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ozerov",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "P\u00e9rez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Latent Variable Analysis and Signal Separation",
+            "volume": "",
+            "issn": "",
+            "pages": "251--258",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Audio declipping via nonnegative matrix factorization",
+            "authors": [],
+            "year": 2015,
+            "venue": "2015 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WAS-PAA)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Multichannel audio declipping",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Ozerov",
+                    "suffix": ""
+                },
+                {
+                    "first": "\u00c7",
+                    "middle": [],
+                    "last": "Bilen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "P\u00e9rez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. of ICASSP. IEEE",
+            "volume": "",
+            "issn": "",
+            "pages": "659--663",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "The government standard linear predictive coding algorithm: Lpc-10",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Tremain",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "Speech Technology",
+            "volume": "",
+            "issn": "",
+            "pages": "40--49",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Adaptive interpolation of discrete-time signals that can be modeled as autoregressive processes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Janssen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Veldhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Vries",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "IEEE Transactions on Acoustics, Speech, and Signal Processing",
+            "volume": "34",
+            "issn": "2",
+            "pages": "317--330",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Audio signal extrapolation-theory and applications",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Kauppinen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Roth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proc. DAFx",
+            "volume": "",
+            "issn": "",
+            "pages": "105--110",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Audio inpainting of music by means of neural networks,\" in Audio Engineering Society Convention 146",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marafioti",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Self-contentbased audio inpainting",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bahat",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Schechner",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elad",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Signal Processing",
+            "volume": "111",
+            "issn": "",
+            "pages": "61--72",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Leveraging repetition to do audio imputation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Manilow",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pardo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)",
+            "volume": "",
+            "issn": "",
+            "pages": "309--313",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Exemplar-based assignment of large missing audio parts using string matching on tonal features",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Hanna",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Thong",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Desainte-Catherine",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ferraro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. of ISMIR",
+            "volume": "",
+            "issn": "",
+            "pages": "507--512",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "A method for extrapolation of missing digital audio data",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Maher",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "Journal of the Audio Engineering Society",
+            "volume": "42",
+            "issn": "5",
+            "pages": "350--357",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Parametric interpolation of gaps in audio signals",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lukin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Todd",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Audio Engineering Society Convention 125",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Visioninfused deep audio inpainting",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "283--292",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Deep speech inpainting of time-frequency masks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kegler",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Beckmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cernak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1910.09058"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Deep long audio inpainting",
+            "authors": [
+                {
+                    "first": "Y.-L",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K.-Y",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "P.-Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hsu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1911.06476"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Neural audio synthesis of musical notes with wavenet autoencoders",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Resnick",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Norouzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eck",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "1068--1077",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "The challenge of realistic music generation: modelling raw audio at scale",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "V D"
+                    ],
+                    "last": "Oord",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Wavenet: A generative model for raw audio",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Den Oord",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Kalchbrenner",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Senior",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kavukcuoglu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CoRR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "SampleRNN: An unconditional end-to-end neural audio generation model",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Mehri",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gulrajani",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jain",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sotelo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Courville",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Waveglow: A flow-based generative network for speech synthesis",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Prenger",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Valle",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Catanzaro",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Melgan: Generative adversarial networks for conditional waveform synthesis",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Kumar",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "De Boissiere",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gestin",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Teoh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sotelo",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "De Br\u00e9bisson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Courville",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "32",
+            "issn": "",
+            "pages": "910--924",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "High fidelity speech synthesis with adversarial networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bi\u0144kowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Donahue",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Elsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Casagrande",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Cobo",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Efficient neural audio synthesis",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Kalchbrenner",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Elsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Noury",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Casagrande",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Lockhart",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Stimberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Den Oord",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kavukcuoglu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc of ICML, ser",
+            "volume": "80",
+            "issn": "",
+            "pages": "2410--2419",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "2014 IEEE International Conference on",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schrauwen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Acoustics, Speech and Signal Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "6964--6968",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "End-to-end learning for music audio tagging at scale",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pons",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Nieto",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Prockup",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Ehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Serra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CoRR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Applying convolutional neural networks to the analysis of mouse ultrasonic vocalizations",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Abbasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bal\u00e1zs",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Noll",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Nicolakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Adelaide",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Marconi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Zala",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Penn",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of the 23rd international congress on Acoustics",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Text-tospeech synthesis using STFT spectra based on low-/multi-resolution generative adversarial networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Saito",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Takamichi",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Saruwatari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of ICASSP",
+            "volume": "",
+            "issn": "",
+            "pages": "5299--5303",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Fftnet: A real-time speaker-dependent neural vocoder",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Finkelstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mysore",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of ICASSP",
+            "volume": "",
+            "issn": "",
+            "pages": "2251--2255",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Natural TTS synthesis by conditioning WaveNet on mel spectrogram predictions",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Weiss",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Schuster",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Jaitly",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Skerry-Ryan",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Saurous",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Agiomyrgiannakis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of ICASSP",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Timbretron: A wavenet(cycleGAN(CQT(audio))) pipeline for musical timbre transfer",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Anil",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Oore",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Grosse",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Gansynth: Adversarial neural audio synthesis",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Agrawal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Gulrajani",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Donahue",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Adversarial generation of time-frequency features with application in audio synthesis",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marafioti",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Perraudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of the 36th ICML",
+            "volume": "97",
+            "issn": "",
+            "pages": "4352--4362",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Melnet: A generative model for audio in the frequency domain",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Vasquez",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "Enabling factorized piano music modeling and generation with the MAESTRO dataset, v2",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hawthorne",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Stasyuk",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Roberts",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Simon",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-Z",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dieleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Elsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Engel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Eck",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "A functional taxonomy of music generation systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Herremans",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-H",
+                    "middle": [],
+                    "last": "Chuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Chew",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ACM Computing Surveys",
+            "volume": "50",
+            "issn": "",
+            "pages": "1--30",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "A neural parametric singing synthesizer",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Blaauw",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bonada",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. of INTERSPEECH",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Towards explainable music emotion recognition: The route via mid-level features",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chowdhury",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vall",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Haunschmid",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Widmer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc of ISMIR",
+            "volume": "",
+            "issn": "",
+            "pages": "237--243",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "Modeling temporal dependencies in highdimensional sequences: Application to polyphonic music generation and transcription",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Boulanger-Lewandowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vincent",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Conditioning deep generative raw audio models for structured automatic music",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Manzelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Thakkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Siahkamari",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Kulis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of ISMIR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "cgans with projection discriminator",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Miyato",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Koyama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF63": {
+            "ref_id": "b63",
+            "title": "Theory and applications of digital speech processing",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Rabiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Schafer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Pearson Upper Saddle River",
+            "volume": "64",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF64": {
+            "ref_id": "b64",
+            "title": "A noniterative method for reconstruction of phase from stft magnitude",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Pr\u016f\u0161a",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Balazs",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "S\u00f8ndergaard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE/ACM Transactions on Audio, Speech and Language Processing",
+            "volume": "25",
+            "issn": "5",
+            "pages": "1154--1164",
+            "other_ids": {}
+        },
+        "BIBREF65": {
+            "ref_id": "b65",
+            "title": "Toward high-quality realtime signal reconstruction from STFT magnitude",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Pr\u016f\u0161a",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Rajmic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Signal Processing Letters",
+            "volume": "24",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF66": {
+            "ref_id": "b66",
+            "title": "A fast griffin-lim algorithm",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Perraudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Balazs",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Sondergaard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Applications of Signal Processing to Audio and Acoustics (WASPAA)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF68": {
+            "ref_id": "b68",
+            "title": "Fast signal reconstruction from magnitude STFT spectrogram based on spectrogram consistency",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "Le"
+                    ],
+                    "last": "Roux",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kameoka",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ono",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sagayama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proc. 13th Int. Conf. on Digital Audio Effects (DAFx-10)",
+            "volume": "",
+            "issn": "",
+            "pages": "397--403",
+            "other_ids": {}
+        },
+        "BIBREF69": {
+            "ref_id": "b69",
+            "title": "Pytorch: An imperative style, high-performance deep learning library",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Paszke",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gross",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Massa",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lerer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bradbury",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Chanan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Killeen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Gimelshein",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Antiga",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Desmaison",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kopf",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Devito",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Raison",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tejani",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chilamkurthy",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Steiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chintala",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "32",
+            "issn": "",
+            "pages": "8024--8035",
+            "other_ids": {}
+        },
+        "BIBREF70": {
+            "ref_id": "b70",
+            "title": "Tifresi: Time frequency spectrogram inversion",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Marafioti",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Perraudin",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF71": {
+            "ref_id": "b71",
+            "title": "Ltfat: The large time-frequency analysis toolbox",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF72": {
+            "ref_id": "b72",
+            "title": "librosa: Audio and music signal analysis in python",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mcfee",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Raffel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Ellis",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mcvicar",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Battenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Nieto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. of the 14th python in science conference",
+            "volume": "",
+            "issn": "",
+            "pages": "18--25",
+            "other_ids": {}
+        },
+        "BIBREF73": {
+            "ref_id": "b73",
+            "title": "Foundations of Time-Frequency Analysis, ser. Applied and Numerical Harmonic Analysis",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Gr\u00f6chenig",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF74": {
+            "ref_id": "b74",
+            "title": "An Introduction to Frames and Riesz Bases, ser. Applied and Numerical Harmonic Analysis",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Christensen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF75": {
+            "ref_id": "b75",
+            "title": "Gabor Analysis and Algorithms: Theory and Applications, ser. Applied and Numerical Harmonic Analysis",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Feichtinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Strohmer",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF76": {
+            "ref_id": "b76",
+            "title": "Signal estimation from modified short-time fourier transform",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Griffin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                }
+            ],
+            "year": 1984,
+            "venue": "IEEE Transactions on Acoustics, Speech and Signal Processing",
+            "volume": "32",
+            "issn": "2",
+            "pages": "236--243",
+            "other_ids": {}
+        },
+        "BIBREF77": {
+            "ref_id": "b77",
+            "title": "Real-Time Spectrogram Inversion Using Phase Gradient Heap Integration",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Pr\u016f\u0161a",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "S\u00f8ndergaard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. Int. Conf. Digital Audio Effects (DAFx-16)",
+            "volume": "",
+            "issn": "",
+            "pages": "17--21",
+            "other_ids": {}
+        },
+        "BIBREF78": {
+            "ref_id": "b78",
+            "title": "High-resolution image synthesis and semantic manipulation with conditional gans",
+            "authors": [
+                {
+                    "first": "T.-C",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-Y",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kautz",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Catanzaro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "8798--8807",
+            "other_ids": {}
+        },
+        "BIBREF79": {
+            "ref_id": "b79",
+            "title": "Intuitive analysis, creation and manipulation of midi data with pretty midi",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Raffel",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "P W"
+                    ],
+                    "last": "Ellis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proc. of the 15th ISMIR, Late Breaking and Demo Papers",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF80": {
+            "ref_id": "b80",
+            "title": "Learning-based methods for comparing sequences, with applications to audio-to-midi alignment and matching",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF81": {
+            "ref_id": "b81",
+            "title": "The million song dataset",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Thierry Bertin-Mahieux",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ellis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lamere",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. of the 12th ISMIR",
+            "volume": "",
+            "issn": "",
+            "pages": "591--596",
+            "other_ids": {}
+        },
+        "BIBREF82": {
+            "ref_id": "b82",
+            "title": "Fma: A dataset for music analysis",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Defferrard",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Benzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vandergheynst",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Bresson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "18th International Society for Music Information Retrieval Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF83": {
+            "ref_id": "b83",
+            "title": "1387: Method for objective measurements of perceived audio quality",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Recommendation",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "International Telecommunication Union",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF84": {
+            "ref_id": "b84",
+            "title": "An examination and interpretation of itu-r bs. 1387: Perceptual evaluation of audio quality",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "TSP Lab Technical Report",
+            "volume": "",
+            "issn": "",
+            "pages": "1--89",
+            "other_ids": {}
+        },
+        "BIBREF85": {
+            "ref_id": "b85",
+            "title": "Deep multiscale video prediction beyond mean square error",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mathieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Couprie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc of the ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF86": {
+            "ref_id": "b86",
+            "title": "Imageto-image translation with conditional adversarial networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Isola",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-Y",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "1125--1134",
+            "other_ids": {}
+        },
+        "BIBREF87": {
+            "ref_id": "b87",
+            "title": "Detection theory: A user's guide",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Macmillan",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Creelman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF88": {
+            "ref_id": "b88",
+            "title": "Audlet filter banks: A versatile analysis/synthesis framework using auditory frequency scales",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Necciari",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Holighaus",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Balazs",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Pr\u016f\u0161a",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Majdak",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Derrien",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Applied Sciences",
+            "volume": "8",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Overview of the end-to-end audio generation system. The discriminators are only used for training the generator. The phase construction extends the phase from the real context into the generated spectrogram.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Overview of the multi-scale architecture from the discriminator. D1-D5 represent the individual discriminators. The different receptive fields of the discriminators are marked in colors. The center, marked with red lines, is the input of the first discriminator and contains only the generated or real gap.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Top: Each column represent the mean of 8 generated gaps drawing different samples from the latent variable and keeping the context fixed. Bottom: Standard deviation of those 8 gaps.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Every two columns separated with red lines show two different outputs of the system for the same contexts and different samples from the latent variable. singular cases, in Fig. 5, we can see 4 pairs of gaps generated with 4 contexts and different realizations of the latent variable. On these, the differences on the spectrograms are clear and exemplify what we observed by analyzing a larger batch of examples. Differences can manifest, e.g., changes to the intensity with which some notes are played or modified chord sequences. Additionally, in our website 3 we provide sound samples for the examples from Fig. 5. These sound samples are clearly distinguishable from one another. 3 https://andimarafioti.github.io/GACELA/",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Top left is input spectrograms for the encoder (after time and mel average). Others are channels for the output of the encoder.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Perceived artifacts across all subjects. Left panel: Statistics of the detection rate. Left-center panel: Statistics of the sensitivity index d , i.e., the artifact-detection rate relative to the false-alarm rate, with d = 1 corresponding to the chance rate. Right-center: Statistics of the severity ratings. Right: Statistics of the correlation coefficients between the perceived artifact position versus begin (B), end (E), and best choice of B and E (X) of the artifact in the inpainting condition. Conditions: reference (R), inpainted (I), and click (C), reference when perceived as artifact (R p ), inpainted when perceived as artifact (I p ). Statistics: Median (circle), 25% and 75% quartiles (thick lines), coverage of 99.3% (thin lines, assuming normal distribution), outliers (crosses, horizontally jittered for a better visibility).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Effect of the gap duration. Left: Sensitivity representing ability to detect artifacts shown as statistics (as inFig. 8) and averages \u00b11 standard errors resulting from a three-way ANOVA. Right: Ratings of artifact severity shown as statistics (black: real; grey: inpainted; blue: click) and averages \u00b11 standard errors resulting from a two-way ANOVA. Click: sounds distorted with a click. Inpaint: sounds distorted with a gap and then inpainted by the GAN. S indicates a short gap of 375 ms, M a medium gap of 750 ms and L a long gap of 1500 ms.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Interpretation of ODG.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}
