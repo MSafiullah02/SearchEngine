@@ -1,0 +1,2765 @@
+{
+    "paper_id": "25e75354090865c5bde5688bdc3c00d6f4361f66",
+    "metadata": {
+        "title": "Object Segmentation Tracking from Generic Video Cues",
+        "authors": [
+            {
+                "first": "Amirhossein",
+                "middle": [],
+                "last": "Kardoost",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Sabine",
+                "middle": [],
+                "last": "M\u00fcller",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Joachim",
+                "middle": [],
+                "last": "Weickert",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Margret",
+                "middle": [],
+                "last": "Keuper",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We propose a light-weight variational framework for online tracking of object segmentations in videos based on optical flow and image boundaries. While high-end computer vision methods on this task rely on sequence specific training of dedicated CNN architectures, we show the potential of a variational model, based on generic video information from motion and color. Such cues are usually required for tasks such as robot navigation or grasp estimation. We leverage them directly for video object segmentation and thus provide accurate segmentations at potentially very low extra cost. Furthermore, we show that our approach can be combined with state-ofthe-art CNN-based segmentations in order to improve over their respective results. We evaluate our method on the datasets DAVIS 16,17 and SegTrack v2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Object detection and segmentation play a crucial role in applications such as grasp estimation [31] , affordance detection [24] or human robot interaction [33] . While these steps are in general challenging on their own, they become even more so when we assume automotive settings in dynamic environments. Then, potentially moving objects of interest are to be segmented and tracked from video under camera ego-motion. High-end computer vision algorithms on this task usually rely on object and video specific training [23] , [27] , [36] of convolutional neural networks (CNNs) and show, with few exceptions, limited applicability to online settings while they come at high computational costs.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 123,
+                    "end": 127,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 155,
+                    "end": 159,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 519,
+                    "end": 523,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 526,
+                    "end": 530,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 533,
+                    "end": 537,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Despite generally good results for example on the challenging DAVIS video segmentation benchmark [26] , the boundary localization as well as occlusion handling are far from being solved by these approaches. However, off-theshelf deep learning based approaches to low-level tasks such as boundary prediction [19] , [40] and optical flow estimation [10] , [11] produce highly accurate image and motion boundaries. At the same time, such low level information is a basic component in state-of-the-art approaches to robot navigation [7] , [42] , [21] , grasp estimation [31] and visual SLAM [17] . Thus, their computation comes at little to no extra cost in many practical settings.",
+            "cite_spans": [
+                {
+                    "start": 97,
+                    "end": 101,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 307,
+                    "end": 311,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 314,
+                    "end": 318,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 347,
+                    "end": 351,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 354,
+                    "end": 358,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 529,
+                    "end": 532,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 535,
+                    "end": 539,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 542,
+                    "end": 546,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 566,
+                    "end": 570,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we provide a light-weight variational formulation that can leverage low-level cues such as boundary estimates and optical flow estimations from generic models and incorporate them into a simple frame-by-frame label propagation framework. Our model facilitates the segmentation of fine details and thin structures.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Furthermore, since our framework allows for a modular integration of low-level cues, it can function as an evaluation platform for such cues w.r.t. video segmentation applications. None of the currently evaluated optical flow or boundary estimation methods are trained or finetuned on the relevant datasets. We thus prove the potential of generic low-level cues for object segmentation tracking and show that the gap to highly optimized CNN methods is actually small.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Additionally, we evaluate the proposed variational method as a postprocessing step for such highly optimized CNNbased models currently defining the state-of-the-art on the DAVIS 16 and DAVIS 17 dataset [26] and show an improvement of the segmentation quality in this scenario. This experiment proves that off-the-shelf boundary and motion estimates actually carry complementary information, currently not captured in dedicated CNN methods.",
+            "cite_spans": [
+                {
+                    "start": 178,
+                    "end": 180,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 202,
+                    "end": 206,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "In summary, our main contributions are: -We provide a light-weight formulation for video object segmentation using variational label propagation. Once optical flow and boundary estimates are computed, our approach facilitates the online generation of tracked video object segmentations within milliseconds. -We incorporate optical flow and color features to facilitate the retrieval of lost objects due to intermediate tracking mistakes or full object occlusion. -We study the effect of different state-of-the-art boundary [6] , [40] , [19] and optical flow estimation methods in our proposed formulation [11] , [10] . -Our approach can be used to refine state-of-the-art CNN-based results, whenever available. We evaluate our method on the video object segmentation datasets DAVIS 16 [26] , DAVIS 17 [29] and SegTrack v2 [16] and provide an ablation study on the impact of all employed cues on DAVIS 16 . Our approach yields competitive results on SegTrack v2 and can compete with several but not all CNN-based methods on the DAVIS benchmarks. Used as a postprocessing, our formulation allows to improve over existing results and provides fine object details.",
+            "cite_spans": [
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 529,
+                    "end": 533,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 536,
+                    "end": 540,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 605,
+                    "end": 609,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 612,
+                    "end": 616,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 782,
+                    "end": 784,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 785,
+                    "end": 789,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 798,
+                    "end": 800,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 801,
+                    "end": 805,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 822,
+                    "end": 826,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 901,
+                    "end": 903,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "I. INTRODUCTION"
+        },
+        {
+            "text": "Various variational formulations have been proposed to multi-label segmentation in still images, e.g. [25] , [1] . In [25] , image segmentation from user scribbles is addressed in a variational framework considering the spatial and color information. In [22] such methods have been applied to produce dense video segmentations from sparse seeds in a frame-by-frame manner, based on seeds automatically generated from point trajectories [15] , [14] . In contrast to [25] , [22] , we directly introduce highly informative lowlevel cues into the variational formulation. Our variational formulation is derived from [25] . Yet, we don't require user scribbles and use optical flow to propagate labels semidensely across frames. Label propagation by optical flow has been previously used for example in [35] , [30] , [23] . Unlike [30] , which exclusively utilize temporal coherence, [23] only uses color consistency. Our approach employs optical flow to propagate the labels through consecutive frames and, additionally, to provide information in the data term.",
+            "cite_spans": [
+                {
+                    "start": 102,
+                    "end": 106,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 118,
+                    "end": 122,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 254,
+                    "end": 258,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 436,
+                    "end": 440,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 465,
+                    "end": 469,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 472,
+                    "end": 476,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 612,
+                    "end": 616,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 798,
+                    "end": 802,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 805,
+                    "end": 809,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 812,
+                    "end": 816,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 826,
+                    "end": 830,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 879,
+                    "end": 883,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "The problem of label propagation in videos has also been addressed by deep learning approaches [27] , [36] , [3] , [18] , [33] . Such networks are trained on specific datasets and the first frame annotation of a sequence to produce segmentation of subsequent frames. Optical flow magnitudes are employed as additional input for the network e.g. in [36] , to provide additional saliency cues. However, the exact localization quality of optical flow is hardly used. Notably, [9] use optical flow to create patch correspondences in a video to improve the training of deep neural networks. Jampani et al. [12] use the similarity of features in neural networks to disseminate information in videos. In [18] , a spatio-temporal Markov Random Field model is defined over pixels to produce temporally consistent video object segmentation. In their approach, spatial dependencies among pixels are encoded by a CNN trained for the specific target sequence. In contrast, the OSVOS-S approach from Maninis et al. [18] can be considered to be fully complementary. They propose a one shot video object segmentation framework which explicitly does not rely on any temporal consistency within the data, such that object occlusions and disocclusions can be handled particularly well. In contrast, OSVOS-S [18] successively transfers generic, pretrained, semantic information to the task of video object segmentation by learning the appearance of the annotated (single) object of the test sequence. To show the benefit of our model for the refinement of CNN predictions, we particularly evaluate on OSVOS-S which can be considered most complementary.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 99,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 102,
+                    "end": 106,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 109,
+                    "end": 112,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 115,
+                    "end": 119,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 122,
+                    "end": 126,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 348,
+                    "end": 352,
+                    "text": "[36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 473,
+                    "end": 476,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 601,
+                    "end": 605,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 697,
+                    "end": 701,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1001,
+                    "end": 1005,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1288,
+                    "end": 1292,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Related Work"
+        },
+        {
+            "text": "In the following, we describe the details of our approach. Fig. 1 gives an overview of its workflow. We assume that an image sequence I 1 , . . . , I is given, where is the number of frames. We further assume that we are given a full annotation",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 59,
+                    "end": 65,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "II. PROPOSED APPROACH"
+        },
+        {
+            "text": "The task is to subsequently infer the segmentation of the remaining frames using this first annotation. The proposed method computes optical flow in forward and backward direction to infer label scribbles for I t+1 from I t and S t . Optical flow is also used, along with pure image information, to generate costs for all labels and to extract motion boundaries for exact object delineation. In conjunction with generic image boundaries, these cues are used to generate the full segmentation of I t+1 using a variational formulation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. PROPOSED APPROACH"
+        },
+        {
+            "text": "The optical flow field f : \u2126 \u2192 R 2 is a function assigning a displacement vector to every point in the image domain \u2126. For every point x \u2208 \u2126 in frame t, the optical flow f t (x) is the displacement to the most likely location of x at time t + 1. Similarly, the backward optical flow b t+1 (y) of any point y \u2208 \u2126 in frame t +1 is the displacement to its most likely location in frame t. For points y that are visible in both frames t and t +1, Fig. 2 . For those points, the label from location b t+1 (y) in frame t can be directly transferred to location y in frame t +1. Whenever a point y is occluded in frame t, this is no longer valid. In these cases, d(f, b, y) > 0. For those locations, the label of y in t + 1 needs to be inferred from other cues.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 443,
+                    "end": 449,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "A. Confident Label Propagation with Optical Flow"
+        },
+        {
+            "text": "For real world image sequences, optical flow estimations are often not perfectly accurate such that d(f, b, y) > 0 for almost all y \u2208 \u2126. Thus, there is need for a heuristic on the matching confidence, which is defined by conf(f, b, y) in (1) [34] . In practice, we assume the optical flow matching to be confident (i.e. conf(f, b,",
+            "cite_spans": [
+                {
+                    "start": 242,
+                    "end": 246,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Confident Label Propagation with Optical Flow"
+        },
+        {
+            "text": "annotation for I t flow inconsistencies propagated labels small and set",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Confident Label Propagation with Optical Flow"
+        },
+        {
+            "text": "with a small threshold \u03c4. For confident regions in frame t, labels from uniformly sampled points are propagated to frame t + 1 and considered as scribble points. Compare Fig. 1 (left) for a visualization. These propagated labels are used for the data term (cost) creation of the variational formulation (Sec. II-B). Additionally, the direct warping of labels in regions with high confidence renders our approach very efficient: we only need to infer labels for a small fraction of the image.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 170,
+                    "end": 183,
+                    "text": "Fig. 1 (left)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "A. Confident Label Propagation with Optical Flow"
+        },
+        {
+            "text": "We follow [4] and formulate the multiple label segmentation problem as minimal partitioning problem. The objective is to partition the image domain \u2126 \u2282 R 2 into \u2126 1 , . . . \u2126 n \u2282 R 2 such as to optimize",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 13,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Variational Formulation"
+        },
+        {
+            "text": "The potential functions h i : R \u2192 R + represent the costs for each individual pixel to be assigned to label i, and Per(\u2126 i ; \u2126) is the perimeter of region i in \u2126. Usually, the perimeter is measured according to an underlying image induced metric [25] . The regularization parameter \u03bb steers the penalization of longer boundaries. For an image I : \u2126 \u2192 R d + with d channels, a common weighting function is",
+            "cite_spans": [
+                {
+                    "start": 246,
+                    "end": 250,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Variational Formulation"
+        },
+        {
+            "text": "where \u2207I is the Jacobian of I, |\u2207I| denotes its Frobenius norm, and \u03b3 is a positive scalar. If partial annotations S i \u2282 \u2126 of I are provided for labels i, the potential functions h can be defined as spatially varying color or feature distributions [25] ",
+            "cite_spans": [
+                {
+                    "start": 248,
+                    "end": 252,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Variational Formulation"
+        },
+        {
+            "text": "input frame FlowNet2.0 [10] FlowNet3.0 [11] SED [6] HED [40] COB [19] Fig. 3 . We depict different boundary estimations in the \"bmx-bumps\" sequence of DAVIS 16 . While FlowNet3.0 [11] directly estimates motion boundaries, we compute them from gradient magnitudes in the optical flow from FlowNet2.0 [10] .",
+            "cite_spans": [
+                {
+                    "start": 23,
+                    "end": 27,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 39,
+                    "end": 43,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 48,
+                    "end": 51,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 56,
+                    "end": 60,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 65,
+                    "end": 69,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 75,
+                    "end": 76,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 157,
+                    "end": 159,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 299,
+                    "end": 303,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Variational Formulation"
+        },
+        {
+            "text": "Here |S i | denotes the area occupied by label i, k \u03c3 and k \u03c1 i are Gaussian distributions in the feature and the spatial domain, respectively. Usually, color is used as pixel features. It can be complemented for example with cues from optical flow such as its magnitude or direction. The subscripts \u03c1 i and \u03c3 denote the respective standard deviations. The parameter \u03c1 i is assigned based on the Euclidean distance of the unlabeled feature points in I to each of the scribble points for label i and \u03c3 is assigned experimentally. By x S i and I(x S i ) we represent the position (x, y) and feature (e.g. RGB) information of the partial annotation S i \u2282 \u2126 in the image I, respectively. Equation (4) shows how spatial and color features of the partial annotations are used to generate costs for each label i in image I.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Variational Formulation"
+        },
+        {
+            "text": "Besides being useful for the tracking of ego-motion and 3D scene reconstruction for example by visual SLAM [17] , optical flow information is a straight-forward cue for video label propagation. Here, we additionally leverage optical flow information in the data term h i (4) for the creation of the label costs. Such information is expected to provide: 1) cues for object saliency, and 2) cues for the object label, since motion only changes gradually over time.",
+            "cite_spans": [
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. Flow Magnitude and Flow Direction"
+        },
+        {
+            "text": "Hence, we concatenate the normalized flow magnitude (f mag ) and direction (f dir ) to the original color information of the image in frame t + 1 for the segmentation. With this additional information, I : (4) is replaced by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Flow Magnitude and Flow Direction"
+        },
+        {
+            "text": "where f mag : \u2126 \u2192 R + , f dir : \u2126 \u2192 R + and \u03b1 and \u03b8 are weighting factors which are assigned as 0.5 to account for the strong expected correlation between color values. Thus, the range of values in the RGB channels are between 0 and 255 while values in f mag and f dir range between 0 and 127.5. Finetuning of these parameters for specific datasets is possible and will most likely improve the results. However, the proposed approach attempts not to fit such parameters to any specific dataset for simplicity. frame 1 frame 5 frame 6 Fig. 4 . The \"soccerball\" sequence from DAVIS 16 [26] provides an example of an object reappearing after occlusion. For such objects, no labels can be propagated.",
+            "cite_spans": [
+                {
+                    "start": 580,
+                    "end": 582,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 583,
+                    "end": 587,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 534,
+                    "end": 540,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "C. Flow Magnitude and Flow Direction"
+        },
+        {
+            "text": "In the variational formulation from (2), the perimeter Per is computed based on an image induced metric such as given in (6). This metric can be replaced by more evolved, learning-based boundary estimations E : \u2126 \u2192 R + such as [6] , [19] , [40] . For example, [22] propose to weight the region boundaries according to pseudo-probabilities",
+            "cite_spans": [
+                {
+                    "start": 227,
+                    "end": 230,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 240,
+                    "end": 244,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 260,
+                    "end": 264,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "D. Boundary Term"
+        },
+        {
+            "text": "with\u0112 := 2",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Boundary Term"
+        },
+        {
+            "text": "\u2126 \u2126 |E (x)|dx and \u03b2 > 0, and employ boundary estimates from [6] for the generation of object segmentations. However, any approach to image (e.g. HED [40] ), object (e.g. COB [19] ), or motion (e.g. FlowNet3.0 [11] ) boundary estimation could be used. We study the effect of each of the mentioned boundary estimation methods on the validation set of DAVIS 16 in Sec. V-A.1. For this study, off-the-shelf trained models of [6] , [40] , [19] , [11] are employed to generate boundary estimates (compare Fig. 3 ).",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 63,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 149,
+                    "end": 153,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 174,
+                    "end": 178,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 209,
+                    "end": 213,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 355,
+                    "end": 357,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 421,
+                    "end": 424,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 427,
+                    "end": 431,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 434,
+                    "end": 438,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 441,
+                    "end": 445,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 499,
+                    "end": 505,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "D. Boundary Term"
+        },
+        {
+            "text": "In the considered video object segmentation scenario, objects can become partially or fully occluded for several video frames. In this case, the respective label gets lost. Fig. 4 illustrates this problem: The foreground object (a soccerball) moves to the left and is partially covered by a tree. As it reappears, no labels can be propagated. We propose a simple approach to lost object retrieval (LOR), which fixes this issue in many practical scenarios.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 173,
+                    "end": 179,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "III. LOST OBJECT RETRIEVAL"
+        },
+        {
+            "text": "We create partial annotations of the missing object using the confidence values from (1) and the color information given in the annotated key frame. As soon as the object reappears (i.e. is disoccluded) in frame I t+1 to be segmented, the confidence of the label propagation in the respective image area should be low, since d(f, b, y) is high in case of disocclusion (see Fig. 2 ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 373,
+                    "end": 379,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "III. LOST OBJECT RETRIEVAL"
+        },
+        {
+            "text": "Thus, we select all positions with low confidence for the label propagation as candidates for LOR. Then, we compute the color similarity of the positions in I t+1 with the lost object's mean color extracted from the annotated key frame. Finally, we create partial labels for the object using the calculated color similarities by selecting the points with a color distance below a predefined threshold (here set to 5.0). Such a low value is necessary to prevent wrong partial label generation and ensures that we retrieve lost objects whenever the color similarity of respective regions is high. This approach works well in practice. However, it might fail when different objects on a video are similar in color. Here, we apply LOR in the binary segmentation scenario only.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "III. LOST OBJECT RETRIEVAL"
+        },
+        {
+            "text": "Parameter Settings Our approach has several parameters. The \u03b3 in (3) is trivially set to 1 255 and the normalization factors \u03b1 and \u03b8 in (5) are set to 0.5 for all datasets. The \u03bb in (2) is determined via grid search in the interval {5, 10, ..., 60} for the first two images of each sequence: We assume that the object size does not change drastically in two consecutive frames, and thus select the \u03bb yielding the smallest deviation in size between the foreground objects in the generated segmentation and the first frame annotation. We set \u03c4 in (1) to a fixed value of 5 for DAVIS 16 and DAVIS 17 . For SegTrack v2, \u03c4 is set to the mean optical flow magnitude to account for strong motion variations. The value \u03c3 in (4) is set to 64 for all sequences in all datasets. We expect that parameter finetuning would improve the results further. Yet, we skip this step for simplicity.",
+            "cite_spans": [
+                {
+                    "start": 581,
+                    "end": 583,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 594,
+                    "end": 596,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "IV. IMPLEMENTATION DETAILS"
+        },
+        {
+            "text": "Optimization Assigning labels to each object is an optimization problem that we solve using the iterative primaldual algorithm of [4] . Stopping criteria for this iterative approach are based on a maximum number of iterations which initially is set to 3000. It is increased to 6000 whenever the calculated objective value in iteration 3000 is above 600000. The optimization stops earlier when the decrease in objective value between consecutive iterations is below 10. The computation time for the optimization is proportional to the number of iterations and objects to be segmented.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "IV. IMPLEMENTATION DETAILS"
+        },
+        {
+            "text": "We evaluate our method on binary and multi-object segmentation tasks on the state-of-the-art datasets DAVIS 16 [26] , DAVIS 17 [29] and SegTrack v2 [16] .",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 110,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 124,
+                    "end": 126,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 127,
+                    "end": 131,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "V. EXPERIMENTS AND RESULTS"
+        },
+        {
+            "text": "1) DAVIS Benchmark: The original version of the DAVIS 16 benchmark [26] is focused on binary video object segmentation and consists of 50 sequences with pixelaccurate object masks. It contains different challenges such as light changes, occlusions and fast motion. The more recent dataset DAVIS 17 [29] also includes the segmentation of multiple objects. It consists of 90 sequences and more complicated scenarios for example due to object interactions. The DAVIS datasets are evaluated in terms of boundary accuracy (F-measure) and Jaccard's index (i.e. intersection over union (IoU)).",
+            "cite_spans": [
+                {
+                    "start": 67,
+                    "end": 71,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 295,
+                    "end": 297,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 298,
+                    "end": 302,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "V. EXPERIMENTS AND RESULTS"
+        },
+        {
+            "text": "2) SegTrack v2 Dataset: The SegTrack v2 dataset [16] consists of 14 sequences with ground truth annotation per frame and object. The sequences contain different object characteristics, motion blur, occlusions and complex deformations, low resolution and quality, for both binary and multi-object scenarios. The standard evaluation metric is IoU.",
+            "cite_spans": [
+                {
+                    "start": 48,
+                    "end": 52,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "V. EXPERIMENTS AND RESULTS"
+        },
+        {
+            "text": "In the following, we evaluate the impact of the employed cues such as boundary terms, optical flow and lost object retrieval to our model on the DAVIS 16 dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Ablation Study"
+        },
+        {
+            "text": "1) Boundary Terms: The boundary term used in (6) is crucial to our approach. We evaluate segmentation results when [6] (SED), [40] (HED) and [19] (COB) are used directly and when they are combined with motion boundaries Fig. 3 ). In this case, motion boundaries are simply summed up before non-maximum suppression. All boundary estimations are generated based on existing models, including [11] , who directly estimate motion boundaries along with the optical flow. We emphasize that none of these models is trained on DAVIS 16, 17 nor SegTrack v2. In Tab. I, we report the resulting F-measure (F) and Jaccard's index (J) values. The combination of COB and motion boundaries works best. All further results are based on this setting.",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 126,
+                    "end": 130,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 141,
+                    "end": 145,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 390,
+                    "end": 394,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 525,
+                    "end": 528,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 529,
+                    "end": 531,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 220,
+                    "end": 226,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "A. Ablation Study"
+        },
+        {
+            "text": "2) Flow Estimation Methods: Optical flow information is a central component of our model. It is used to 1) generate scribble points for subsequent frames, 2) compute the data terms h i in the variational optimization, and 3) to compute motion boundaries to complement generic image boundaries (compare Fig. 3 ). Only few optical flow methods produce motion boundary estimates directly as an additional output, which is why our setup is based on FlowNet3.0 [11] . However, motion boundaries can be computed from strong gradients of any estimated optical flow field, such as generated by [38] , [2] , [10] . Thus, we compare here the performance of our full model when we replace all optical flow information from FlowNet3.0 [11] by FlowNet2.0 [10] . The results in Tab. II show a decrease in the segmentation accuracy. Since the difference in optical flow quality itself is known to be small between the two approaches, the decrease in segmentation quality indicates a rather strong impact of the better motion boundaries from FlowNet3.0.",
+            "cite_spans": [
+                {
+                    "start": 456,
+                    "end": 460,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 586,
+                    "end": 590,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 593,
+                    "end": 596,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 599,
+                    "end": 603,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 723,
+                    "end": 727,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 742,
+                    "end": 746,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 302,
+                    "end": 308,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "A. Ablation Study"
+        },
+        {
+            "text": "3) Lost Object Retrieval: In Tab. II, we evaluate the impact of lost object retrieval (LOR) to our method. The numbers indicates a significant improvement of the segmentations due to LOR. Specifically, the results of our model improve by 3-5% on the train and validation sets of DAVIS 16 when LOR is added.",
+            "cite_spans": [
+                {
+                    "start": 285,
+                    "end": 287,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Ablation Study"
+        },
+        {
+            "text": "In Tab. II, we provide an ablation study on the data term creation. To do so, we remove from our full model, the optical flow direction (w/o f dir ) and both the optical flow direction and magnitude (w/o f mag + f dir ). In this case, only color information is used. Our full model performs better than the two alternatives, thus both f mag and f dir provide meaningful segmentation cues. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "4) Data Term:"
+        },
+        {
+            "text": "In Tab. III, we report the mean (M), recall (R) and decay (D) values for F-measure (F) and Jaccard's index (J) over the DAVIS 16 dataset splits for the state-of-the-art methods OSVOS-S [18] , MSK [27] , VPN [12] , SIAMMASK [37] , CTN [13] , PLM [32] , OFL [35] , BVS [20] , FCP [28] , and JMP [8] , as well as for our approach. The main difference between ours and the competing methods is that we neither learn a model such as OSVOS-S, MSK, VPN, SIAMMASK, CTN or PLM, nor work at super-pixel level and iteratively optimize the optical flow for the achieved segmentation, as is the case for OFL. We only use tracking for segmentation. Yet, our method indeed outperforms all remaining non deeplearning based approaches as well as CNN approaches such as PLM [32] or SIAMMASK [37] . Qualitative results are shown in Fig. 5 . Visually, the generated segmentation results are appealing and fine details are well captured.",
+            "cite_spans": [
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 196,
+                    "end": 200,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 207,
+                    "end": 211,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 223,
+                    "end": 227,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 234,
+                    "end": 238,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 245,
+                    "end": 249,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 267,
+                    "end": 271,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 293,
+                    "end": 296,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 756,
+                    "end": 760,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 773,
+                    "end": 777,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 813,
+                    "end": 819,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "B. Results on DAVIS"
+        },
+        {
+            "text": "1) Cost Terms from CNN Segmentation: Here, we evaluate the proposed method as a postprocessing step for stateof-the-art CNN predictions. If our method indeed carries complementary information to the appearance cues learned for example by OSVOS-S [18] , we should be able to achieve an improvement. In Tab. III and Tab. IV, we specifically report the results of our method when we use plain CNN predictions from OSVOS-S [18] and CINM [3] as data terms (costs) (OSVOS-S + ours and CINM + ours) in the DAVIS 16 and DAVIS 17 datasets, respectively. In all settings, segmentation results are improved by our method.",
+            "cite_spans": [
+                {
+                    "start": 246,
+                    "end": 250,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 419,
+                    "end": 423,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 433,
+                    "end": 436,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 505,
+                    "end": 507,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Results on DAVIS"
+        },
+        {
+            "text": "In the following, we evaluate our proposed model on the SegTrack v2 dataset. In Tab. V, we compare our results to the state of the art methods JOTS [39] , MSK [27] and [16] . Li et al. [16] propose two variants of their method: 1. the online version Segment Pool Tracking (SPT), 2. the offline version with subsequent refinement of the segments within each frame, i.e. Composite Statistical Inference (CSI). Similar to SPT, our method operates in an online fashion and does not require dataset specific training. However, we only use tracking information to compute segments, whereas SPT incrementally trains a global model of the appearance of objects. Yet, our approach produces results within the range of the top performing methods and improves over SPT. Several qualitative results for SegTrack v2 are given in Fig. 6 . Our segmentation is able to capture fine details of the objects such as the slender legs of the frog in the frog sequence and the arm and hand of the monkey in the monkey sequence.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 152,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 159,
+                    "end": 163,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 168,
+                    "end": 172,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 816,
+                    "end": 822,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "C. Results on SegTrack v2"
+        },
+        {
+            "text": "We have proposed a variational method for single and multiple object segmentation tracking scenarios. It leverages optical flow as well as image boundary estimations for the propagation of labels through video sequences, where a key frame annotation is provided. Deep learning based methods are addressing video object segmentation with high computational complexity and sequence specific training. In contrast, our method only considers the first frame annotations and achieves competitive results without an expensive training procedure. In application scenarios which require optical flow as an input (for example for robot navigation), the computation of video object segmentations with our method comes at very low extra costs. Our proposed method produces visually appealing segmentations and preserves fine details on the DAVIS 16 , DAVIS 17 and SegTrack v2 datasets.",
+            "cite_spans": [
+                {
+                    "start": 835,
+                    "end": 837,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 846,
+                    "end": 848,
+                    "text": "17",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "VI. CONCLUSIONS"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Convex relaxations for a generalized Chan-Vese model",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Bae",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lellmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "X.-C",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Tai ; A",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Energy Minimization Methods in Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "223--236",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Flow fields: Dense correspondence fields for highly accurate large displacement optical flow estimation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bailer",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Taetz",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Stricker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "4015--4023",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "CNN in MRF: Video object segmentation via inference in a CNN-based higher-order spatio-temporal MRF",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 2018 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "A convex approach to minimal partitions",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Chambolle",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Pock",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "SIAM Journal on Applied Mathematics",
+            "volume": "5",
+            "issn": "4",
+            "pages": "1113--1158",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Fast and accurate online video object segmentation via tracking parts",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y.-H",
+                    "middle": [],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W.-C",
+                    "middle": [],
+                    "last": "Hung",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-H",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Structured forests for fast edge detection",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Dollar",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zitnick",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proc. 2013 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "1841--1848",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Optic flow-based vision system for autonomous 3d localization and control of small aerial vehicles",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "F F"
+                    ],
+                    "last": "Kendoul",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Nonami",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Robotics and Autonomous Systems",
+            "volume": "57",
+            "issn": "6",
+            "pages": "591--602",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Jump-Cut: Non-successive mask transfer and interpolation for video cutout",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Lischinski",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cohen-Or",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ACM Transactions on Graphics",
+            "volume": "34",
+            "issn": "6",
+            "pages": "1--195",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Std2p: RGBD semantic segmentation using spatio-temporal data driven pooling",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Keuper",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Campus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "7158--7167",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "FlowNet 2.0: Evolution of optical flow estimation with deep networks",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ilg",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Mayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Saikia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Keuper",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Dosovitskiy",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2462--2470",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Occlusions, motion and depth boundaries with a generic network for disparity, optical flow or scene flow estimation",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Ilg",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Saikia",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Keuper",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "European Conference on Computer Vision, ser. Lecture Notes in Computer Science",
+            "volume": "",
+            "issn": "",
+            "pages": "626--643",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Video propagation networks",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Jampani",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Gadde",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Gehler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "3154--3164",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Online video object segmentation via convolutional trident network",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Jang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C.-S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE Conf. on Computer Vision and Pattern Recognition",
+            "volume": "2017",
+            "issn": "",
+            "pages": "7474--7483",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Higher-order minimum cost lifted multicuts for motion segmentation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Keuper",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "4252--4260",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Motion trajectory segmentation via minimum cost multicuts",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Keuper",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Andres",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "3271--3279",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Video segmentation by tracking many figure-ground segments",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Humayun",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Rehg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proc. 2013 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "2192--2199",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Real-time 6-dof monocular visual slam in a large-scale environment",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "2014 IEEE International Conference on Robotics and Automation (ICRA)",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1539",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Video object segmentation without temporal information",
+            "authors": [
+                {
+                    "first": "K.-K",
+                    "middle": [],
+                    "last": "Maninis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Caelles",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pont-Tuset",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Leal-Taix\u00e9",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Gool",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Convolutional oriented boundaries: From image segmentation to high-level tasks",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Maninis",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pont-Tuset",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Arbel\u00e1ez",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Gool",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "40",
+            "issn": "4",
+            "pages": "819--833",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Bilateral space video segmentation",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "M\u00e4rki",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Perazzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sorkine-Hornung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 2016 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "743--751",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Efficient optical flow and stereo vision for velocity estimation and obstacle avoidance on an autonomous pocket drone",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mcguire",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Croon",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "De",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wagter",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tuyls",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kappen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Robotics and Automation Letters",
+            "volume": "2",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Robust interactive multi-label segmentation with an advanced edge detector",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Ochs",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weickert",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Graf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Pattern Recognition, ser. Lecture Notes in Computer Science",
+            "volume": "9796",
+            "issn": "",
+            "pages": "117--128",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Video segmentation with just a few strokes",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Nagaraja",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Schmidt",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "3235--3243",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Object-based affordances detection with convolutional neural networks and dense conditional random fields",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Nguyen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Kanoulas",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Caldwell",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Tsagarakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)",
+            "volume": "",
+            "issn": "",
+            "pages": "5908--5915",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Spatially varying color distributions for interactive multilabel segmentation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Nieuwenhuis",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Cremers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+            "volume": "35",
+            "issn": "5",
+            "pages": "1234--1247",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A benchmark dataset and evaluation methodology for video object segmentation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Perazzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pont-Tuset",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mcwilliams",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Gool",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gross",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sorkine-Hornung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 2016 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "724--732",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Learning video object segmentation from static images",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Perazzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Khoreva",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Benenson",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schiele",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sorkine-Hornung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3491--3500",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Fully connected object proposals for video segmentation",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Perazzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gross",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sorkine-Hornung",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "3227--3234",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "The 2017 DAVIS challenge on video object segmentation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pont-Tuset",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Perazzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Caelles",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Arbel\u00e1ez",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sorkine-Hornung",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Gool",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1704.00675"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "LIVEcut: Learning-based interactive video segmentation by evaluation of multiple propagated cues",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Price",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Morse",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proc. 2009 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "779--786",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Graspfusion: Realizing complex motion by learning and fusing grasp modalities with instance segmentation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [
+                        "K Y U K O M I S"
+                    ],
+                    "last": "Hasegawa",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Wada",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proc. 2019 IEEE International Conference on Robotics and automation (ICRA)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Pixel-level matching for video object segmentation using convolutional neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shin Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Rameau",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shin",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "So Kweon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 IEEE Int. Conf. on Computer Vision (ICCV)",
+            "volume": "",
+            "issn": "",
+            "pages": "2186--2195",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Video object segmentation using teacher-student adaptation in a human robot interaction (HRI) setting",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Siam",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Petrich",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Gamal",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Elhoseiny",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "J\u00e4gersand",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "International Conference on Robotics and Automation, ICRA 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "50--56",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/ICRA.2019.8794254"
+                ]
+            }
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Occlusion boundary detection and figure/ground assignment from optical flow",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sundberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Brox",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Maire",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Arbelaez",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Malik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proc. 2011 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2233--2240",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Video segmentation via object flow",
+            "authors": [
+                {
+                    "first": "Y.-H",
+                    "middle": [],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "M.-H",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Black",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proc. 2016 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3899--3908",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Online adaptation of convolutional neural networks for video object segmentation",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Voigtlaender",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Leibe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proc. 2017 British Machine Vision Conference",
+            "volume": "13",
+            "issn": "",
+            "pages": "116--117",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Fast online object tracking and segmentation: A unifying approach",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bertinetto",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Torr",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the IEEE conference on computer vision and pattern recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "DeepFlow: Large displacement optical flow with deep matching",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Weinzaepfel",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Revaud",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Harchaoui",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Schmid",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Proc. 2013 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "1385--1392",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "JOTS: Joint online tracking and segmentation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Dawei",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Lei",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "2226--2234",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Holistically-nested edge detection",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Tu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. 2015 IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "1395--1403",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Efficient video object segmentation via network modulation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Katsaggelos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proc. 2008 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Mav navigation through indoor corridors using optical flow",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zingg",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Scaramuzza",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Weiss",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Siegwart",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proc. 2010 IEEE International Conference on Robotics and Automation (ICRA)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "Visualization of the proposed workflow. Starting from the images in frame t and t + 1 and an initial annotation, scribbles are extracted based on optical flow. Then, warped scribbles, image color and optical flow values are used to generate label costs and boundary estimates to be fed into a variational segmentation framework which generates the full segmentation of frame t + 1.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Visualization of the forward-backward consistency of the optical flow and the employed label warping. For input frames I t and I t+1 (row 1), we check the point motion according to the backward and forward optical flow fields b t+1 and f t for cycle consistency. For disoccluded points y in I t+1 the distance d(f, b, y) is large. In corresponding regions, no labels can be propagated.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "RESULTS FOR DIFFERENT BOUNDARY ESTIMATION METHODS ON THE DAVIS 16 VALIDATION SET. MOTION BOUNDARIES (MB)S FROM [11] ARE STUDIED WHEN COMBINED (W/ MB) OR NOT COMBINED (W/O MB) TO EACH OF THE BOUNDARY DETECTORS.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "TABLE IV RESULTS ON THE DAVIS 17 VALIDATION AND TEST SET.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Fig. 5. Exemplary results for segmentation tracking on the DAVIS 16 (binary) and DAVIS 17 (multi-label) benchmark. We compare different state-of-the-art methods (OSVOS-S[18], CINM[3] and OSMN[41]) and ours.Fig. 6. Sample results on the SegTrack v2 benchmark.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "ON THE SEGTRACK V2 DATASET[16].Sequence/Object SPT+CSI[16] MSK[27] JOTS[39] SPT[16] ours",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

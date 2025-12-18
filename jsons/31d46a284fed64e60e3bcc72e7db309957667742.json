@@ -1,0 +1,1492 @@
+{
+    "paper_id": "31d46a284fed64e60e3bcc72e7db309957667742",
+    "metadata": {
+        "title": "Knowledge Graph Entity Alignment with Graph Convolutional Networks: Lessons Learned",
+        "authors": [
+            {
+                "first": "Max",
+                "middle": [],
+                "last": "Berrendorf",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ludwig-Maximilians-Universit\u00e4t M\u00fcnchen",
+                    "location": {
+                        "settlement": "Munich",
+                        "country": "Germany"
+                    }
+                },
+                "email": "berrendorf@dbs.ifi.lmu.de"
+            },
+            {
+                "first": "Evgeniy",
+                "middle": [],
+                "last": "Faerman",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ludwig-Maximilians-Universit\u00e4t M\u00fcnchen",
+                    "location": {
+                        "settlement": "Munich",
+                        "country": "Germany"
+                    }
+                },
+                "email": "faerman@dbs.ifi.lmu.de"
+            },
+            {
+                "first": "Valentyn",
+                "middle": [],
+                "last": "Melnychuk",
+                "suffix": "",
+                "affiliation": {},
+                "email": "v.melnychuk@campus.lmu.de"
+            },
+            {
+                "first": "Volker",
+                "middle": [],
+                "last": "Tresp",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ludwig-Maximilians-Universit\u00e4t M\u00fcnchen",
+                    "location": {
+                        "settlement": "Munich",
+                        "country": "Germany"
+                    }
+                },
+                "email": "volker.tresp@siemens.com"
+            },
+            {
+                "first": "Thomas",
+                "middle": [],
+                "last": "Seidl",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Ludwig-Maximilians-Universit\u00e4t M\u00fcnchen",
+                    "location": {
+                        "settlement": "Munich",
+                        "country": "Germany"
+                    }
+                },
+                "email": "seidl@dbs.ifi.lmu.de"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this work, we focus on the problem of entity alignment in Knowledge Graphs (KG) and we report on our experiences when applying a Graph Convolutional Network (GCN) based model for this task. Variants of GCN are used in multiple state-of-the-art approaches and therefore it is important to understand the specifics and limitations of GCN-based models. Despite serious efforts, we were not able to fully reproduce the results from the original paper and after a thorough audit of the code provided by authors, we concluded, that their implementation is different from the architecture described in the paper. In addition, several tricks are required to make the model work and some of them are not very intuitive.We provide an extensive ablation study to quantify the effects these tricks and changes of architecture have on final performance. Furthermore, we examine current evaluation approaches and systematize available benchmark datasets.We believe that people interested in KG matching might profit from our work, as well as novices entering the field. (Code: https://github.com/Valentyn1997/ kg-alignment-lessons-learned).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The success of information retrieval in a given task critically depends on the quality of the underlying data. Another issue is that in many domains knowledge bases are spread across various data sources [14] and it is crucial to be able to combine information from different sources. In this work, we focus on knowledge bases in the form of Knowledge Graphs (KGs), which are particularly suited for information retrieval [17] . Joining information from different KGs is non-trivial, as there is no unified schema or vocabulary. The goal of the entity alignment task is to overcome this problem by learning a matching between entities in different KGs. In the typical setting some of the alignments are known in advance (seed alignments) and the task is therefore supervised. More formally, we are given graphs G L = (V L , E L ) and G R = (V R , E R ) with a seed alignment A = (l i , r i ) i \u2286 V L \u00d7 V R . It is commonly assumed that an entity v \u2208 V L can match at most one entity v \u2208 V R . Thus the goal is to infer alignments for the remaining nodes only.",
+            "cite_spans": [
+                {
+                    "start": 204,
+                    "end": 208,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 422,
+                    "end": 426,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Graph Convolutional Networks (GCN) [7, 9] , which have been recently become increasingly popular, are at the core of state-of-the-art methods for entity alignments in KGs [3, 6, 22, 24, 27] . In this paper, we thoroughly analyze one of the first GCN-based entity alignment methods, GCN-Align [22] . Since the other methods we are studying can be considered as extensions of this first paper and have a similar architecture, our goal is to understand the importance of its individual components and architecture choices.In summary, our contribution is as follows:",
+            "cite_spans": [
+                {
+                    "start": 35,
+                    "end": 38,
+                    "text": "[7,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 39,
+                    "end": 41,
+                    "text": "9]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 171,
+                    "end": 174,
+                    "text": "[3,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 175,
+                    "end": 177,
+                    "text": "6,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 178,
+                    "end": 181,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 182,
+                    "end": 185,
+                    "text": "24,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 186,
+                    "end": 189,
+                    "text": "27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 292,
+                    "end": 296,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "1. We investigate the reproducibility of the published results of a recent GCNbased method for entity alignment and uncover differences between the method's description in the paper and the authors' implementation. 2. We perform an ablation study to demonstrate the individual components' contribution. 3. We apply the method to numerous additional datasets of different sizes to investigate the consistency of results across datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this section, we review previous work on entity alignment for Knowledge Graphs and revisit the current evaluation process. We believe that this is useful for practitioners, since we discover some pitfalls, especially when implementing evaluation scores and selecting datasets for comparison. An overview of methods, datasets and metrics is provided in Table 1 . Methods. While the problem of entity alignments in Knowledge Graphs has been tackled historically by researching vocabularies which are as broad as possible, and establish them as a standard, recent approaches take a more data-driven view. Early methods use classical knowledge graph link prediction models such as TransE [2] to embed the entities of the individual knowledge graphs using an intra-KG link prediction loss, and differ in what they do with the aligned entities. For instance, MTransE [5] learns a linear transformation between the embedding spaces of the individual graphs using an L 2 -loss. BootEA [19] adopts a bootstrapping approach and iteratively labels the most likely alignments to utilize them for further training. In addition to the alignment loss, embeddings of aligned entities are swapped regularly to calibrate embedding spaces against each other. SEA [15] learns a mapping between embedding spaces in both directions and additionally adds a cycle-consistency loss. Thereby, the distance between the original embedding of an entity, and the result of translating this embedding to the opposite space and back again, is penalized. IPTransE [26] embeds both KGs into the same embedding space and uses a margin-based loss to enforce the embeddings of aligned entities to become similar. RSN [8] generates sequences using different types of random walks which can move between graphs when visiting aligned entities. The generated sequences are feed to an adapted recurrent model. JAPE [18] , KDCoE [4] , MultiKE [25] and AttrE [20] utilize attributes available for some entities and additional information like the names of entities and relationships. Graph Convolutional Network (GCN) based models [3, 6, 22, 24, 27] 1 have in common that they use GCN to create node representations by aggregating node representations together with representations of their neighbors. Most of GCN approaches do not distinguish between different relations and either consider all neighbors equally [6, 22, 24] or use attention [3] to weight the representations of the neighbors for the aggregation.",
+            "cite_spans": [
+                {
+                    "start": 687,
+                    "end": 690,
+                    "text": "[2]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 864,
+                    "end": 867,
+                    "text": "[5]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1247,
+                    "end": 1251,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1534,
+                    "end": 1538,
+                    "text": "[26]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1683,
+                    "end": 1686,
+                    "text": "[8]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1876,
+                    "end": 1880,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1889,
+                    "end": 1892,
+                    "text": "[4]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1903,
+                    "end": 1907,
+                    "text": "[25]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1918,
+                    "end": 1922,
+                    "text": "[20]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 2090,
+                    "end": 2093,
+                    "text": "[3,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 2094,
+                    "end": 2096,
+                    "text": "6,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 2097,
+                    "end": 2100,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 2101,
+                    "end": 2104,
+                    "text": "24,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 2105,
+                    "end": 2108,
+                    "text": "27]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 2373,
+                    "end": 2376,
+                    "text": "[6,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 2377,
+                    "end": 2380,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 2381,
+                    "end": 2384,
+                    "text": "24]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 2402,
+                    "end": 2405,
+                    "text": "[3]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 355,
+                    "end": 362,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Datasets. The datasets used by entity alignments methods are generally based on large-scale open-source data sources such as DBPedia [1] , YAGO [13] , or Wikidata [23] . While there is the DWY-100K dataset, which comprises 100 K aligned entities across the three aforementioned individual knowledge graphs, most of the datasets, such as DBP15K, or WK3l are generated from a single multi-lingual database. There, subsets are formed according to a specific language, and entities which are linked across languages are used as alignments. A detailed description of most-used datasets can be found in Table 2 .",
+            "cite_spans": [
+                {
+                    "start": 133,
+                    "end": 136,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 144,
+                    "end": 148,
+                    "text": "[13]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 163,
+                    "end": 167,
+                    "text": "[23]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 597,
+                    "end": 604,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "As an interesting observation we found out that all papers which evaluate on DBP15, do not evaluate on the full DBP15K dataset 2 (which we refer to as DBP15K (full)), but rather use a smaller subset provided by the authors of JAPE [18] in their GitHub repository 3 , which we call DBP15K (JAPE). The smaller subsets were created by selecting a portion of entities (around 20K of 100K) which are popular, i.e. appear in many triples as head or tail. The number of aligned entities stays the same (15K). As [18] only reports the dataset statistics of the larger dataset, and does not mention the reduction of the dataset, subsequent papers also report the statistics of the larger dataset, although experiments use the smaller variant [3, 18, 19, 22, 26] . As the metrics rely on absolute ranks, the numbers are better than on the full dataset (cf. Table 3 ).",
+            "cite_spans": [
+                {
+                    "start": 231,
+                    "end": 235,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 505,
+                    "end": 509,
+                    "text": "[18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 733,
+                    "end": 736,
+                    "text": "[3,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 737,
+                    "end": 740,
+                    "text": "18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 741,
+                    "end": 744,
+                    "text": "19,",
+                    "ref_id": null
+                },
+                {
+                    "start": 745,
+                    "end": 748,
+                    "text": "22,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 749,
+                    "end": 752,
+                    "text": "26]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 847,
+                    "end": 854,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Scores. It is common practice to only consider the entities being part of the test alignment as potential matching candidates. Although we argue that ignoring entities exclusive to a single graph as potential candidates does not reflect well Table 2 . Overview of used datasets with their sizes in the number of triples (edges), entities (nodes), relations (different edge types) and alignments. For WK3l, the alignment is provided as a directed mapping on a entity level. However, there are additional triple alignments. Following a common practice as e.g. [15] we can assume that an alignment should be symmetric and that we can extract entity alignments from the triple alignments. Thereby, we obtain the number of alignments given in brackets. ",
+            "cite_spans": [
+                {
+                    "start": 558,
+                    "end": 562,
+                    "text": "[15]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 242,
+                    "end": 249,
+                    "text": "Table 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "GCN-Align [22] is a GCN-based approach to embed all entities from both graphs into a common embedding space. Each entity i is associated with structural features h i \u2208 R d , which are initialized randomly and updated during training.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 14,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "The features of all entities in a single graph are combined to the feature matrix H. Subsequently, a two-layer GCN is applied. A single GCN layer is described by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "ij is the diagonal node degree matrix. The input of the first layer is set to H (0) = H, and \u03c3 is non-linear activation function, chosen as ReLU. The output of the last layer is considered as the structural representation, denoted by s i = H",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "(2) i \u2208 R d . Both graphs are equipped with their own node features, but the convolution weights W (i) are shared across the graphs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "The adjacency matrix is derived from the knowledge graph by first computing a score, called functionality, for each relation as the ratio between the number of different entities which occur as head, and the number of triples in which the relation occurs \u03b1 r . Analogously, the inverse functionality \u03b1 r is obtained by replacing the nominator by the number of different tail entities. The final adjacency matrix is obtained as A ij = (ei,r,ej ) \u03b1 r + (ej ,r,ej ) \u03b1 r . Note, that analogously to structural features GCN-Align is able to process the attributes and integrate them in final representation. However, since attributes have little effect on final score, and to be consistent with other GNN models, here we focus only on structural representations. Implementation Specifics. The code 5 provided by the authors differs in a few aspects from the method described in the paper. First, when computing the adjacency matrix, fun(r) and if un(f ) are set to at least 0.3. S, the node embeddings are initialized with values drawn from a normal distribution with variance n \u22121/2 , where n is the number of nodes 6 . Additionally, the node features are always normalised to unit Euclidean length before passing them into the network. Finally, there are no convolution weights. This means that the whole GCN does not contain a single parameter, but is just a fixed function on the learned node embeddings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "In initial experiments we were able to reproduce the results reported in the paper using the implementation provided by the authors. Moreover, we are able to reproduce the results using our own implementation, and settings adjusted to the authors' code. In addition, we replaced the adjacency matrix based on functionality and inverse functionality by a simpler version, where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We additionally useD \u22121\u00c2 instead of the symmetric normalization. In total, we see no difference in performance between our simplified adjacency matrix, and the authors' one. We identified two aspects which affect the model's performance: Not using convolutional weights, and normalizing the variance when initializing node embeddings. We provide empirical evidence for this finding across numerous datasets. Our results regarding Hits@1 (H@1) are summarised in Table 3 . Node Embedding Initialization. Comparing the columns of Table 3 we can observe the influence of the node embedding initialization. Using the settings from the authors' code, i.e. not using weights, a choosing a variance of n \u22121/2 actually results in inferior performance in terms of H@1, as compared to use a standard normal distribution. These findings are consistent across datasets.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 461,
+                    "end": 468,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 527,
+                    "end": 534,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "Convolution Weights. The first column of Table 3 corresponds to the weight usage and initialization settings used in the code for GCN-Align. We achieve slightly better results than published in [22] , which we attribute to a more exhaustive parameter search. Interestingly, all best configurations use Adam optimizer instead of SGD. Adding convolution weights degrades the performance across all datasets and subsets thereof but one as witnessed by comparing the first two columns with the last two columns.",
+            "cite_spans": [
+                {
+                    "start": 194,
+                    "end": 198,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 48,
+                    "text": "Table 3",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "In this work, we reported our experiences when implementing the Knowledge Graph alignment method GCN-Align. We pointed at important differences between the model described in the paper and the actual implementation and quantified their effects in the ablation study. For future work, we plan to include other methods for entity alignments in our framework.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "DBpedia: a nucleus for a web of open data",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Auer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bizer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Kobilarov",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lehmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cyganiak",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ives",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Translating embeddings for modeling multi-relational data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garc\u00eda-Dur\u00e1n",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Yakhnenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J C"
+                    ],
+                    "last": "Burges",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bottou",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2787--2795",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Multi-channel graph neural network for entity alignment",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chua",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1452--1461",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Co-training embeddings of knowledge graphs and entity descriptions for cross-lingual entity alignment",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zaniolo",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "3998--4004",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2018/556"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Multilingual knowledge graph embeddings for cross-lingual knowledge alignment",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zaniolo",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1511--1517",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2017/209"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Deep graph matching consensus",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lenssen",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Morris",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Masci",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kriege",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Neural message passing for quantum chemistry",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gilmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Schoenholz",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Riley",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Dahl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning",
+            "volume": "70",
+            "issn": "",
+            "pages": "1263--1272",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Learning to exploit long-term relational dependencies in knowledge graphs",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 36th International Conference on Machine Learning (ICML 2019",
+            "volume": "97",
+            "issn": "",
+            "pages": "2505--2514",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1609.02907"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Proceedings of the 57th Conference of the Association for Computational Linguistics (ACL 2019)",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Korhonen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Traum",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "M\u00e0rquez",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Proceedings of the Twenty-Eighth International Joint Conference on Artificial Intelligence (IJCAI 2019)",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kraus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "10--16",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2019"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence (IJCAI 2018)",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "13--19",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "YAGO3: a knowledge base from multilingual wikipedias",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Mahdisoltani",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Biega",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Suchanek",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Seventh Biennial Conference on Innovative Data Systems Research (CIDR 2015)",
+            "volume": "",
+            "issn": "",
+            "pages": "4--7",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "A review of relational machine learning for knowledge graphs",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Nickel",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Tresp",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gabrilovich",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proc. IEEE",
+            "volume": "104",
+            "issn": "1",
+            "pages": "11--33",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Semi-supervised entity alignment via knowledge graph embedding with awareness of degree difference",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Hoehndorf",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "3130--3136",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3308558.3313646"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Proceedings of the Twenty-Sixth International Joint Conference on Artificial Intelligence (IJCAI 2017)",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sierra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "19--25",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Introducing the knowledge graph: things, not strings",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Singhal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Official Google Blog",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Cross-lingual entity alignment via joint attribute-preserving embedding",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ISWC 2017",
+            "volume": "10587",
+            "issn": "",
+            "pages": "628--644",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-68288-4_37"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Bootstrapping entity alignment with knowledge graph embedding",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "4396--4402",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2018/611"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Entity alignment between knowledge graphs using attribute embeddings",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Trisedya",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The Thirty-First Innovative Applications of Artificial Intelligence Conference, IAAI 2019, The Ninth AAAI Symposium on Educational Advances in Artificial Intelligence (EAAI 2019)",
+            "volume": "",
+            "issn": "",
+            "pages": "297--304",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Graph attention networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Veli\u010dkovi\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cucurull",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Casanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1710.10903"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Cross-lingual knowledge graph alignment via graph convolutional networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Lv",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Riloff",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Chiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hockenmaier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "349--357",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Cross-lingual knowledge graph alignment via graph matching neural network",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "3156--3161",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1905.11605"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Multi-view knowledge graph embedding for entity alignment",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "5429--5435",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2019/754"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Iterative entity alignment via joint knowledge embeddings",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "4258--4264",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2017/595"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Neighborhood-aware attentional representation for multilingual knowledge graphs",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1943--1949",
+            "other_ids": {
+                "DOI": [
+                    "10.24963/ijcai.2019/269"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Overview of related work in the field of entity alignment for knowledge graphs with their used datasets and metrics.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Ablation study on using convolution weights and different embedding initialisation.We fix using convolution weights and the variance for the normal distribution from which the embedding vectors are initialized and optimize the other hyperparameters according to validation H@1 (80/20% train-validation split) on DBP15K (JAPE) zh-en in a large-scale hyperparameter search, comprising 1,440 experiments, with the following grid: optim. \u2208 {Adam, SGD}, lr \u2208 {0.1, 0.5, 1, 10, 20}, #layers \u2208 {1, 2, 3}, #neg. samples \u2208 {5, 50, 100}, #epochs \u2208 {10, 500, 2000, 3000}. Hence, we obtain four sets of hyperparameters. For each dataset, we perform a smaller hyperparameter search to fine-tune LR, #epochs & #layers for each dataset (again 80/20 split) and evaluate the best models on the official test set with standard deviation computed across 5 runs. DBP15K (full) fr-en 31.51 \u00b1 0.16 27.64 \u00b1 0.22 21.82 \u00b1 0.39 16.73 \u00b1 0.59 ja-en 33.26 \u00b1 0.10 29.06 \u00b1 0.23 26.21 \u00b1 0.33 20.78 \u00b1 0.16 zh-en 31.15 \u00b1 0.15 22.55 \u00b1 0.27 24.96 \u00b1 0.71 18.85 \u00b1 0.99 DBP15K (JAPE) fr-en 45.37 \u00b1 0.13 41.03 \u00b1 0.13 35.36 \u00b1 0.33 30.50 \u00b1 0.38 ja-en 45.53 \u00b1 0.18 40.29 \u00b1 0.09 35.81 \u00b1 0.53 31.46 \u00b1 0.15 zh-en 43.30 \u00b1 0.12 39.37 \u00b1 0.20 33.61 \u00b1 0.49 29.94 \u00b1 0.35 WK3l-15K en-de 16.57 \u00b1 0.12 14.41 \u00b1 0.23 17.43 \u00b1 0.38 12.66 \u00b1 0.30 en-fr 17.07 \u00b1 0.15 16.16 \u00b1 0.16 15.98 \u00b1 0.16 12.41 \u00b1 0.18",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. This work has been funded by the German Federal Ministry of Education and Research (BMBF) under Grant No. 01IS18036A and by the Bavarian Ministry for Economic Affairs, Infrastructure, Transport and Technology through the Center for Analytics-Data-Applications (ADA-Center) within the framework of \"BAY-ERN DIGITAL II\". The authors of this work take full responsibilities for its content.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

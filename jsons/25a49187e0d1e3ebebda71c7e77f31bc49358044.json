@@ -1,0 +1,1222 @@
+{
+    "paper_id": "25a49187e0d1e3ebebda71c7e77f31bc49358044",
+    "metadata": {
+        "title": "Inexpensive Domain Adaptation of Pretrained Language Models: Case Studies on Biomedical NER and Covid-19 QA",
+        "authors": [
+            {
+                "first": "Nina",
+                "middle": [],
+                "last": "Poerner",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "LMU Munich",
+                    "location": {
+                        "country": "Germany"
+                    }
+                },
+                "email": "poerner@cis.uni-muenchen.de|inquiries@cislmu.org"
+            },
+            {
+                "first": "Ulli",
+                "middle": [],
+                "last": "Waltinger",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Siemens AG Munich",
+                    "location": {
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Hinrich",
+                "middle": [],
+                "last": "Sch\u00fctze",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "LMU Munich",
+                    "location": {
+                        "country": "Germany"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Models (PTLMs) is typically achieved by unsupervised pretraining on target-domain text. While successful, this approach is expensive in terms of hardware, runtime and CO 2 emissions. Here, we propose a cheaper alternative: We train Word2Vec on target-domain text and align the resulting word vectors with the wordpiece vectors of a general-domain PTLM. We evaluate on eight biomedical Named Entity Recognition (NER) tasks and compare against the recently proposed BioBERT model. We cover over 50% of the BioBERT -BERT F1 delta, at 5% of BioBERT's CO 2 footprint and 2% of its cloud compute cost. We also show how to quickly adapt an existing generaldomain Question Answering (QA) model to an emerging domain: the Covid-19 pandemic. Models will be made available upon publication.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Pretrained Language Models (PTLMs) such as BERT (Devlin et al., 2019) have spearheaded advances on many NLP tasks. Usually, PTLMs are pretrained on unlabeled general-domain and/or mixed-domain text, such as Wikipedia, digital books or the Common Crawl corpus.",
+            "cite_spans": [
+                {
+                    "start": 48,
+                    "end": 69,
+                    "text": "(Devlin et al., 2019)",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "When applying PTLMs to specific domains, it can be useful to domain-adapt them. Domain adaptation of PTLMs has typically been achieved by pretraining on target-domain text. One such model is BioBERT (Lee et al., 2020) , which was initialized from general-domain BERT and then pretrained on biomedical scientific publications. The domain adaptation is shown to be helpful for target-domain tasks such as biomedical Named Entity Recognition (NER) or Question Answering (QA). On the downside, the computational cost of pretraining can be considerable: BioBERTv1.0 was adapted for ten days on eight large GPUs (see Table 1 ), which is expensive, environmentally unfriendly, prohibitive for small research labs and students, and may delay prototyping on emerging domains.",
+            "cite_spans": [
+                {
+                    "start": 199,
+                    "end": 217,
+                    "text": "(Lee et al., 2020)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 427,
+                    "end": 444,
+                    "text": "Recognition (NER)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 611,
+                    "end": 618,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "We therefore propose a fast, CPU-only domainadaptation method for PTLMs: We train Word2Vec (Mikolov et al., 2013a) on target-domain text and align the resulting word vectors with the wordpiece vectors of an existing general-domain PTLM. The PTLM thus gains domain-specific lexical knowledge in the form of additional word vectors, but its deeper layers remain unchanged. Since Word2Vec and the vector space alignment are efficient models, the process requires a fraction of the resources associated with pretraining the PTLM itself, and it can be done on CPU.",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 114,
+                    "text": "(Mikolov et al., 2013a)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In Section 4, we use the proposed method to domain-adapt BERT on PubMed+PMC (the data used for BioBERTv1.0) and/or . We improve over general-domain BERT on eight out of eight biomedical NER tasks, using a fraction of the compute cost associated with BioBERT. In Section 5, we show how to quickly adapt an existing Question Answering model to text about the Covid-19 pandemic, without any target-domain Language Model pretraining or finetuning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "2 Related work 2.1 The BERT PTLM For our purpose, a PTLM consists of three parts: A tokenizer T LM : L + \u2192 L + LM , a wordpiece embedding function E LM : L LM \u2192 R d LM and an encoder function F LM . L LM is a limited vocabulary of wordpieces. All words that are not in L LM are tokenized into sequences of shorter wordpieces, e.g., tachycardia becomes ta ##chy ##card ##ia. Given a sentence S = [w 1 , . . . , w T ], tokenized as T LM (S) = [T LM (w 1 ); . . . ; T LM (w T )], E LM em- beds every wordpiece in T LM (S) into a real-valued, trainable wordpiece vector. The wordpiece vectors of the entire sequence are stacked and fed into F LM . Note that we consider position and segment embeddings to be a part of F LM rather than E LM . In the case of BERT, F LM is a Transformer (Vaswani et al., 2017) , followed by a final Feed-Forward Net. During pretraining, the Feed-Forward Net predicts the identity of masked wordpieces. When finetuning on a supervised task, it is usually replaced with a randomly initialized taskspecific layer.",
+            "cite_spans": [
+                {
+                    "start": 781,
+                    "end": 803,
+                    "text": "(Vaswani et al., 2017)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Domain adaptation of PTLMs is typically achieved by pretraining on unlabeled target-domain text. Some examples of such models are BioBERT (Lee et al., 2020) , which was pretrained on the PubMed and/or PubMed Central (PMC) corpora, SciBERT (Beltagy et al., 2019) , which was pretrained on papers from SemanticScholar, Clinical-BERT (Alsentzer et al., 2019; Huang et al., 2019a) and ClinicalXLNet (Huang et al., 2019b) , which were pretrained on clinical patient notes, and Adapt-aBERT (Han and Eisenstein, 2019) , which was pretrained on Early Modern English text. In most cases, a domain-adapted PTLM is initialized from a general-domain PTLM (e.g., standard BERT), though Beltagy et al. (2019) report better results with a model that was pretrained from scratch with a custom wordpiece vocabulary. In this paper, we focus on BioBERT, as its domain adaptation corpora are publicly available.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 156,
+                    "text": "(Lee et al., 2020)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 239,
+                    "end": 261,
+                    "text": "(Beltagy et al., 2019)",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 331,
+                    "end": 355,
+                    "text": "(Alsentzer et al., 2019;",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 356,
+                    "end": 376,
+                    "text": "Huang et al., 2019a)",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 395,
+                    "end": 416,
+                    "text": "(Huang et al., 2019b)",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 484,
+                    "end": 510,
+                    "text": "(Han and Eisenstein, 2019)",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 673,
+                    "end": 694,
+                    "text": "Beltagy et al. (2019)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Domain-adapted PTLMs"
+        },
+        {
+            "text": "Word vectors are distributed representations of words that are trained on unlabeled text. Contrary to PTLMs, word vectors are non-contextual, i.e., a word type is always assigned the same vector, regardless of context. In this paper, we use Word2Vec (Mikolov et al., 2013a) to train word vectors. We will denote the Word2Vec lookup function as E W2V : L W2V \u2192 R d W2V .",
+            "cite_spans": [
+                {
+                    "start": 250,
+                    "end": 273,
+                    "text": "(Mikolov et al., 2013a)",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Word vectors"
+        },
+        {
+            "text": "Word vector space alignment has most frequently been explored in the context of cross-lingual word embeddings. For instance, Mikolov et al. (2013b) align English and Spanish Word2Vec spaces by a simple linear transformation. Wang et al. (2019) use a related method to align cross-lingual word vectors and multilingual BERT wordpiece vectors.",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 147,
+                    "text": "Mikolov et al. (2013b)",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Word vector space alignment"
+        },
+        {
+            "text": "In the following, we assume access to a generaldomain PTLM, as described in Section 2.1, and a corpus of unlabeled target-domain text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Method"
+        },
+        {
+            "text": "In a first step, we train Word2Vec on the targetdomain corpus. In a second step, we take the intersection of L LM and L W2V . In practice, the intersection mostly contains wordpieces from L LM that correspond to standalone words. It also contains single characters and other noise, however, we found that filtering them does not improve alignment quality. In a third step, we use the intersection to fit an unconstrained linear transformation W \u2208 R d LM \u00d7d W2V via least squares:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Creating new input vectors"
+        },
+        {
+            "text": "Intuitively, W makes Word2Vec vectors \"look like\" the PTLM's native wordpiece vectors, just like cross-lingual alignment makes word vectors from one language \"look like\" word vectors from another language. In Table 2 (top), we show examples of within-space and cross-space nearest neighbors after alignment.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 209,
+                    "end": 216,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Creating new input vectors"
+        },
+        {
+            "text": "Next, we redefine the wordpiece embedding layer of the PTLM. The most radical strategy would be to replace the entire layer with the aligned Word2Vec vectors: In initial experiments, this strategy led to a drop in performance, presumably because function words are not well represented by Word2Vec, and replacing them disrupts BERT's syntactic abilities. To prevent this problem, we leave existing wordpiece vectors intact and only add new ones:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Updating the wordpiece embedding layer"
+        },
+        {
+            "text": "In a final step, we update the tokenizer to account for the added words. Let T LM be the standard BERT tokenizer, and letT LM be the tokenizer that treats all words in L LM \u222a L W2V as one-wordpiece tokens, while tokenizing any other words as usual.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Updating the tokenizer"
+        },
+        {
+            "text": "In practice, a given word may or may not benefit from being tokenized byT LM instead of T LM . To give a concrete example, 82% of the words in the BC5CDR NER dataset that end in the suffix -ia are inside a disease entity (e.g., tachycardia). T LM tokenizes this word as ta ##chy ##card ##ia, thereby exposing the orthographic cue to the model. As a result, T LM leads to higher recall on -ia diseases. But there are many cases where wordpiece tokenization is meaningless or misleading. For instance euthymia (not a disease) is tokenized by T LM as e ##uth ##ym ##ia, making it likely to be classified as a disease. By contrast,T LM gives euthymia a one-wordpiece representation that depends only on distributional semantics. We find that usingT LM improves precision on -ia diseases.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Updating the tokenizer"
+        },
+        {
+            "text": "To combine these complementary strengths, we use a 50/50 mixture of T LM -tokenization andT LMtokenization when finetuning the PTLM on a task. At test time, we use both tokenizers and mean-pool the outputs. Let o(T (S)) be some output of interest (e.g., a logit), given sentence S tokenized by T . We predict: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Updating the tokenizer"
+        },
+        {
+            "text": "In this section, we use the proposed method to create GreenBioBERT, an inexpensive and environmentally friendly alternative to BioBERT. Recall that BioBERTv1.0 (biobert v1.0 pubmed pmc) was initialized from general-domain BERT (bertbase-cased) and pretrained on PubMed+PMC.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 1: Biomedical NER"
+        },
+        {
+            "text": "We train Word2Vec with vector size d W2V = d LM = 768 on PubMed+PMC (see Appendix for details). Then, we follow the procedure described in Section 3 to update the wordpiece embedding layer and tokenizer of general-domain BERT.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Domain adaptation"
+        },
+        {
+            "text": "We finetune GreenBioBERT on the eight publicly available NER tasks used in Lee et al. (2020) . We also do reproduction experiments with generaldomain BERT and BioBERTv1.0, using the same setup as our model. We average results over eight random seeds. See Appendix for details on preprocessing, training and hyperparameters. ",
+            "cite_spans": [
+                {
+                    "start": 75,
+                    "end": 92,
+                    "text": "Lee et al. (2020)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Finetuning"
+        },
+        {
+            "text": "Table 2 (bottom) shows entity-level precision, recall and F1. For ease of visualization, Figure  1 shows what portion of the BioBERT -BERT F1 delta is covered. We improve over generaldomain BERT on all tasks with varying effect sizes. Depending on the points of reference, we cover an average 52% to 60% of the BioBERT -BERT F1 delta (54% for BioBERTv1.0, 60% for BioBERTv1.1 and 52% for our reproduction experiments). Table 3 (top) shows the importance of vector space alignment: If we replace the aligned Word2Vec vectors with their non-aligned counterparts (by setting W = 1) or with randomly initialized vectors, F1 drops on all tasks.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 89,
+                    "end": 98,
+                    "text": "Figure  1",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 419,
+                    "end": 426,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results and discussion"
+        },
+        {
+            "text": "In this section, we use the proposed method to quickly adapt an existing general-domain QA model to an emerging target domain: Covid-19. Our baseline model is SQuADBERT (bert-largeuncased-whole-word-masking-finetuned-squad), a version of BERT that was finetuned on generaldomain SQuAD (Rajpurkar et al., 2016) . We evaluate on Deepset-AI Covid-QA, 1 a SQuAD-style dataset with 1380 questions (see Appendix for details on data and preprocessing). We assume that there is no target-domain finetuning data, which is a realistic setup for a new domain.",
+            "cite_spans": [
+                {
+                    "start": 285,
+                    "end": 309,
+                    "text": "(Rajpurkar et al., 2016)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiment 2: Covid-19 QA"
+        },
+        {
+            "text": "We train Word2Vec with vector size d W2V = d LM = 1024 on CORD-19 (Covid-19 Open Re-1 www.github.com/deepset-ai/COVID-QA Table 3 : Top: NER ablation study. Drop in F1 (w.r.t. GreenBioBERT) when using non-aligned or randomly initialized word vectors instead of aligned word vectors. Bottom: Results on Deepset-AI Covid-QA (%). EM (exact match) and F1 are evaluated with the SQuAD scorer. \"substr\": Predictions that are a substring of the gold answer. Substring answers are much more frequent than exact matches because not all gold answers are minimal spans (see Appendix for an example).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 121,
+                    "end": 128,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Domain adaptation"
+        },
+        {
+            "text": "search Dataset) and/or PubMed+PMC. The process takes less than an hour on CORD-19 and about one day on the combined corpus, again without the need for a GPU. Then, we update SQuADBERT's wordpiece embedding layer and tokenizer, as described in Section 3. We refer to the resulting model as GreenCovidSQuADBERT.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Domain adaptation"
+        },
+        {
+            "text": "Table 3 (bottom) shows that GreenCovidSQuAD-BERT outperforms general-domain SQuADBERT in all metrics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results and discussion"
+        },
+        {
+            "text": "Most of the improvement can be achieved with just the small CORD-19 corpus, which is more specific to the target domain (compare \"Cord-19 only\" and \"Cord-19+PubMed+PMC\").",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results and discussion"
+        },
+        {
+            "text": "As a reaction to the trend towards high-resource models, we have proposed an inexpensive, CPUonly method for domain-adapting Pretrained Language Models: We train Word2Vec vectors on target-domain data and align them with the wordpiece vector space of a general-domain PTLM.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "On eight biomedical NER tasks, we cover over 50% of the BioBERT -BERT F1 delta, at 5% of BioBERT's domain adaptation CO 2 footprint and 2% of its cloud compute cost. We have also shown how to rapidly adapt an existing BERT QA model to an emerging domain -the Covid-19 pandemic -without the need for target-domain Language Model pretraining or finetuning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "We hope that our approach will benefit practitioners with limited time or resources, and that it will encourage environmentally friendlier NLP. We extract all abstracts and text bodies and apply the BERT basic tokenizer (a word tokenizer that standard BERT uses before wordpiece tokenization). Then, we train CBOW Word2Vec 2 with negative sampling. We use default parameters except for the vector size (which we set to d W2V = d LM ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "General-domain BERT and BioBERTv1.0 were downloaded from:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 1: Biomedical NER Pretrained models"
+        },
+        {
+            "text": "\u2022 https://storage.googleapis.com/ bert_models/2018_10_18/cased_L-12_H-768_A-12.zip",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 1: Biomedical NER Pretrained models"
+        },
+        {
+            "text": "\u2022 https://github.com/naver/biobertpretrained",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 1: Biomedical NER Pretrained models"
+        },
+        {
+            "text": "We downloaded the NER datasets by following instructions on https://github.com/dmis-lab/ biobert#Datasets. For detailed dataset statistics, see Lee et al. (2020) .",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 161,
+                    "text": "Lee et al. (2020)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "We cut all sentences into chunks of 30 or fewer whitespace-tokenized words (without splitting inside labeled spans). Then, we tokenize every chunk S with T = T LM or T =T LM and add special tokens:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing"
+        },
+        {
+            "text": "Word-initial wordpieces in T (S) are labeled as B(egin), I(nside) or O(utside), while non-wordinitial wordpieces are labeled as X(ignore).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "X = [CLS] T (S) [SEP]"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Publicly available clinical BERT embeddings",
+            "authors": [
+                {
+                    "first": "Emily",
+                    "middle": [],
+                    "last": "Alsentzer",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Murphy",
+                    "suffix": ""
+                },
+                {
+                    "first": "William",
+                    "middle": [],
+                    "last": "Boag",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wei-Hung",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Jindi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tristan",
+                    "middle": [],
+                    "last": "Naumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthew",
+                    "middle": [],
+                    "last": "Mcdermott",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "2nd Clinical Natural Language Processing Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "72--78",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/w19-1909"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "SciB-ERT: A pretrained language model for scientific text",
+            "authors": [
+                {
+                    "first": "Iz",
+                    "middle": [],
+                    "last": "Beltagy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyle",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Arman",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EMNLP-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "3606--3611",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/d19-1371"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "BERT: Pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Wei",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kenton",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kristina",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "NAACL-HLT",
+            "volume": "",
+            "issn": "",
+            "pages": "4171--4186",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "NCBI disease corpus: a resource for disease name recognition and concept normalization",
+            "authors": [
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Rezarta Islamaj Dogan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiyong",
+                    "middle": [],
+                    "last": "Leaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Journal of biomedical informatics",
+            "volume": "47",
+            "issn": "",
+            "pages": "1--10",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.jbi.2013.12.006"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "LINNAEUS: a species name identification system for biomedical literature",
+            "authors": [
+                {
+                    "first": "Martin",
+                    "middle": [],
+                    "last": "Gerner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Goran",
+                    "middle": [],
+                    "last": "Nenadic",
+                    "suffix": ""
+                },
+                {
+                    "first": "Casey",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bergman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "BMC bioinformatics",
+            "volume": "11",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/1471-2105-11-85"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Unsupervised domain adaptation of contextualized embeddings for sequence labeling",
+            "authors": [
+                {
+                    "first": "Xiaochuang",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jacob",
+                    "middle": [],
+                    "last": "Eisenstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "EMNLP-IJCNLP",
+            "volume": "",
+            "issn": "",
+            "pages": "4229--4239",
+            "other_ids": {
+                "DOI": [
+                    "10.18653/v1/d19-1433"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "ClinicalBERT: Modeling clinical notes and predicting hospital readmission",
+            "authors": [
+                {
+                    "first": "Kexin",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jaan",
+                    "middle": [],
+                    "last": "Altosaar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rajesh",
+                    "middle": [],
+                    "last": "Ranganath",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1904.05342"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Clinical XLNet: Modeling sequential clinical notes and predicting prolonged mechanical ventilation",
+            "authors": [
+                {
+                    "first": "Kexin",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Abhishek",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sitong",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Edward",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chih-Ying",
+                    "middle": [],
+                    "last": "Moseley",
+                    "suffix": ""
+                },
+                {
+                    "first": "Naomi",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Charlotta",
+                    "middle": [],
+                    "last": "George",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lindvall",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1912.11975"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Introduction to the bio-entity recognition task at JNLPBA",
+            "authors": [
+                {
+                    "first": "Jin-Dong",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tomoko",
+                    "middle": [],
+                    "last": "Ohta",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yoshimasa",
+                    "middle": [],
+                    "last": "Tsuruoka",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yuka",
+                    "middle": [],
+                    "last": "Tateisi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nigel",
+                    "middle": [],
+                    "last": "Collier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "International Joint Workshop on Natural Language Processing in Biomedicine and its Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "70--75",
+            "other_ids": {
+                "DOI": [
+                    "10.3115/1567594.1567610"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Adam: A method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Diederik",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jimmy",
+                    "middle": [],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "The CHEMDNER corpus of chemicals and drugs and its annotation principles",
+            "authors": [
+                {
+                    "first": "Martin",
+                    "middle": [],
+                    "last": "Krallinger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Obdulia",
+                    "middle": [],
+                    "last": "Rabal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Florian",
+                    "middle": [],
+                    "last": "Leitner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Miguel",
+                    "middle": [],
+                    "last": "Vazquez",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [],
+                    "last": "Salgado",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiyong",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Leaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yanan",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donghong",
+                    "middle": [],
+                    "last": "Ji",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Daniel",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lowe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Journal of cheminformatics",
+            "volume": "7",
+            "issn": "1",
+            "pages": "1--17",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "BioBERT: a pretrained biomedical language representation model for biomedical text mining",
+            "authors": [
+                {
+                    "first": "Jinhyuk",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wonjin",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sungdong",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Donghyeon",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sunkyu",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chan",
+                    "middle": [],
+                    "last": "Ho So",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jaewoo",
+                    "middle": [],
+                    "last": "Kang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Bioinformatics",
+            "volume": "36",
+            "issn": "4",
+            "pages": "1234--1240",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/bioinformatics/btz682"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "BioCreative V CDR task corpus: a resource for chemical disease relation extraction. Database",
+            "authors": [
+                {
+                    "first": "Jiao",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yueping",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Robin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniela",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chih-Hsuan",
+                    "middle": [],
+                    "last": "Sciaky",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "Allan",
+                    "middle": [
+                        "Peter"
+                    ],
+                    "last": "Leaman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Carolyn",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Davis",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mattingly",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zhiyong",
+                    "middle": [],
+                    "last": "Wiegers",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/database/baw068"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Efficient estimation of word representations in vector space",
+            "authors": [
+                {
+                    "first": "Tomas",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kai",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jeffrey",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1301.3781"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Exploiting similarities among languages for machine translation",
+            "authors": [
+                {
+                    "first": "Tomas",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Quoc",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ilya",
+                    "middle": [],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1309.4168"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(T LM (S)) + o(T LM (S))]",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "NER test set F1, transformed as (x \u2212 BERT (ref) )/ (BioBERTv1.0 (ref) \u2212 BERT (ref) ). A value of 0.5 means that 50% of the reported BioBERTv1.0 -BERT delta is covered. \"ref\": Reference fromLee et al. (2020). \"repr\": Our reproduction experiments. Error bars: Standard error of the mean.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "QueryNNs of query in ELM[LLM]NNs of query in WEW2V[LW2V]query \u2208 LW2V \u2229 LLM Boldface: Training vector pairs",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Top: Examples of within-space and cross-space nearest neighbors (NNs) by cosine similarity in Green-BioBERT's wordpiece embedding layer. Blue: Original wordpiece space. Green: Aligned Word2Vec space. Bottom: Biomedical NER test set precision / recall / F1 (%) measured with the CoNLL NER scorer. Boldface: Best model in row. Underlined: Best inexpensive model (without target-domain pretraining) in row.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Inexpensive Domain Adaptation of Pretrained Language Models (Appendix)We downloaded the PubMed, PMC and CORD-19 corpora from:\u2022 https://ftp.ncbi.nlm.nih.gov/pub/ pmc/oa_bulk/ [20 January 2020, 68GB raw text] \u2022 https://ftp.ncbi.nlm.nih.gov/pubmed/ baseline/ [20 January 2020, 24GB raw text] \u2022 https://pages.semanticscholar.org/ coronavirus-research [17 April 2020, 2GB raw text]",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "We follow Lee et al. (2020) 's implementation (https://github.com/dmis-lab/biobert): We add a randomly initialized softmax classifier on top of the last BERT layer to predict the labels. We finetune the entire model to minimize negative log likelihood, with the standard Adam optimizer (Kingma and Ba, 2014) and a linear learning rate scheduler (10% warmup). Like Lee et al. (2020) , we finetune on the concatenation of the training and development set. All finetuning runs were done on a GeForce Titan X GPU (12GB).Since we do not have the resources for an extensive hyperparameter search, we use defaults and recommendations from the BioBERT repository: Batch size of 32, peak learning rate of 1 \u00b7 10 \u22125 , and 100 epochs.At inference time, we gather the output logits of word-initial wordpieces only. Since the number of word-initial wordpieces is the same for T LM (S) andT LM (S), this makes mean-pooling the logits straightforward.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 27,
+                    "text": "Lee et al. (2020)",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 364,
+                    "end": 381,
+                    "text": "Lee et al. (2020)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Modeling, training and inference"
+        },
+        {
+            "text": "We found it easier to reproduce or exceed Lee et al. (2020) 's results for general-domain BERT, compared to their results for BioBERTv1.0 (see Figure  1 , main paper). While this may be due to hyperparameters, it suggests that BioBERTv1.0 was more strongly tuned than BERT in the original BioBERT paper. This observation does not affect our conclusions, as GreenBioBERT performs better than reproduced BERT as well.",
+            "cite_spans": [
+                {
+                    "start": 42,
+                    "end": 59,
+                    "text": "Lee et al. (2020)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 143,
+                    "end": 152,
+                    "text": "Figure  1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Note on our reproduction experiments"
+        },
+        {
+            "text": "We downloaded the SQuADBERT baseline from:\u2022 https://huggingface.co/bertlarge-uncased-whole-word-maskingfinetuned-squad",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiment 2: Covid-19 QA Pretrained model"
+        },
+        {
+            "text": "We downloaded the Deepset-AI Covid-QA dataset from:\u2022 https://github.com/deepset-ai/COVID-QA/blob/master/data/questionanswering/200423_covidQA.json [24 April 2020] At the time of writing, the dataset contains 1380 questions and gold answer spans. Every question is associated with one of 98 research papers (contexts). We treat the entire dataset as a test set.Note that there are some important differences between the dataset and SQuAD, which make the task challenging:\u2022 The contexts are full documents rather than single paragraphs. Thus, the correct answer may appear several times, often with slightly different wordings. Only a single one of the occurrences is annotated as correct, e.g.:Question: What was the prevalence of Coronavirus OC43 in community samples in Ilorin, Nigeria? Correct: 13.3% (95% CI 6.9-23.6%) # from main text Predicted: (13.3%, 10/75). # from abstract\u2022 SQuAD gold answers are defined as the \"shortest span in the paragraph that answered the question\" (Rajpurkar et al., 2016, p. 4), but many Covid-QA gold answers are longer and contain non-essential context, e.g.:Question: When was the Middle East Respiratory Syndrome Coronavirus isolated first? Correct: (MERS-CoV) was first isolated in 2012, in a 60-year-old man who died in Jeddah, KSA due to severe acute pneumonia and multiple organ failure Predicted: 2012,",
+            "cite_spans": [
+                {
+                    "start": 147,
+                    "end": 162,
+                    "text": "[24 April 2020]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Data"
+        },
+        {
+            "text": "We tokenize every question-context pair (Q, C) with T = T LM or T =T LM , which yields (T (Q), T (C)). Since T (C) is usually too long to be digested in a single forward pass, we define a sliding window with width and stride N = floor( 509\u2212|T (Q)| 2 ). At step n, the \"active\" window is between a (l) n = nN and a (r) n = min(|C|, nN + N ). The input is defined as: n are chosen such that |X (n) | = 512, and such that the active window is in the center of the input (if possible).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preprocessing"
+        },
+        {
+            "text": "Feeding X (n) into the pretrained QA model yields start logits h (start,n) \u2208 R |X (n) | and end logits h (end,n) \u2208 R |X (n) | . We extract and concatenate the slices that correspond to the active windows of all steps: Next, we map the logits from the wordpiece level to the word level. This allows us to mean-pool the outputs of T LM andT LM even when |T LM (C)| = |T LM (C)|.Let c i be a whitespace-delimited word in C. Let T (C) j:j+|T (c i )| be the corresponding wordpieces. The start and end logits of c i are derived as:Finally, we return the answer span C k:k that maximizes o (start) k + o (end) k , subject to the constraints that k does not precede k and the answer span is not longer than 500 characters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Modeling and inference"
+        }
+    ]
+}

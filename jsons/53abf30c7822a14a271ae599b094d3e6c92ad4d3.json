@@ -1,0 +1,1466 @@
+{
+    "paper_id": "53abf30c7822a14a271ae599b094d3e6c92ad4d3",
+    "metadata": {
+        "title": "Role Equivalence Attention for Label Propagation in Graph Neural Networks",
+        "authors": [
+            {
+                "first": "Hogun",
+                "middle": [],
+                "last": "Park",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Purdue University",
+                    "location": {
+                        "postCode": "47907",
+                        "settlement": "West Lafayette",
+                        "region": "IN",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Jennifer",
+                "middle": [],
+                "last": "Neville",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Purdue University",
+                    "location": {
+                        "postCode": "47907",
+                        "settlement": "West Lafayette",
+                        "region": "IN",
+                        "country": "USA"
+                    }
+                },
+                "email": "neville@purdue.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Semi-supervised relational learning methods aim to classify nodes in a partially-labeled graph. While popular, existing methods using Graph Neural Networks (GNN) for semi-supervised relational learning have mainly focused on learning node representations by aggregating nearby attributes, and it is still challenging to leverage inferences about unlabeled nodes with few attributes-particularly when trying to exploit higher-order relationships in the network efficiently. To address this, we propose a Graph Neural Network architecture that incorporates patterns among the available class labels and uses (1) a Role Equivalence attention mechanism and (2) a mini-batch importance sampling method to improve efficiency when learning over high-order paths. In particular, our Role Equivalence attention mechanism is able to use nodes' roles to learn how to focus on relevant distant neighbors, in order to adaptively reduce the increased noise that occurs when higher-order structures are considered. In experiments on six different real-world datasets, we show that our model (REGNN) achieves significant performance gains compared to other recent state-of-the-art baselines, particularly when higher-order paths are considered in the models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Semi-supervised relational learning methods aim to classify unlabeled nodes in a partially-labeled graph by leveraging information about both the labeled and unlabeled nodes, and their connectivity. In particular, the methods exploit relational dependencies in the graph to jointly make predictions about unlabeled nodes. Prior work on semi-supervised learning in graphs has typically defined relational features via aggregation over the features of neighboring nodes, and then unknown class labels are inferred iteratively using approximate inference algorithms (e.g., Label Propagation (LP) [22] , Gibbs sampling [15] ). However, many previous methods are limited in their ability to leverage complex neighborhood patterns for learning and inference. For example, while LP works well in simple scenarios, it only exploits direct edges to make predictions on unlabeled examples. While information can propagate across the graph, messages are only passed among direct neighbors, which can be inadequate in complex, sparse graphs with few labels. Recently, Graph Convolution Networks (GCNs) [10] were proposed to exploit message passing functions to aggregate nearby neighbors and learn a latent representation of each node, which is then used for predicting node labels. However, GCN mainly aims to learn neighbors' attribute patterns-they are not typically used in partially-labeled graphs with few attributes. In this case, collective inference is needed during learning, so that patterns among neighbor class labels can also be used in the model. In this work, we propose REGNN, a graph neural network architecture for enhancing the accuracy of label propagation, which uses a role equivalence attention mechanism to facilitate reasoning with higher-order relationships among labeled nodes.",
+            "cite_spans": [
+                {
+                    "start": 593,
+                    "end": 597,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 615,
+                    "end": 619,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1090,
+                    "end": 1094,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To move beyond direct neighbors and exploit longer range information in sparse graphs, recent work has effectively incorporated higher-order relationships and paths into relational models (e.g., high-order GCNs [1] and GraRep [2] ). Our proposed approach REGNN, considers high-order (or k th order) proximity matrices and extends the existing high-order-based GCNs to leverage inferences about unlabeled nodes via neighborhood at various distances. Since reasoning with higher-order paths (i.e., large k) increases the computational complexity of learning 1 , we propose a more efficient mini-batch learning method.",
+            "cite_spans": [
+                {
+                    "start": 211,
+                    "end": 214,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 226,
+                    "end": 229,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Incorporating higher-order paths can increase the relational signal by considering nearby but not directly linked nodes, however, it can also increase noise due to spurious connections as neighborhood size increases. To account for this and enable the model to learn which distant nodes are more relevant, we propose a novel attention mechanism based on role equivalence, a social network property that quantifies similarity among nodes based on their relational context. The attention mechanism is used to merge the multiple node representations learned from the set of high-order-based GCNs. Our experiments show that attention based on role equivalence works significantly better in the context of label propagation. Figure 1a -b show examples that high-order path and attention can help to capture roles in the label propagation scenarios. Each node and edge indicate a user and an interaction during a semester, respectively. Note that colors represent class labels, yellow for student, blue for faculty, and green for staff. In Figure 1a , we are trying to predict the label of a user D, who is a faculty. When we use just direct neighbors, it is not possible to predict the true label of node D by label propagation. However, as the high-order paths from 2 nd order neighbors are considered, the label of D could be successfully predicted. Like this example, high-order paths are potentially useful to learn the underlying hierarchical roles such as advisor-student in a citation network and admin-member relationships in a University group on Facebook. When we just stack a GCN layer multiple times, it is also difficult to learn this kind of information because their aggregation is always from direct neighbors. Meanwhile, if a user is surrounded by nodes with diverse class labels, the magnitude of nearby labels can often mislead prediction. In this case, if latent representations are known/estimated, the model can put more importance on neighbors with similar representations. In Fig. 1b , we are trying to predict the label of node F, who is also a faculty member. Although the node F has more students or staffs as neighbors, node G and H are likely to have similar representations to the representation of node F in the latent space, so that they can be weighted more heavily when aggregating. Our aim is to have REGNN exploit both these ideas, by combining high-order paths with a role similarity-based attention layer.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 720,
+                    "end": 729,
+                    "text": "Figure 1a",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1034,
+                    "end": 1043,
+                    "text": "Figure 1a",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1995,
+                    "end": 2002,
+                    "text": "Fig. 1b",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Semi-Supervised Node Classification. Previous semi-supervised node classification algorithms learn a model to predict unknown class labels in a partially labeled graph. For example, LP [22] and ICA [15] estimate labels of unlabeled nodes using the local inference. Recently, graph embedding methods have been proposed to learn low-dimensional representations of nodes by leveraging many relational properties such as random walk (e.g., Node2Vec [8] ), high-order paths (e.g., GraRep [2] and NEU [19] ), structural similarities (e.g., Struc2Vec [13] ).",
+            "cite_spans": [
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 198,
+                    "end": 202,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 445,
+                    "end": 448,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 483,
+                    "end": 486,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 495,
+                    "end": 499,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 544,
+                    "end": 548,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Graph Neural Networks (GNN). In addition, graph neural networks architectures (e.g., GCN [10] ) also have attracted a lot of attention. Recently, high-order path information was also incorporated into GCNs. HA-GCN [23] and N-GCN [1] proposed joint graph neural network architectures that take attributed highorder proximity matrices. However, while high-order GCNs show more robust performance on node classification, computing the high-order paths from the proximity matrices can be quite inefficient.",
+            "cite_spans": [
+                {
+                    "start": 89,
+                    "end": 93,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 214,
+                    "end": 218,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 229,
+                    "end": 232,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Attention-Based GNNs. Graphs are often complex and noisy, so many researchers have incorporated the concept of \"attention\" into semi-supervised classification. For example, GAT [18] proposed a self-attention-based graph neural network, which decides importance using an edge-wise weighted sum by leveraging rich attributes. However, this attention mechanism has been shown to not be very effective when the data contain attributes with low homophily or there are no attributes. Meanwhile, VAIN [9] proposed kernel-based attention mechanisms for multi-agent modeling. However, they exploit the similarity between nodes along with direct edges only in an attributed graph. In contrast, we design a novel similarity-based kernel based on the concept of role equivalence attention and extend it to incorporate neighbors at various distances (thus, high-order paths) in the setting of label propagation.",
+            "cite_spans": [
+                {
+                    "start": 177,
+                    "end": 181,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 494,
+                    "end": 497,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "First, we include the mathematical definitions of structural equivalence [11] and regular equivalence [5] below. Let N (u) refer to the neighbors of node u. ",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 102,
+                    "end": 105,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Role Equivalence"
+        },
+        {
+            "text": "Regular equivalence states that nodes play the same role if they have connections to nodes with similar roles [6] . There can be many valid ways of grouping nodes into equivalence role sets for a given graph, and regular equivalence is often defined recursively. Based on the above definitions, we can approximate the notion of regular equivalence based on positions in latent space. ",
+            "cite_spans": [
+                {
+                    "start": 110,
+                    "end": 113,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Role Equivalence"
+        },
+        {
+            "text": "Using Definition 3, we propose a graph neural network architecture with the attention layer based on role equivalence among nodes in the following section. Note that the term, role (or structural)-equivalence, has been also used in many different ways (e.g., similarities in triangles, betweenness, k-paths, k-stars, kcliques, subgraph patterns/graphlets, and feature-based MF). In this paper, we use the term role-equivalence to refer to Definition 3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3. (Role Equivalence in latent (embedding) space) A pair of nodes"
+        },
+        {
+            "text": "Problem Formulation and Notation. Given an undirected graph G = (V, E), where V is a set of vertices and E is a set of edges. A is an adjacency matrix of G. V is composed of V L (labeled vertices) and V U (unlabeled vertices). Y L is constructed as a |V | \u00d7 C class label matrix. Again, for each labeled node i \u2208 Y L with class label",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "REGNN Architecture"
+        },
+        {
+            "text": "This Y L will be fed to our REGNN with the adjacency matrix A. Thus, the goal of REGNN is to estimate the class labels of V U from Y L and A, which is a transductive learning setting.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "REGNN Architecture"
+        },
+        {
+            "text": "To learn high-order path-based GCN, we initially construct K different GCN layers. For the layers, adjacency matrices, A, A 2 , ..., A K , which have different orders, are fed as input. A k is obtained by self-multiplying the adjacency matrix A k-times. Then the (i, j) entry of A k is the number of k-hop paths from i to j. With these high-order adjacency matrices, we can define K \u00d7 M high-order convolution operators. The node representations in m th layer with an adjacency matrix A k are formulated as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "k th Order GCN Layers for Label Propagation"
+        },
+        {
+            "text": "and Y L represents known class labels, which are fed to the first GCN layers. W m k is a trainable weight matrix for the m th layer in the k th order GCN, andD k is the degree matrix of A k + I. The symmetric normalizing trick in\u00c2 k takes the average of neighboring nodes' representation from each of high-order adjacency matrices.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "k th Order GCN Layers for Label Propagation"
+        },
+        {
+            "text": "is the input representation size at m th layer and s (m+1) is the size of output representation for the next layer. Therefore, W 1 k could be defined from R C\u00d7s (2) , where C is the number of class labels. This indicates that propagated labels are transformed by the matrix multiplication. The representation of the last GCN layer, H",
+            "cite_spans": [
+                {
+                    "start": 161,
+                    "end": 164,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "k th Order GCN Layers for Label Propagation"
+        },
+        {
+            "text": ", is additionally passed through another softmax function to normalize the latent representations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "k th Order GCN Layers for Label Propagation"
+        },
+        {
+            "text": "The last layers of REGNN play an important role in jointly learning multiple representations via different high-order paths. In this paper, our role equivalence attention uniquely merges their characteristics in the following ways:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Role Equivalence Attention Layers"
+        },
+        {
+            "text": "Concatenation Layer. Outputs from the previous high-order GCNs are concatenated before they are fed into the self-attention layer. There are K outputs, one from each of the high-order GCNs:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Role Equivalence Attention Layers"
+        },
+        {
+            "text": "The outputs are concatenated corresponding to the axis of the representation column.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Role Equivalence Attention Layers"
+        },
+        {
+            "text": "Attention Layer. The self-attention layer measures the degree of role equivalence (Definition 3) among nodes to place more importance on structurally similar neighbors. The intermediate representations of the last high-order GCN layers are used for defining the role, thus f (i) := q con i . In this layer, by considering role equivalence, we can incorporate structural information into node classification. To measure the degree of role equivalence, we additionally define a quantitative measure of role equivalence in latent space with RE f (i), f(j) , and use it in the attention layer below. Our self-attention layer takes inputs from the concatenation layer and produces a new vector q i \u2208 R K\u00b7s (M +1) as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Role Equivalence Attention Layers"
+        },
+        {
+            "text": ", cos refers to cosine similarity, Z = j\u2208N (i) e \u03b2cos f (i),f (j) , and \u03b2 is a hyperparameter that moderates attention, which we estimate during learning. Note that we do not consider self-loops when computing similarity. RE f (i), f(j) measures how close nodes i and j are to being role equivalent (i.e., if the latent representations are unit vectors, then the two are equal when their cosine similarity is 1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Role Equivalence Attention Layers"
+        },
+        {
+            "text": "To predict node class labels, a final softmax function is used. Here,\u0177 i is the output of the softmax function, and each dimension of y represents the predicted probability of the corresponding labels for the class given inputs. Note that W final \u2208 R (K\u00b7s (M +1) )\u00d7C . For learning, as in the original GCN, we use a categorical cross-entropy loss.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Final Softmax Layer."
+        },
+        {
+            "text": "In Eq. (3), C is the number of class labels. Since all activation functions are differentiable, learning is simple via back-propagation-all Ws (W m k and W final ), b final , and \u03b2 are trained.\u0177 i is used to predict class labels for unlabeled nodes V U .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Final Softmax Layer."
+        },
+        {
+            "text": "Calculating Eq. (3), requires the loss to be summed over all the nodes labeled together. A batch algorithm cannot handle large-scale datasets due to the difficulty of fitting the full graph in GPU memory and slow convergence. Even worse, the dense neighbors from high-order paths reduce the scalability of the model with respect to both time and space. To overcome the limitation, we propose an efficient sampling-based learning method. Consider the representation of a node u in the m th GCN layer with k th order paths from Eq. (1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Importance Sampling for Scalability"
+        },
+        {
+            "text": "We use the same importance distribution as in [3] to approximate Eq. (4) with |S| samples for node u as follows:",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 49,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Importance Sampling for Scalability"
+        },
+        {
+            "text": "with the importance distribution q(v) = ||\u00c2[:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Importance Sampling for Scalability"
+        },
+        {
+            "text": "Note the distribution q is only calculated once (i.e., before training) given the normalized aggregated graph, and the input label matrix, H (1) k , should be updated according to S via H",
+            "cite_spans": [
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Importance Sampling for Scalability"
+        },
+        {
+            "text": "]. Our overall mini-batched training procedure is described in Algorithm 1. At every epoch, all nodes are randomly divided to create a mini-batch set B, which is composed of multiples of \u03b3 nodes. We set \u03b3 = 1024. B provides a candidate node set for sampling |S| later. When it comes to a new mini-batch,\u00c3 k is induced from\u00c2 k according to S. Similarly, when REGNN gets neighboring nodes at the attention layer for N (i) in Eq. (2), A k=1 is used. As a result, the new loss function for the mini-based training will be L mini-batch (L, Y ) = \u2212 SL",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Importance Sampling for Scalability"
+        },
+        {
+            "text": "Assume that Y L \u2208 R |V |\u00d7C is a label input matrix. For each labeled node i \u2208 V L with class label y i = c, we set Y L [i, c] = 1 and Y L [i, .] = 0 otherwise. If node j is in V U , we set Y L [j, :] = 0. Let Y be a prediction matrix, and Y[i, :] for each node i \u2208 V U will be used for actual prediction. The prediction is from arg max j Y[i, j]. According to [22] , the prediction will converge as",
+            "cite_spans": [
+                {
+                    "start": 360,
+                    "end": 364,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship to Label Propagation (LP)"
+        },
+        {
+            "text": "\u03b1 is a parameter in (0, 1) and specifies the relative amount of the information from its neighbors and the initial label information. Regarding an input graph, The normalized Laplacian matrix L of A is decomposed as L = \u03a6\u039b\u03a6 \u22121 and could be modified using the frequency response [14] as L = \u03a6p(\u039b)\u03a6 \u22121 where p(\u00b7) is called the frequency response function of the graph. p(\u039b) can further be written as diag(p(\u03bb 1 ), ..., p(\u03bb n )). The graph L is linear shift-invariant, if and only if there exist a function p(\u00b7) : R \u2192 R. At last, the prediction of LP [22] , Y LP , can be reformulated from the perspective of eigen-decomposition and is shown as:",
+            "cite_spans": [
+                {
+                    "start": 278,
+                    "end": 282,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 548,
+                    "end": 552,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship to Label Propagation (LP)"
+        },
+        {
+            "text": "In this Y LP , p LP (\u03bb i ), the frequency response function of LP, is equal to Similarly, we can reformulate the GCN. DenoteD ii = j (A + I) ij . Then, A =D \u22121/2 (A + I)D \u22121/2 = I\u2212D \u22121/2LD\u22121/2 = I\u2212L s , whereL is the Laplacian matrix of A+I. We denoteL s = \u03a6\u039b\u03a6 \u22121 . Using the above notation, a two-layered GCN can be characterized as follows, where W 0 and W 1 are trainable weight matrices in the first and second GCN layers, respectively:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Relationship to Label Propagation (LP)"
+        },
+        {
+            "text": "where",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm 1. REGNN's mini-batched training (one epoch)"
+        },
+        {
+            "text": "When LP [22] uses the following frequency response function, p(\u03bb i ) = (1 \u2212 \u03bb i ) 2 , with two linear transformations, the new Y LP will be same as Y GCN . Thus, Y GCN \u2248 Y LP (W 0 W 1 ). In other words, GCN can approximate LP, and as such we expect better accuracy in label propagation with the help of additional linear transformations and a non-linear function. When the k th order adjacency matrix A k is fed to the GCN, the response function becomes (1 \u2212 \u03bb i ) 2k , which means that we can estimate labels from the different eigenvalue function by considering different paths. This analysis implies that high-order GCN layers in our REGNN can get label-wise representations of unknown nodes in latent space using different eigenvalue functions. Furthermore, they can learn a joint representation using our proposed role equivalence attention layer.",
+            "cite_spans": [
+                {
+                    "start": 8,
+                    "end": 12,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm 1. REGNN's mini-batched training (one epoch)"
+        },
+        {
+            "text": "When batch size is considered, the time complexity of learning REGNN (before importance sampling) is ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Complexity Analysis"
+        },
+        {
+            "text": "Data and Experimental Setup. We use six real-world network datasets for evaluation. Cora, Citeseer, PubMed, and NELL are publicly available citation network datasets [20] . Facebook (|V | = 4038, |E| = 65794, C = 2) is drawn from the Purdue University network [12] , and the data were randomly sampled to make its class labels' proportion to 50/50. For Friendster [16] (|V | = 43880, |E| = 145407, C = 4), only 30% of the training data is used to make the label ratio equal. Additionally, we generated a mirrored-Karate network to verify how roles are learned in our model. LR (Logistic Regression), LP [22] , GhostEdge [7] , graph neural networks (GCN, N-GCN [1] , and GAT [18] ), and graph embedding methods (Node2Vec [8] , GraRep [2] , NEU [19] , Struc2Vec [13] , and VERSE [17] ) are used for comparison. We train the models on training/validation sets and report results on the test set. Every reported result is the average of 10 trials using randomly shuffled node sets, and 10% of the nodes are used for testing and validation, respectively. The number of nodes for training is varied. For all neural network models, we set max epochs = 1000, dropout rate = 0. ",
+            "cite_spans": [
+                {
+                    "start": 166,
+                    "end": 170,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 260,
+                    "end": 264,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 364,
+                    "end": 368,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 603,
+                    "end": 607,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 620,
+                    "end": 623,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 660,
+                    "end": 663,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 674,
+                    "end": 678,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 720,
+                    "end": 723,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 733,
+                    "end": 736,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 743,
+                    "end": 747,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 760,
+                    "end": 764,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 777,
+                    "end": 781,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Evaluation"
+        },
+        {
+            "text": "The Karate club network [21] is a graph that is composed of 34 members and 78 interactions among them. To interpret REGNN with respect to capturing roles, we construct a mirrored network, which is composed of two copies of the network connected between node 32 and 66, as in Fig. 2a . We can assume that each node has its own structural role, which connects between different communities. The colors in the graph are chosen according to community IDs after community detection [4] . Every node that has the same color (i.e., role equivalent) should have similar latent representation when their structural roles are properly captured. Figure 2b and Fig. 2c show the learned representations of nodes from GCN and REGNN, respectively. Similar to the GCN experiment with the Karate network [10] , a hidden layer of size 2 was inserted before the final softmax layer for visualization of the latent representations. They are visualized in Fig. 2b and Fig. 2c . Labels for training data were chosen from total 8 nodes (two nodes per a community). In the result, GCN fails to distinguish red and green nodes (i.e., the communities overlap), while REGNN separated the nodes from the two communities more effectively. This is evidence that that REGNN's attention layer successfully learned the structural roles by measuring role equivalence.",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 28,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 477,
+                    "end": 480,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 787,
+                    "end": 791,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 275,
+                    "end": 282,
+                    "text": "Fig. 2a",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 635,
+                    "end": 644,
+                    "text": "Figure 2b",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 649,
+                    "end": 656,
+                    "text": "Fig. 2c",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 935,
+                    "end": 942,
+                    "text": "Fig. 2b",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 947,
+                    "end": 954,
+                    "text": "Fig. 2c",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Results: Synthetic Data"
+        },
+        {
+            "text": "Tables 1, 2, 3, 4 and 5 show REGNN node classification performance on the Citeseer, Cora, Facebook, PubMed, and Friendster data as proportion of labeled nodes is varied, compared to other baselines. For GCN, Node2Vec, GraRep, Struct2Vec, VERSE, and NEU, we directly obtain results from official implementations. Classification results of all methods are averaged at each proportion. Bold scores represent the corresponding model is significantly better than the others by paired t-tests (p-value<0.05). In all datasets, REGNN has consistently good results across all label proportions. On the other hand, N-GCN is similar to GCN and LP in Citeseer and Cora, in particular. This indicates that the highorder path information did not help to find better node representations, but the attention over high-order paths helped to increase performance when only known labels are given. Node2Vec and GhostEdge exhibit similar results in most of the datasets, and both achieve good performance at lower label proportions. However, their relative performance often decreases when more labels are available (e.g., in Cora). Struct2Vec and VERSE are not as good as Node2Vec. Since Struct2Vec considers structural similarity only, it does not perform well on most of the datasets. VERSE also learns similarities from Personalized PageRank, which is not helpful for our citation and social network datasets. For PubMed and Friendster, due to the heavy computation cost on the large edges, Struct2Vec, and GhostEdgeNL are not included. Table 6 shows classification performance on the NELL knowledge graph. The result is from the same train/test/validation sets as in [20] . REGNN shows the best performance but is almost on par with Node2Vec and VERSE. However, the execution time for training was much faster than Node2Vec and VERSE. In particular, Node2Vec and NEU incur a great deal of overhead to generate random walks (4,327.43 s), and their training time to learn embeddings after the generation was also slower than REGNN. We also tested N-GCN with our importance sampling but the accuracy was still lower than REGNN.",
+            "cite_spans": [
+                {
+                    "start": 1652,
+                    "end": 1656,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1521,
+                    "end": 1528,
+                    "text": "Table 6",
+                    "ref_id": "TABREF7"
+                }
+            ],
+            "section": "Results: Real-World Data"
+        },
+        {
+            "text": "REGNN uses role-based attention to leverage high-order paths. In this section, we report how high-order paths or role-based attention contributes to increasing REGNN's performance. Figure 3 shows comparisons from an ablation study. We compare REGNN (Order = 4), which is the best performing order chosen during parameter selection on the validation data, to REGNN (Order = 1), which denotes a simplified REGNN that still use the role-based attention but does not consider high-order paths. N-GCN and GAT (Order = 4) correspond to versions of our model where the role equivalence attention is replaced by the mixing layer used in [1] and the edge-wise attention of [18] , respectively. For the mixing layer, column-wise concatenation is used. We also compared with the softmax attention of [1] in our experimental setting, but the concatenation-based mixing layer was more accurate.",
+            "cite_spans": [
+                {
+                    "start": 629,
+                    "end": 632,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 664,
+                    "end": 668,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 789,
+                    "end": 792,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 181,
+                    "end": 189,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF6"
+                }
+            ],
+            "section": "Effect of Attention Mechanism"
+        },
+        {
+            "text": "In the ablation experiments, REGNN (Order = 4) again achieved the best results across all datasets. Specifically, it performed significantly better (assessed by paired t-tests) than REGNN (Order = 1), GAT (Order = 4), and GAT (Order = 1). In this ablation study, before computing the attentive weights, highorder GCNs are used in the same way for the GAT for fair comparison, but the result is still worse than REGNN (Order = 4). We tested different numbers of multi-headed attentions for GAT, but it did not help much. This means that our attention mechanism can identify more meaningful neighbors than the one used in GAT-at least in our application settings, which focus on label propagation in graphs with few attributes. In addition, when high-order GCNs are not used, REGNN (Order = 1) is worse than the simple GCN (Order = 1) in Citeseer and Cora. This indicates that it is more effective when REGNN combines its latent representations with high-order paths.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Effect of Attention Mechanism"
+        },
+        {
+            "text": "In this paper, we propose REGNN, a Graph Neural Network architecture that uses a novel Role Equivalence attention mechanism with higher-order paths. REGNN is able to exploit nodes roles to learn how to focus on relevant neighbors from high-order paths, in order to adaptively reduce the increased noise that occurs when higher-order structures are considered. In our experimental results, REGNN showed significant performance gains compared to state-of-theart alternatives that use alternative attention mechanisms and/or higher-order paths.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "N-GCN: multi-scale graph convolution for semi-supervised node classification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Abu-El-Haija",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kapoor",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of UAI",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "GraRep: learning graph representations with global structural information",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "FastGCN: fast learning with graph convolutional networks via importance sampling",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Finding community structure in very large networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Clauset",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Moore",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Phys. Rev. E",
+            "volume": "70",
+            "issn": "6",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Regular equivalence: general theory",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Everett",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Borgatti",
+                    "suffix": ""
+                }
+            ],
+            "year": 1994,
+            "venue": "J. Math. Soc",
+            "volume": "19",
+            "issn": "1",
+            "pages": "29--52",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Ego-centered and local roles: a graph theoretic approach",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Everett",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Boyd",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Borgatti",
+                    "suffix": ""
+                }
+            ],
+            "year": 1990,
+            "venue": "J. Math. Soc",
+            "volume": "15",
+            "issn": "3-4",
+            "pages": "163--172",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Using ghost edges for classification in sparsely labeled networks",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Gallagher",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Eliassi-Rad",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Faloutsos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of SIGKDD",
+            "volume": "",
+            "issn": "",
+            "pages": "256--264",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "node2vec: scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of SIGKDD",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Vain: attentional multi-agent predictive modeling",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Hoshen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of NeurIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "2701--2711",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Structural equivalence of individuals in social networks",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Lorrain",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "White",
+                    "suffix": ""
+                }
+            ],
+            "year": 1971,
+            "venue": "J. Math. Soc",
+            "volume": "1",
+            "issn": "1",
+            "pages": "49--80",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Overcoming relational learning biases to accurately predict preferences in large scale networks",
+            "authors": [
+                {
+                    "first": "Iii",
+                    "middle": [],
+                    "last": "Pfeiffer",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Neville",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "struc2vec: learning node representations from structural identity",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Saverese",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Figueiredo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Discrete signal processing on graphs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sandryhaila",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Moura",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "IEEE Trans. Signal Process",
+            "volume": "61",
+            "issn": "7",
+            "pages": "1644--1656",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Collective classification in network data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Namata",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bilgic",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Getoor",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Galligher",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Eliassi-Rad",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "AI Mag",
+            "volume": "29",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Are graph neural networks miscalibrated?",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Teixeira",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Jalaian",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ribeiro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of Learning and Reasoning with Graph-Structured Representations Workshop in ICML 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Verse: versatile graph embeddings from similarity measures",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tsitsulin",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Mottin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Karras",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Graph attention networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Velickovic",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cucurull",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Casanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Lio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Fast network embedding enhancement via high order proximity approximation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of IJCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Revisiting semi-supervised learning with graph embeddings",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "An information flow model for conflict and fission in small groups",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Zachary",
+                    "suffix": ""
+                }
+            ],
+            "year": 1977,
+            "venue": "J. Anthropol. Res",
+            "volume": "33",
+            "issn": "4",
+            "pages": "452--473",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Learning with local and global consistency",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bousquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Lal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of NIPS",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Graph convolution: a high-order and adaptive approach",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of AAAI",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Examples of capturing roles: (a) by High-order paths (b) by Similarity-based attention. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "(Structural Equivalence) A pair of nodes u and v are structurally equivalent, if the neighbors of node u and v are the same. Thus, u and v are structurally equivalent iff N (u) = N (v).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "(Regular Equivalence) A pair of nodes u and v are regularly equivalent if the roles of their neighbors are the same. Let r(i) be the role of node i. Thus, u and v are regularly equivalent iff r",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "u and v are role equivalent in latent space if their set of neighbors in latent space are the same. If neighbors are defined by distance in latent space, then u and v will have the same neighbors if their representations are equal. Let f (i) be the latent representation of node i. Thus, u and v are role equivalent in latent space",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "2, learn rate = 0.01, and optimizer = adam. For GCN-based models, the size of hidden nodes (s (m) if m > 1 for W m k ) in GCNs is searched over [C, 8, 16, 32, 64], and all layers have the same size of hidden nodes. REGNN considers K = [2, ..., 5] and selects the best using validation loss. For importance sampling, |S| is chosen from [32, 64, 128, 256, 512]. For all embedding models, the size of representation was searched in [32, 64, 128], and other parameters are set to their defaults. We use Ghost-EdgeNL and N-GCN fc . All experiments were executed on an Intel Xeon Gold 6126 CPU@2.60 GHz server with 192 GB RAM.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Visualization of node representations from the mirrored Karate network.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Effect of attention mechanism (Y-axis: Accuracy). (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "For k = [1, K], assign\u00c3 k =\u00c2 k [S, S] Compute the categorical cross-entropy in L mini-batch (L, Y ) Update W m k , \u03b2, W final , and b final end for",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "to the edge-wise aggregations. We assume that the sizes of hidden nodes in REGNN are constants and |E K | \u2265 |E 1 |. Each |E k | denotes the numbers of edges from the k th order matrix\u00c2 k . After we apply importance sampling, the new time complexityis O(|E K S |),where each E K S is the set of edges among the sampled |S| vertices in\u00c2 K . Thus, |E K S | |E K |. Regarding space complexity, we note that all high-order matrices are preprocessed and do not need to be stored in the main memory. Then (|S| \u00d7 |S|) matrices are indexed based on the selected sample S. Therefore, the space complexity of (online) learning depends on at most O(|S|",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Accuracy (%) on Citeseer",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Accuracy (%) on Cora",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Accuracy (%) on Facebook",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Accuracy (%) on Pubmed",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF6": {
+            "text": "Accuracy (%) on Friendster",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF7": {
+            "text": "Accuracy (%) on NELL represents that we measure its execution time excluding random walk generation time.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments. This research is supported by NSF and AFRL under contract numbers: CCF-1918483, IIS-1618690, and FA8650-18-2-7879.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}
