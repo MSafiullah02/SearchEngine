@@ -5,12 +5,14 @@ import json
 import numpy as np
 from collections import defaultdict
 from pathlib import Path
+from multiprocessing import Pool, cpu_count, Manager
 
 lexicon = {}
 next_term_id = 0
 forward_index = {}
 inverted_index = defaultdict(lambda: defaultdict(int))
-doc_term_embeddings = {}  # {doc_id: {term: embedding_vector}}
+doc_term_embeddings = {}
+doc_lengths = {}  # Store document lengths for BM25
 
 
 def get_term_id(token):
@@ -21,89 +23,116 @@ def get_term_id(token):
     return lexicon[token]
 
 
-def index_document(doc_id, data, use_semantic=True):
-    """
-    Index a document with optional semantic embedding storage.
-
-    Args:
-        doc_id: Document identifier
-        data: JSON document data
-        use_semantic: Whether to store term embeddings for semantic search
-    """
-    # extract sections separately
-    title = data.get("metadata", {}).get("title", "")
-    abstract_parts = data.get("abstract", [])
-    body_parts = data.get("body_text", [])
-    # combine abstract and body texts
+def tokenize_sections(title, abstract_parts, body_parts):
+    """Tokenize all sections and return tokens with weights."""
+    # Combine texts
     abstract_text = " ".join(item.get("text", "") for item in abstract_parts if isinstance(item, dict))
     body_text = " ".join(item.get("text", "") for item in body_parts if isinstance(item, dict))
-    # tokenize each section
+
+    # Tokenize in batch
     title_tokens = tokenize(title)
     abstract_tokens = tokenize(abstract_text)
     body_tokens = tokenize(body_text)
-    # section weights
-    title_weight = 10
-    abstract_weight = 5
-    body_weight = 1
-    # accumulate weighted counts
-    term_counts = defaultdict(int)
-    for t in title_tokens:
-        term_counts[t] += title_weight
-    for t in abstract_tokens:
-        term_counts[t] += abstract_weight
-    for t in body_tokens:
-        term_counts[t] += body_weight
 
-    if use_semantic:
-        semantic_engine = get_semantic_engine()
-        if semantic_engine and semantic_engine.loaded:
-            doc_embeddings = {}
-            for token in term_counts.keys():
-                if token in semantic_engine.embeddings:
-                    doc_embeddings[token] = semantic_engine.embeddings[token]
-            if doc_embeddings:
-                doc_term_embeddings[doc_id] = doc_embeddings
+    return title_tokens, abstract_tokens, body_tokens
 
-    term_ids = []
-    for token, count in term_counts.items():
-        if token.isdigit():
-            continue
-        term_id = get_term_id(token)
-        term_ids.append(term_id)
-        inverted_index[term_id][doc_id] += count
-    forward_index[doc_id] = term_ids
+
+def process_document_worker(args):
+    """
+    Worker function for parallel document processing.
+    Returns the processed data to be merged by main process.
+    """
+    file_path, use_semantic, semantic_engine_available = args
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        doc_id = data.get("paper_id", file_path.stem)
+
+        title = data.get("metadata", {}).get("title", "")
+        abstract_parts = data.get("abstract", [])
+        body_parts = data.get("body_text", [])
+
+        title_tokens, abstract_tokens, body_tokens = tokenize_sections(title, abstract_parts, body_parts)
+
+        term_counts = defaultdict(int)
+
+        # Section weights (standard: title 10x, abstract 5x, body 1x)
+        for t in title_tokens:
+            if not t.isdigit():
+                term_counts[t] += 10
+        for t in abstract_tokens:
+            if not t.isdigit():
+                term_counts[t] += 5
+        for t in body_tokens:
+            if not t.isdigit():
+                term_counts[t] += 1
+
+        doc_length = len(title_tokens) + len(abstract_tokens) + len(body_tokens)
+
+        # Load semantic engine in worker if needed
+        doc_embeddings = {}
+        if use_semantic and semantic_engine_available:
+            semantic_engine = get_semantic_engine()
+            if semantic_engine and semantic_engine.loaded:
+                for token in term_counts.keys():
+                    if token in semantic_engine.embeddings:
+                        doc_embeddings[token] = semantic_engine.embeddings[token].astype(np.float32)
+
+        return {
+            'doc_id': doc_id,
+            'term_counts': dict(term_counts),
+            'doc_length': doc_length,
+            'doc_embeddings': doc_embeddings,
+            'success': True
+        }
+
+    except Exception as e:
+        return {
+            'file_path': str(file_path),
+            'error': str(e),
+            'success': False
+        }
 
 
 def write_lexicon(path="lexicon.txt"):
     with open(path, "w", encoding="utf-8") as f:
-        for term, term_id in lexicon.items():
+        for term, term_id in sorted(lexicon.items(), key=lambda x: x[1]):  # Sort by term_id
             f.write(f"{term}\t{term_id}\n")
 
 
 def write_forward_index(path="forward_index.txt"):
     with open(path, "w", encoding="utf-8") as f:
-        for doc_id, term_ids in forward_index.items():
+        for doc_id, term_ids in sorted(forward_index.items()):  # Sort for consistency
             f.write(f"{doc_id}\t{' '.join(map(str, term_ids))}\n")
 
 
 def write_inverted_index(path="inverted_index.txt"):
     with open(path, "w", encoding="utf-8") as f:
-        for term_id, postings in inverted_index.items():
-            posting_list = " ".join(f"{doc_id}:{count}" for doc_id, count in postings.items())
+        for term_id in sorted(inverted_index.keys()):  # Sort for consistency
+            postings = inverted_index[term_id]
+            posting_list = " ".join(f"{doc_id}:{count}" for doc_id, count in sorted(postings.items()))
             f.write(f"{term_id}\t{posting_list}\n")
+
+
+def write_doc_lengths(path="doc_lengths.txt"):
+    """Save document lengths for BM25 scoring."""
+    with open(path, "w", encoding="utf-8") as f:
+        for doc_id, length in sorted(doc_lengths.items()):
+            f.write(f"{doc_id}\t{length}\n")
+    print(f"Saved document lengths for {len(doc_lengths)} documents to {path}")
 
 
 def write_doc_embeddings(path="doc_embeddings.npz"):
     """Save document term embeddings in compressed numpy format."""
     if not doc_term_embeddings:
+        print("No embeddings to save (semantic search disabled or no embeddings found)")
         return
 
-    # Convert to a format suitable for numpy
     data_to_save = {}
     for doc_id, term_dict in doc_term_embeddings.items():
-        # Store terms and their embeddings separately
         terms = list(term_dict.keys())
-        embeddings = np.array([term_dict[term] for term in terms])
+        embeddings = np.array([term_dict[term] for term in terms], dtype=np.float32)  # Use float32 to save memory
         data_to_save[f"{doc_id}_terms"] = np.array(terms, dtype=object)
         data_to_save[f"{doc_id}_embeddings"] = embeddings
 
@@ -112,43 +141,94 @@ def write_doc_embeddings(path="doc_embeddings.npz"):
 
 
 def write_all():
+    print("Writing indices...")
     write_lexicon()
     write_forward_index()
     write_inverted_index()
+    write_doc_lengths()  # Write document lengths
     write_doc_embeddings()
+    print("All indices written successfully")
 
 
-def index_all_documents(json_folder="jsons", use_semantic=True):
+def index_all_documents(json_folder="jsons", use_semantic=True, num_workers=None):
     """
-    Index all documents in the JSON folder.
+    Index all documents in the JSON folder with parallel processing.
 
     Args:
         json_folder: Path to folder containing JSON documents
         use_semantic: Whether to compute and store semantic embeddings
+        num_workers: Number of parallel workers (None = use all CPU cores)
     """
+    global lexicon, next_term_id, forward_index, inverted_index, doc_term_embeddings, doc_lengths
+
     folder_path = Path(__file__).resolve().parent.parent / json_folder
     if not folder_path.exists():
-        print(f"Warning: {folder_path} does not exist")
+        print(f"Error: {folder_path} does not exist")
         return
 
+    # Check if semantic engine is available
+    semantic_engine_available = False
+    if use_semantic:
+        print("Checking semantic engine availability...")
+        semantic_engine = get_semantic_engine()
+        if semantic_engine and semantic_engine.loaded:
+            print(f"Semantic engine available with {len(semantic_engine.embeddings)} embeddings")
+            semantic_engine_available = True
+        else:
+            print("Warning: Semantic engine not available, indexing without embeddings")
+            use_semantic = False
+
     json_files = list(folder_path.glob("*.json"))
-    print(f"Indexing {len(json_files)} documents from {folder_path}...")
+    total_files = len(json_files)
 
-    for i, file_path in enumerate(json_files, 1):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            doc_id = data.get("paper_id", file_path.stem)
-            index_document(doc_id, data, use_semantic=use_semantic)
+    if num_workers is None:
+        num_workers = cpu_count()
 
-            if i % 10 == 0:
-                print(f"Indexed {i}/{len(json_files)} documents...")
-        except Exception as e:
-            print(f"Error indexing {file_path.name}: {e}")
+    print(f"Indexing {total_files} documents using {num_workers} CPU cores...")
 
-    print(f"Writing indices...")
+    worker_args = [(file_path, use_semantic, semantic_engine_available) for file_path in json_files]
+
+    processed_count = 0
+    error_count = 0
+
+    with Pool(processes=num_workers) as pool:
+        for i, result in enumerate(pool.imap_unordered(process_document_worker, worker_args), 1):
+            if result['success']:
+                doc_id = result['doc_id']
+                term_counts = result['term_counts']
+
+                # Merge results into global indices
+                term_ids = []
+                for token, count in term_counts.items():
+                    term_id = get_term_id(token)
+                    term_ids.append(term_id)
+                    inverted_index[term_id][doc_id] = count
+
+                forward_index[doc_id] = term_ids
+                doc_lengths[doc_id] = result['doc_length']
+
+                if result['doc_embeddings']:
+                    doc_term_embeddings[doc_id] = result['doc_embeddings']
+
+                processed_count += 1
+            else:
+                error_count += 1
+                print(f"Error indexing {result['file_path']}: {result['error']}")
+
+            # Progress updates
+            if i % 10 == 0 or i == total_files:
+                progress = (i / total_files) * 100
+                print(f"Progress: {i}/{total_files} ({progress:.1f}%) - {len(lexicon)} unique terms indexed")
+
+    print(f"\nIndexing complete!")
+    print(f"  - Documents processed: {processed_count}")
+    print(f"  - Errors: {error_count}")
+    print(f"  - Unique terms: {len(lexicon)}")
+    print(f"  - Avg doc length: {sum(doc_lengths.values()) / len(doc_lengths):.1f} tokens")
+    if use_semantic:
+        print(f"  - Documents with embeddings: {len(doc_term_embeddings)}")
+
     write_all()
-    print(f"Indexing complete! {len(lexicon)} unique terms, {len(forward_index)} documents")
 
 
 if __name__ == "__main__":
