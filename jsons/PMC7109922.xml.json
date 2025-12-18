@@ -1,0 +1,1605 @@
+{
+    "paper_id": "PMC7109922",
+    "metadata": {
+        "title": "A memory-efficient algorithm for multiple sequence alignment with constraints",
+        "authors": [
+            {
+                "first": "Chin",
+                "middle": [
+                    "Lung"
+                ],
+                "last": "Lu",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Yen",
+                "middle": [
+                    "Pin"
+                ],
+                "last": "Huang",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Multiple sequence alignment (MSA) is one of the fundamental problems in computational molecular biology that have been studied extensively, because it is a useful tool in the phylogenetic analyses among various organisms, the identification of conserved motifs and domains in a group of related proteins, the secondary and tertiary structure prediction of a protein (or RNA), and so on (Carrillo and Lipman, 1988; Chan et al., 1992; Gusfield, 1997; Nicholas et al., 2002; Notredame, 2002). Moreover, MSA is one of the most challenging problems in computational molecular biology because it has been shown to be NP-complete under the consideration of sum-of-pairs scoring criteria (Kececioglu, 1993; Wang and Jiang, 1994; Bonizzoni and Vedova, 2001), which means that it seems to be hard to design an efficient algorithm for finding the mathematically optimal alignment. Hence, some approximate methods (Gusfield, 1993; Pevzner, 1992; Bafna et al., 1997; Li et al., 2000) and heuristic methods (Feng and Doolittle, 1987; Taylor, 1987; Corpet, 1988; Higgins and Sharpe, 1988; Thompson et al., 1994) were introduced to overcome this problem.",
+            "cite_spans": [],
+            "section": "1 INTRODUCTION",
+            "ref_spans": []
+        },
+        {
+            "text": "Recently, the concept of the constrained sequence alignment was proposed to incorporate the knowledge of biologists regarding the structures/functionalities/consensuses of their datasets into sequence alignment such that the user-specified residues/nucleotides are aligned together in the computed alignment (Tang et al., 2003). (Tang et al. 2003) first designed a dynamic programming algorithm for finding an optimal constrained alignment of two sequences and then used it as a kernel to develop a constrained multiple sequence alignment (CMSA) tool based on the progressive approach, where each constraint considered by Tang et al. is a single residue/nucleotide only. Their proposed algorithm for the two sequences runs in \ud835\udcaa(\u03b3n4) time and consumes \ud835\udcaa(n4) space, where \u03b3 is the number of constrained residues and n is the maximum lengths of the sequences. Later, this result was improved independently by two groups of researchers to \ud835\udcaa(\u03b3n2) time and \ud835\udcaa(\u03b3n2) space using the same approach of dynamic programming (Yu, 2003; Chin et al., 2003). In fact, each constraint requested to be aligned together can represent a conserved site of a protein/DNA/RNA family and each conserved site may consist of a short segment of residues/nucleotides, instead of a single residue/nucleotide. In other words, the constraint specified by the biologists can be a fragment of several residues/nucleotides. For some applications, biologists may further expect that some mismatches are allowed among the residues/nucleotides of the columns requested to be aligned. Hence, (Tsai et al. 2004) studied such a kind of the constrained sequence alignment and designed an algorithm of \ud835\udcaa(\u03b3n2) time and \ud835\udcaa(\u03b3n2) space for two sequences. The improvements and extension above greatly increase the performances and practical usage of the CMSA tools developed using the progressive approach. However, the requirement of \ud835\udcaa(\u03b3n2) memory still limits the existing CMSA tools to align a set of short sequences, at most several hundreds of residues/nucleotides. To align large genomic sequences of at least several thousands of residues/nucleotides, there is a need to design a memory-efficient algorithm for the constrained pairwise sequence alignment (CPSA) problem, which is the key limiting factor relating to the applicable extent of the progressive CMSA tools. Hence, in this paper, we adopt the so-called divide-and-conquer approach to design a memory-efficient algorithm for solving the CPSA problem, which runs in \ud835\udcaa(\u03b3n2) time, but consumes only \ud835\udcaa(\u03b1n) space, where \u03b1 is the sum of the lengths of constraints and usually \u03b1 \u226a n in practical applications. Based on this algorithm, we have finally developed a memory-efficient CMSA tool using the progressive approach. Note that applying the divide-and-conquer approach to memory-efficiently align two or more sequences without any constraints has been studied extensively (Myers and Miller, 1988; Chao et al., 1994; T\u00f6nges et al., 1996; Stoye et al., 1997a; Stoye et al., 1997b; Stoye, 1998). In contrast to the progressive approach used here, the divide-and-conquer algorithms proposed by Stoye et al. (T\u00f6nges et al., 1996; Stoye et al., 1997a; Stoye et al., 1997b; Stoye, 1998) considered the input sequences simultaneously and heuristically compute the good, but not necessarily optimal, dividing positions so that the resulting total MSA is close to an optimal MSA of the original sequences. In fact, many other CMSAs have been proposed from various perspectives, even using different approaches (Schuler et al., 1991; Depiereux and Feytmans, 1992; Taylor, 1994; Myers et al., 1996; Notredame et al., 2000; Thompson et al., 2000; Sammeth et al., 2003). Of these various CMSAs, it is worth mentioning that (Myers et al., 1996) obtained their CMSA by performing progressive multiple alignment under position-based constraints that are given by users; (Sammeth et al. 2003) got their CMSA by performing simultaneous multiple alignment under segment-based constraints (as same as we studied here) that are pre-computed via a local segmented-based algorithm (Morgenstern, 1999). We refer the reader to their papers for details.",
+            "cite_spans": [],
+            "section": "1 INTRODUCTION",
+            "ref_spans": []
+        },
+        {
+            "text": "Let \ud835\udcaa = {S1, S2, \u2026, S\u03c7} be the set of \u03c7 sequences over the alphabet \u03a3. Then an MSA of \ud835\udcaa is a rectangular matrix consisting of \u03c7 rows of characters of \u03a3 \u222a {\u2212} such that no column consists entirely of dashes and removing dashes from row i leaves Si for any 1 \u2264 i \u2264 \u03c7. The sum-of-pairs score (SP score) of an MSA is defined to be the sum of the scores of all columns, where the score of each column is the sum of the scores of all distinct pairs of characters in the column. In practice, the score of the pair of two dashes is usually set to zero. Then the problem of finding an MSA of \ud835\udcaa with the optimal SP score is the so-called sum-of-pairs MSA problem (Carrillo and Lipman, 1988; Chan et al., 1992; Gusfield, 1997; Nicholas et al., 2002; Notredame, 2002).",
+            "cite_spans": [],
+            "section": "2 PROBLEM FORMULATION",
+            "ref_spans": []
+        },
+        {
+            "text": "Let \u03b4(T1, T2) denote the Hamming distance between two subsequences T1 and T2 of equal length, which is equal to the number of mismatched pairs in the alignment of T1 and T2 without any gap. Given an alignment \u2112 of \ud835\udcaa, a band is defined as a block of consecutive columns in \u2112 (i.e. a submatrix of \u2112). For any band \u2112\u2032 of \u2112, let subset(Si, \u2112\u2032) denote the subsequence of Si whose residues/nucleotides are all in the band \u2112\u2032, where 1 \u2264 i \u2264 \u03c7. A subsequence T = t1t2 \u2026 t\u03bb is said to appear in \u2112 if \u2112 contains a band \u2112\u2032 of \u03bb columns, say \u03c01, \u03c02, \u2026, \u03c0\u03bb, such that the characters of column \u03c0j, 1 \u2264 j \u2264 \u03bb, are all equal to tj, or equivalently, subseq(Si, \u2112\u2032) = T for each 1 \u2264 i \u2264 \u03c7. If \u03b4[subseq(Si, \u2112\u2032), T] \u2264 \u03bb \u00d7 \u03b5 for a given error ratio 0 \u2264 \u03b5 < 1 [i.e. some mismatches are allowed between subseq(Si, \u2112\u2032) and T], then T is said to approximately appear in \u2112. From the biological viewpoint, T can be considered as the consensus among the subsequences in \u2112\u2032 and hence T is also called as an induced consensus by the band \u2112\u2032. For any two subsequences T1 and T2, T1 \u227a T2 is used to denote that T1 (approximately) appears strictly before T2 in \u2112 (i.e. their corresponding bands do not overlap). Let \u03a9 = (C1, C2, \u2026, C\u03b3) be an ordered set of \u03b3 constraints (i.e. subsequences), each \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {C}_{i}={c}_{1}^{i}{c}_{2}^{i}\\dots {c}_{{\\lambda }_{i}}^{i} \\end{document} with length of \u03bbi, where 1 \u2264 i \u2264 \u03b3. Then the CMSA of \ud835\udcaa with respect to \u03a9 is defined as an alignment \u2112 of \ud835\udcaa in which all the constraints of \u03a9 approximately appear in the order C1 \u227a C2 \u227a \u00b7\u00b7\u00b7 \u227a C\u03b3 such that \u03b4(subseq(Si, \u2112\u2032j), Cj) \u2264 \u03bbj \u00d7 \u03b5 for all 1 \u2264 i \u2264 \u03c7 and 1 \u2264 j \u2264 \u03b3, where \u2112\u2032j is the band of \u2112 whose induced consensus is Cj. Given a set \ud835\udcaa of \u03c7 sequences along with an ordered set \u03a9 of \u03b3 constraints and an error ratio \u03b5, the so-called CMSA problem is to find a CMSA w.r.t. \u03a9 with the optimal SP score. When the number of sequences in \ud835\udcaa is restricted to two (i.e. \u03c7 = 2), the CMSA problem is called as the CPSA problem.",
+            "cite_spans": [],
+            "section": "2 PROBLEM FORMULATION",
+            "ref_spans": []
+        },
+        {
+            "text": "In this section, we shall first design a memory-efficient algorithm for solving the CPSA problem with two given sequences A = a1a2 \u2026 am and B = b1b2 \u2026 bn, a given ordered set \u03a9 = (C1, C2, \u2026, C\u03b3) of \u03b3 constraints, each \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {C}_{i}={c}_{1}^{i}{c}_{2}^{i}\\dots {c}_{{\\lambda }_{i}}^{i} \\end{document} with length of \u03bbi, 1 \u2264 i \u2264 \u03b3, and a given error threshold \u03b5. After that, we shall use it as the kernel to heuristically solve the CMSA problem.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "For any sequence T, let pref(T, l) [respectively, suff(T, l)] phase don't change denote the prefix (respectively, suffix) of T with length l. For any two characters a, b \u2208 \u03a3, let \u03c3(a, b) denote the score of aligning a with b. The gap penalty adopted here is the so-called affine gap penalty that penalizes a gap of length l with wo + l \u00d7 we, where wo > 0 is the gap-open penalty and we > 0 is the gap-extension penalty. For convenience, let Ai = pref(A, i) = a1a2 \u2026 ai, Bj = pref(B, j) = b1b2 \u2026 bj and \u03a9k = (C1, C2, \u2026, Ck), where 1 \u2264 i \u2264 m, 1 \u2264 j \u2264 n and 1 \u2264 k \u2264 \u03b3. Let \u2133k(i, j) denote the score of an optimal constrained alignment of Ai and Bj w.r.t. \u03a9k. Clearly, \u2133\u03b3(m, n) is the score of an optimal constrained alignment of A and B w.r.t. \u03a9. An alignment \u2112 is called as a semi-constrained alignment of Ai and Bj w.r.t. \u03a9k if it is a constrained alignment of Ai and Bj w.r.t. \u03a9k\u22121 and also ends (or begins) with a band whose induced consensus is equal to a prefix of Ck (or a suffix of C1). \ud835\udca9k(i, j, h) is defined to be the score of an optimal semi-constrained alignment of Ai and Bj w.r.t. \u03a9k that ends with an induced consensus equal to pref(Ck, h). Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document} [respectively, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i,j) \\end{document}] be the maximum scores of all constrained alignments of Ai and Bj w.r.t. \u03a9k that end with a deletion pair (ai, \u2212) [respectively, an insertion pair (\u2212, bj)]. By definition, it is not hard to derive the recurrence of \u2133k(i, j), 1 \u2264 i \u2264 m and 1 \u2264 j \u2264 n, as follows. If k = 0, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}(i,j)=\\mathrm{max}\\{{\\mathcal{M}}_{k}(i-1,j-1)+\\sigma ({a}_{i},{b}_{j}),{\\mathcal{M}}_{k}^{D}(i,j),{\\mathcal{M}}_{k}^{I}(i,j)\\} \\end{document}. If 1 \u2264 k \u2264 \u03b3, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}(i,j)=\\mathrm{max}\\{{\\mathcal{M}}_{k}(i-1,j-1)+\\sigma ({a}_{i},{b}_{j}),{\\mathcal{M}}_{k}^{D}(i,j),{\\mathcal{M}}_{k}^{I}(i,j),{\\mathcal{N}}_{k}(i,j,{\\lambda }_{k})\\} \\end{document}. Clearly, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{N}}_{k}\\left(i,j,{\\lambda }_{k}\\right)={\\mathcal{M}}_{k-1}\\left(i-{\\lambda }_{k},j-{\\lambda }_{k}\\right)+{\\sum }_{0\\le h\\le {\\lambda }_{k}-1}\\sigma \\left({a}_{i-h},{b}_{j-h}\\right) \\end{document}, if \u03b4(suff(Ai, \u03bbk), Ck) \u2264 \u03bbk \u00d7 \u03b5 and \u03b4(suff(Bj, \u03bbk), Ck) \u2264 \u03bbk \u00d7 \u03b5; otherwise, \ud835\udca9k(i, j, \u03bbk) = \u2212\u221e. To simply describe the computation of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i,j) \\end{document}, we introduce another notation \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}(i,j) \\end{document}, which is defined to be the maximum score of all constrained alignments of Ai and Bj w.r.t. \u03a9k that end with a substitution pair (ai, bj). Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{k}^{D}({A}_{i},{B}_{j}) \\end{document} denote the alignment of Ai and Bj with score \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document} that ends with a deletion pair (ai, \u2212). Let \u2112\u2032 be the portion of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{k}^{D}({A}_{i},{B}_{j}) \\end{document} before the last aligned pair (ai, \u2212). Then there are three possibilities when we consider the last aligned pair of \u2112\u2032.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Case 1: The last aligned pair of \u2112\u2032 is a substitution pair. Then the score of \u2112\u2032 is \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}(i-1,j) \\end{document} and (ai, \u2212) is charged by a gap-open penalty and a gap-extension penalty in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document}. Hence, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j)={\\mathcal{M}}_{k}^{S}(i-1,j)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }} \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Case 2: The last aligned pair of \u2112\u2032 is a deletion pair. Then the score of \u2112\u2032 is \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i-1,j) \\end{document} and (ai, \u2212) is charged by only one gap-extension penalty in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document}. Hence, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j)={\\mathcal{M}}_{k}^{D}(i-1,j)-{w}_{\\hbox{ e }} \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Case 3: The last aligned pair of \u2112\u2032 is an insertion pair. Then the score of \u2112\u2032 is \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i-1,j) \\end{document} and (ai, \u2212) is charged by a gap-open penalty and a gap-extension penalty in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document}. Hence, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j)={\\mathcal{M}}_{k}^{I}(i-1,j)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }} \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "In summary, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}\\left(i,j\\right)=max\\left\\{{\\mathcal{M}}_{k}^{S}\\left(i-1,j\\right)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }},{\\mathcal{M}}_{k}^{D}\\left(i-1,j\\right)-{w}_{\\hbox{ e }},{\\mathcal{M}}_{k}^{I}\\left(i-1,j\\right)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }}\\right\\} \\end{document}. However, by including an extra \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i-1,j)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }} \\end{document} into the right-hand side of the above recurrence, we can reformulate the above recurrence as \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}\\left(i,j\\right)=max\\left\\{{\\mathcal{M}}_{k}\\left(i-1,j\\right)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }},{\\mathcal{M}}_{k}^{D}\\left(i-1,j\\right)-{w}_{\\hbox{ e }}\\right\\} \\end{document}. Similar to the discussion above, the recurrence of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i,j) \\end{document} can be derived as \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}\\left(i,j\\right)=max\\left\\{{\\mathcal{M}}_{k}\\left(i,j-1\\right)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }},{\\mathcal{M}}_{k}^{I}\\left(i,j-1\\right)-{w}_{\\hbox{ e }}\\right\\} \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "According to the recurrences above, we designed an algorithm to compute \u2133\u03b3(m, n) and its corresponding constrained alignment using the technique of dynamic programming as follows. For convenience, we depicted the recurrences of matrices \u2133k, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I} \\end{document} and \ud835\udca9k for all 0 \u2264 k \u2264 \u03b3 by a three-dimensional (3D) grid graph \ud835\udca2, which consists of (m + 1) \u00d7 (n + 1) \u00d7 (\u03b3 + 1) entries and each entry (i, j, k) consists of four nodes \u2133k, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I} \\end{document} and \ud835\udca9k corresponding to \u2133k, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i,j) \\end{document} and \ud835\udca9k(i, j, \u03bbk), respectively. Figure 1 shows the relationship of four adjacent entries (i, j, k), (i \u2212 1, j, k), (i, j \u2212 1, k) and (i \u2212 1, j \u2212 1, k) of \ud835\udca2 for each fixed k.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Note that there is a directed edge, which is not shown in Figure 1, with weight \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\sum }_{0\\le h\\le {\\lambda }_{k}-1}\\sigma \\left({a}_{i-h},{b}_{j-h}\\right) \\end{document} from the \u2133k\u22121 node of the entry (i \u2212 \u03bbk, j \u2212 \u03bbk, k \u2212 1) to the \ud835\udca9k node of the entry (i, j, k). Then each path from \u21330(0, 0) node of entry (0, 0, 0) to \u2133\u03b3(m, n) node of entry (m, n, \u03b3) corresponds to a constrained alignment of A and B w.r.t. \u03a9. As a result, an optimal constrained alignment of A and B can be obtained by backtracking a shortest path from \u2133\u03b3(m, n) to \u21330(0, 0) in \ud835\udca2. It is not hard to see that the algorithm costs both computer time and memory in the order of \ud835\udcaa(\u03b3mn). We call the above algorithm based on the dynamic programming approach as CPSA-DP algorithm.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nHirschberg (1975) had developed a linear-space algorithm for solving the longest common subsequence problem based on the divide-and-conquer technique. Since then, this strategy has been extended to yield a number of memory-efficient algorithms for aligning biological sequences (Myers and Miller, 1988; Chao et al., 1994). In this paper, we generalize the Hirschberg's algorithm so that it is capable of dealing with the CPSA. As compared with others, our generalization is more complicated because the grid graph \ud835\udca2 dealt here is 3D, instead of 2D, and the input sequences are accompanied with several constraints that need to be considered carefully. The central idea of our memory-efficient algorithm is to determine a middle position (imid, jmid, kmid) on an optimal path from \u21330(0, 0) to \u2133\u03b3(m, n) in \ud835\udca2 so that we were able to divide the constrained alignment problem into two smaller constrained alignment problems; then these smaller constrained alignment problems are continued to be divided in the same manner, and finally the optimal constrained alignment is obtained completely by merging the series of the calculated mid-points (Fig. 2).",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Before describing our algorithm, some notation must be introduced as follows. Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{i} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{j} \\end{document} denote the suffixes ai+1ai+2 \u2026 am and bj + 1bj + 2\u2026 bn of A and B, respectively, for 1 \u2264 i \u2264 m and 1 \u2264 j \u2264 n. Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{k} \\end{document} denote the ordered subset (Ck + 1, Ck + 2, \u2026, C\u03b3) for 1 \u2264 k \u2264 \u03b3. Define \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}(i,j) \\end{document} to be the score of an optimal constrained alignment of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{i} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{j} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{k} \\end{document}, and define \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{S}(i,j) \\end{document} (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{D}(i,j) \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{I}(i,j) \\end{document}, respectively) to be the maximum score of all constrained alignments of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{i} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{j} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{k} \\end{document} that begin with a substitution [deletion and insertion, respectively] pair (ai + 1, bj + 1) [(ai + 1, \u2212) and (\u2212, bj + 1), respectively]. Let \u03a9k(h) = [C1, C2, \u2026, Ck \u2212 1, pref(Ck, h)] and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{k}\\left(h\\right)=\\left[\\hbox{ suff }\\right({C}_{k},{\\lambda }_{k}-h),{C}_{k+1},\\dots ,{C}_{\\gamma }] \\end{document}, where 1 \u2264 h \u2264 \u03bbk. Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{N}}}_{k}(i,j,h) \\end{document} denote the score of an optimal semi-constrained alignment \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\overline{\\mathcal{L}} \\end{document} of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{i} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{j} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{k}\\left(h\\right) \\end{document} that begins with a band whose induced consensus is equal to suff(Ck, \u03bbk \u2212 h). Note that the recurrences for computing matrices \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{S} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{D} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{I} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{N}}}_{k} \\end{document} can be developed similarly as those for computing \u2133k, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I} \\end{document} and \ud835\udca9k, respectively. Clearly,\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}(i,j)={\\mathcal{M}}_{k}(i-1,j-1)+\\sigma ({a}_{i},{b}_{j}) \\end{document}. If \u03b4[suff(Ai, \u03bbk), Ck] \u2264 \u03bbk \u00d7 \u03b5 and \u03b4[suff(Bj, \u03bbk), Ck] \u2264 \u03bbk \u00d7 \u03b5, then we can reformulate the recurrence of \ud835\udca9k as follows: \ud835\udca9k(i, j, 1) = \u2133k \u2212 1(i \u2212 1, j \u2212 1) + \u03c3(ai, bj) and \ud835\udca9k(i, j, h) = \ud835\udca9k(i \u2212 1, j \u2212 1, h \u2212 1) + \u03c3(ai, bj) for each 1 < h \u2264 \u03bbk.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Next, we describe our divide-and-conquer algorithm, termed as CPSA-DC algorithm, for computing an optimal constrained alignment between A and B w.r.t. \u03a9 as follows. The key point is to determine the middle position (imid, jmid, kmid) of the optimal path in \ud835\udca2 to divide the problem into two subproblems, each of which is recursively divided into two smaller subproblems using the same way. Given an alignment \u2112, we use score(\u2112) to denote the score of \u2112. Let \u2112\u03b3(A, B) be an optimal constrained alignments of A and B w.r.t. \u03a9 and clearly score[\u2112\u03b3(A, B)] = \u2133\u03b3(m, n). Let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {i}_{\\hbox{ mid }}=\\lfloor \\frac{m}{2}\\rfloor  \\end{document}. Then, we partition \u2112\u03b3(A, B) into two parts by cutting it at the position immediately after \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document} and we let \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} denote the part containing \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} denote the remaining part, where \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document} denotes the last character in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} from B, and kmid denotes the largest index so that \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\hbox{ pref }\\left({C}_{{k}_{\\hbox{ mid }}},{h}_{\\hbox{ mid }}\\right) \\end{document} (approximately) appears in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} Then there are two possibilities when we consider the last aligned pair of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Case 1: The last aligned pair of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is a substitution pair [i.e. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document}]. In this case, we have \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }\\left(m,n\\right)=\\hbox{ score }\\left({\\mathcal{L}}_{\\gamma }\\left(A,B\\right)\\right)=\\hbox{ score }\\left({\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right)\\right)+\\hbox{ score }({\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right)) \\end{document}. If (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document}) is not a constrained column in \u2112\u03b3(A, B), then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is an optimal constrained alignment of Aimid and Bjmid w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\Omega }_{{k}_{\\hbox{ mid }}} \\end{document} ending with a substitution pair (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document}), and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is an optimal constrained alignment of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{{j}_{\\hbox{ mid }}} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{{k}_{\\hbox{ mid }}} \\end{document}. Hence, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)={\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{S}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}) \\end{document}. If (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document}) is a constrained column in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document}, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is an optimal semi-constrained alignment of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {A}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {B}_{{j}_{\\hbox{ mid }}} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\Omega }_{{k}_{\\hbox{ mid }}}\\left({h}_{\\hbox{ mid }}\\right) \\end{document} ending with a band \u2112\u2032 whose induced consensus is equal to \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\hbox{ pref }\\left({C}_{{k}_{\\hbox{ mid }}},{h}_{\\hbox{ mid }}\\right) \\end{document}. If \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {h}_{\\hbox{ mid }} < {\\lambda }_{{k}_{\\hbox{ mid }}} \\end{document}, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is an optimal semi-constrained alignment of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{{j}_{\\hbox{ mid }}} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{{k}_{\\hbox{ mid }}}\\left({h}_{\\hbox{ mid }}\\right) \\end{document} beginning with a band \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\overline{\\mathcal{L}\\prime } \\end{document} whose induced consensus is equal to \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\hbox{ suff }({C}_{{k}_{\\hbox{ mid }}},{\\lambda }_{{k}_{\\hbox{ mid }}}-{h}_{\\hbox{ mid }}) \\end{document}. Moreover, the induced consensus of the merge of \u2112\u2032 and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\overline{\\mathcal{L}\\prime } \\end{document} have to be equal to \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {C}_{{k}_{\\hbox{ mid }}} \\end{document}. In this case, we have \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)={\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }})+{\\overline{\\mathcal{N}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }}) \\end{document}. If \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {h}_{\\hbox{ mid }}={\\lambda }_{{k}_{\\hbox{ mid }}} \\end{document}, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is an optimal constrained alignment of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{A}}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{B}}_{{j}_{\\hbox{ mid }}} \\end{document} w.r.t. \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\Omega }}_{{k}_{\\hbox{ mid }}}\\left({h}_{\\hbox{ mid }}\\right) \\end{document}, and hence \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)={\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{\\lambda }_{{k}_{\\hbox{ mid }}})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}) \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Case 2: The last aligned pair of \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{L}}_{{k}_{\\hbox{ mid }}}\\left({A}_{{i}_{\\hbox{ mid }}},{B}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is a deletion pair [i.e. (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document},\u2212)]. If the first aligned pair in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is not a deletion pair, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)=\\hbox{ max }\\left\\{{\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}\\right({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{S}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),{\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{I}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}\\left)\\right\\} \\end{document}. If the first aligned pair in \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{L}}}_{{k}_{\\hbox{ mid }}}\\left({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\overline{B}}_{{j}_{\\hbox{ mid }}}\\right) \\end{document} is a deletion pair, then \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)={\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{w}_{\\hbox{ o }} \\end{document}. We need to compensate it by adding wo because the open penalty of the gap containing \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}+1} \\end{document} in \u2112\u03b3(A, B) is charged twice by \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}\\left({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}\\right) \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{D}\\left({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}\\right) \\end{document}.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "In summary, the recurrence of \u2133\u03b3(m, n) is derived as follows:\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)=max\\left\\{\\begin{array}{c}{\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{S}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),\\\\ {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{I}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),\\\\ {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{w}_{\\hbox{ o }},\\\\ {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{S}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),\\\\ {\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }})+{\\overline{\\mathcal{N}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }}),\\\\ {\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{\\lambda }_{{k}_{\\hbox{ mid }}})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})\\end{array}\\right\\}. \\end{document}When \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}\\left({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}\\right)+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{D}\\left({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}\\right) \\end{document} is added to the right-hand side, the above recurrence is not changed, but can be reformulated as follows:",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{\\gamma }(m,n)=max\\left\\{\\begin{array}{c}{\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),\\\\ {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}^{D}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{w}_{\\hbox{ o }},\\\\ {\\mathcal{M}}_{{k}_{\\hbox{ mid }}}^{S}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }}),\\\\ {\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }})+{\\overline{\\mathcal{N}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{h}_{\\hbox{ mid }}),\\\\ {\\mathcal{N}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }},{\\lambda }_{{k}_{\\hbox{ mid }}})+{\\overline{\\mathcal{M}}}_{{k}_{\\hbox{ mid }}}({i}_{\\hbox{ mid }},{j}_{\\hbox{ mid }})\\end{array}\\right\\}. \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "In other words, jmid, kmid and hmid are the indices j, k and h, where 1 \u2264 j \u2264 n, 0 \u2264 k \u2264 \u03b3 and 1 \u2264 h < \u03bbk, such that the following maximal value is the maximum.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} max\\left\\{\\begin{array}{c}{\\mathcal{M}}_{k}^{D}({i}_{\\hbox{ mid }},j)+{\\overline{\\mathcal{M}}}_{k}({i}_{\\hbox{ mid }},j),\\\\ {\\mathcal{M}}_{k}^{D}({i}_{\\hbox{ mid }},j)+{\\overline{\\mathcal{M}}}_{k}^{D}({i}_{\\hbox{ mid }},j)+{w}_{\\hbox{ o }},\\\\ {\\mathcal{M}}_{k}^{S}({i}_{\\hbox{ mid }},j)+{\\overline{\\mathcal{M}}}_{k}({i}_{\\hbox{ mid }},j),\\\\ {\\mathcal{N}}_{k}({i}_{\\hbox{ mid }},j,h)+{\\overline{\\mathcal{N}}}_{k}({i}_{\\hbox{ mid }},j,h),\\\\ {\\mathcal{N}}_{k}({i}_{\\hbox{ mid }},j,{\\lambda }_{k})+{\\overline{\\mathcal{M}}}_{k}({i}_{\\hbox{ mid }},j)\\end{array}\\right\\}. \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Now, we show how to use \ud835\udcaa(\u03b1n), instead of \ud835\udcaa(\u03b3mn), memory to determine jmid, kmid and hmid, where \u03b1 = \u22111 \u2264 k \u2264 \u03b3 \u03bbk and \u03b1 \u2264 min{m, n} intrinsically. In fact, a single matrix E of size (\u03b3 + 1) \u00d7 (n + 1) with each entry E(k, j) of \u03bbk + 4 space is enough to compute \u2133k(imid, j), \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}({i}_{\\hbox{ mid }},j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}({i}_{\\hbox{ mid }},j){\\mathcal{M}}_{k}^{I}({i}_{\\hbox{ mid }},j) \\end{document} and \ud835\udca9k(imid, j, h), for 1 \u2264 j \u2264 n, 0 \u2264 k \u2264 \u03b3 and 1 \u2264 h \u2264 \u03bbk. When reaching the entry (i, j, k) of 3D grid graph \ud835\udca2, we use entry E(k, j) of E to hold the most recently computed values of \u2133k(i, j), \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}(i,j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j){\\mathcal{M}}_{k}^{I}(i,j) \\end{document} and \ud835\udca9k(i, j, h), which clearly needs a total of \u03bbk + 4 space. Note that the old values in entry E(k, j) will be moved into an extra entry, termed as Vk whose space is equal to E(k, j), before they are overwritten by their newly computed values. Before moving the old values in E(k, j) into Vk; however, we need to first move \u2133k(i \u2212 1, j \u2212 1) in Vk into a space, named as vk, k + 1, where 1 \u2264 i \u2264 m. The mechanism above will enable us to compute \ud835\udca9k(i, j,1), which needs to refer to \u2133k \u2212 1(i \u2212 1, j \u2212 1) that is kept in vk \u2212 1, k; compute \ud835\udca9k(i, j, h) for each 2 \u2264 h \u2264 \u03bbk, which needs to refer to \ud835\udca9k(i \u2212 1, j \u2212 1, h \u2212 1) that is kept in Vk; compute \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}(i,j) \\end{document}, which needs to refer \u2133k(i \u2212 1, j \u2212 1) that is kept in Vk; and finally we were able to compute \u2133k(i, j). Figure 3 shows the grid locations of E(k \u2212 1), E(k) and the values in Vk \u2212 1 and Vk when we reach the entry (i, j, k) of \ud835\udca2 for the computation, where E(k) denotes the k-th row of E. Hence, the total needed space for computing and storing all \u2133k(imid, j), \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{S}({i}_{\\hbox{ mid }},j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}({i}_{\\hbox{ mid }},j){\\mathcal{M}}_{k}^{I}({i}_{\\hbox{ mid }},j) \\end{document} and \ud835\udca9k(imid, j, h) is the sum of the space of matrix E, the space of all Vk and the space of all vk, k + 1, where 1 \u2264 j \u2264 n, 0 \u2264 k \u2264 \u03b3 and 1 \u2264 h \u2264 \u03bbk, which is equal to \ud835\udcaa(\u03b1n). Similarly, the required matrix, denoted by \u0112, for computing all \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}({i}_{\\hbox{ mid }},j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{S}({i}_{\\hbox{ mid }},j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{M}}}_{k}^{D}({i}_{\\hbox{ mid }},j){\\overline{M}}_{k}^{I}({i}_{\\hbox{ mid }},j) \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathcal{N}}}_{k}({i}_{\\hbox{ mid }},j,h) \\end{document} still needs \ud835\udcaa(\u03b1n) space. Hence, the determination of jmid, kmid and hmid can be performed in \ud835\udcaa(\u03b1n) space. The details of CPSA-DC algorithm are described as follows. Note that the program code of BestScoreRev is similar to that of BestScore and hence is omitted here. In the codes, the variable E(\u2133k(imid, j)) is used to denote the value of \u2133k(imid, j) in E(k, j) and others are analogous. The global variables \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathscr{H}}}_{A}(k,h)=\\delta \\left(\\hbox{ pref }\\right({\\overline{A}}_{{i}_{\\hbox{ mid }}},{\\lambda }_{k}-h),\\hbox{ suff }({C}_{k},{\\lambda }_{k}-h\\left)\\right) \\end{document}, \u210bB(j, k, h) = \u03b4(suff(Bj, h), pref(Ck, h)), and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\overline{\\mathscr{H}}}_{B}(j,k,h)=\\delta \\left(\\hbox{ pref }\\right({\\overline{B}}_{j},{\\lambda }_{k}-h),\\hbox{ suff }({C}_{k},{\\lambda }_{k}-h\\left)\\right) \\end{document} are computed in Algorithm BestScore so that they can be used directly in Algorithm CPSA-DC.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nAlgorithm CPSA-DC(istart, iend, jstart, jend, kstart, kend)Input: Sequences \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ start }}}\\dots {a}_{{i}_{\\hbox{ end }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ start }}}\\dots {b}_{{j}_{\\hbox{ end }}} \\end{document}with constraints \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\left({C}_{{k}_{\\hbox{ start }}},\\dots ,{C}_{{k}_{\\hbox{ end }}}\\right) \\end{document})1:if (istart > iend) or (jstart > jend) then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align the nonempty sequence with spaces;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nelse\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {i}_{\\hbox{ mid }}=\\lfloor \\frac{{i}_{\\hbox{ start }}+{i}_{\\hbox{ end }}}{2}\\rfloor ; \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "BestScore(istart,imid,jstart,jend,kstart,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "BestScoreRev(imid + 1,iend,jstart,jend,kstart,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n2: max = \u2212\u221e;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nj = jstart \u2212 1 to jenddo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nk = kstart \u2212 1 to kenddo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},\\hbox{ j }\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right) > \\hbox{ max } \\end{document}\nthen\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} max=E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right); \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nj\nmid = j; kmid = k; type = case 1;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+{w}_{\\hbox{ o }} > \\hbox{ max } \\end{document}\nthen\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} max=E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+{w}_{\\hbox{ o }} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nj\nmid = j; kmid = k; type = case 2;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{S}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right) > \\hbox{ max } \\end{document}\nthen\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} max=E\\left({\\mathcal{M}}_{k}^{S}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right) \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nj\nmid = j; kmid = k; type = case 3;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbk \u2212 1 do",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\left(\\frac{{\\mathscr{H}}_{A}(k,h)+{\\overline{\\mathscr{H}}}_{A}(k,h)}{{\\lambda }_{k}}\\le \\epsilon \\right) \\end{document} and",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\left(\\frac{{\\mathscr{H}}_{B}(j,k,h)+{\\overline{\\mathscr{H}}}_{B}(j,k,h)}{{\\lambda }_{k}}\\le \\epsilon \\right) \\end{document}\nthen\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,h\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{N}}}_{k}\\right({i}_{\\hbox{ mid }},j,h\\left)\\right) >  \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "max then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}max=\\overline{E}\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,h\\left)\\right)\\\\ +\\overline{E}\\left({\\overline{\\mathcal{N}}}_{k}\\right({i}_{\\hbox{ mid }},j,h\\left)\\right)\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nj\nmid = j; kmid = k; hmid = h; type = case 4;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\left(\\frac{{\\mathscr{H}}_{A}(k,{\\lambda }_{k})}{{\\lambda }_{k}}\\le \\epsilon \\right) \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\left(\\frac{{\\mathscr{H}}_{B}(j,k,{\\lambda }_{k})}{{\\lambda }_{k}}\\le \\epsilon \\right) \\end{document}then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,{\\lambda }_{k}\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right) >  \\end{document}\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "max then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} max=E\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,{\\lambda }_{k}\\left)\\right)+\\overline{E}\\left({\\overline{\\mathcal{M}}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right) \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nj\nmid = j; kmid = k; hmid = h; type = case 5;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n3:\nif type = case 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(istart,imid \u2212 1,jstart,jmid,kstart,kmid);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document} with a space;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(imid + 1,iend,jmid + 1,jend,kmid+1,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif type = case 2 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(istart,imid \u2212 1,jstart,jmid,kstart,kmid);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}}{a}_{{i}_{\\hbox{ mid }}+1} \\end{document} with two spaces;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(imid + 2,iend,jmid+1,jend,kmid+1,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif type = case 3 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(istart,imid \u2212 1,jstart,jmid \u2212 1,kstart,kmid);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}} \\end{document} with \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(imid+1,iend,jmid+1,jend,kmid+1,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif type = case 4 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(istart,imid \u2212 hmid,jstart,jmid \u2212 hmid,kstart, kmid \u2212 1);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}-{h}_{\\hbox{ mid }}+1}\\dots {a}_{{i}_{\\hbox{ mid }}+{\\lambda }_{k}-{h}_{\\hbox{ mid }}} \\end{document} with \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}-{h}_{\\hbox{ mid }}+1}\\dots {b}_{{j}_{\\hbox{ mid }}+{\\lambda }_{k}-{h}_{\\hbox{ mid }}} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(imid+\u03bbk \u2212 hmid+1,iend, jmid+\u03bbk \u2212 hmid + 1,jend,kmid+1,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif type = case 5 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(istart,imid \u2212 \u03bbk,jstart, jmid \u2212 \u03bbk,kstart, kmid \u2212 1);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Align \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ mid }}-{\\lambda }_{k}+1}\\dots {a}_{{i}_{\\hbox{ mid }}} \\end{document} with \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ mid }}-\\lambda +1}\\dots {b}_{{j}_{\\hbox{ mid }}} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "CPSA-DC(imid+1,iend,jmid+1,jend,kmid+1,kend);",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nAlgorithm BestScore(istart, iend, jstart, jend, kstart, kend)",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nInput: Sequences \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ start }}}\\dots {a}_{{i}_{\\hbox{ end }}} \\end{document} and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ start }}}\\dots {b}_{{j}_{\\hbox{ end }}} \\end{document}",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "with constraints (\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {C}_{{k}_{\\hbox{ start }}},\\dots ,{C}_{{k}_{\\hbox{ end }}} \\end{document})",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n1:\n/* Reindex */\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nm = istart \u2212 iend + 1; n = jstart \u2212 jend + 1;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\u03b3 = kstart \u2212 kend + 1;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n2:\n/* Initialization */\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nj = 0 to ndo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nk = 0 to \u03b3 do",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{S}\\left({i}_{\\hbox{ mid }},j\\right)\\right)=E\\left({\\mathcal{M}}_{k}^{D}\\left({i}_{\\hbox{ mid }},j\\right)\\right)=-\\infty  \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif (j = 0) or (k > 0) then\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{I}\\left({i}_{\\hbox{ mid }},j\\right)\\right)=-\\infty  \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nelse\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{I}\\left({i}_{\\hbox{ mid }},j\\right)\\right)=-{w}_{\\hbox{ o }}-j{w}_{\\hbox{ e }} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif (j = 0) and (k = 0) thenE(\u2133k(imid,j)) = 0;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nelse\nE(\u2133k(imid,j)) = \u2212\u221e;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdoE(\ud835\udca9k(imid,j,h)) = \u2212\u221e;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n3:\n/* Computation */\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\ni = 1 to mdo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nk = 0 to \u03b3 do /* For the case ofj = 0 */",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nVk(\u2133k(imid, 0)) = E(\u2133k(imid,0));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdoVk(\ud835\udca9k(imid,0,h))",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "= E(\ud835\udca9k(imid,0,h)));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}^{S}\\right({i}_{\\hbox{ mid }},0\\left)\\right)=E\\left({\\mathcal{M}}_{k}^{I}\\right({i}_{\\hbox{ mid }},0\\left)\\right)=-\\infty  \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},0\\left)\\right)=E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},0\\left)\\right)=-{w}_{\\hbox{ o }}-j{w}_{\\hbox{ e }} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nj = 1 to ndo/* For the case ofj> 0 */",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nk = 0 to \u03b3 do",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "tempk(\u2133k(imid,j)) = E(\u2133k(imid,j));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdo tempk(\ud835\udca9k(imid,j,h))",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "= E(\ud835\udca9k(imid,j,h));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}E\\left({\\mathcal{M}}_{k}^{S}\\right({i}_{\\hbox{ mid }},j\\left)\\right)={V}_{k}\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right)\\\\ +\\sigma ({a}_{{i}_{\\hbox{ start }}+i-1},{b}_{{j}_{\\hbox{ start }}+j-1})\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right)=max\\left\\{E\\right({\\mathcal{M}}_{k}^{D}({i}_{\\hbox{ mid }},j))\\\\ -{w}_{\\hbox{ e }},E\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right)-{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }}\\}\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}E\\left({\\mathcal{M}}_{k}^{I}\\right({i}_{\\hbox{ mid }},j\\left)\\right)=max\\left\\{E\\right({\\mathcal{M}}_{k}^{I}({i}_{\\hbox{ mid }},j-1))\\\\ -{w}_{\\hbox{ e }},E\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},j-1\\left)\\right)\\\\ -{w}_{\\hbox{ o }}-{w}_{\\hbox{ e }}\\}\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nh = 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}E\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,h\\left)\\right)={v}_{k-1,k}+\\sigma ({a}_{{i}_{\\hbox{ start }}+i-{\\lambda }_{k}},\\\\ {b}_{{j}_{\\hbox{ start }}+j-{\\lambda }_{k}})\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nelse\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\begin{array}{c}E\\left({\\mathcal{N}}_{k}\\left({i}_{\\hbox{ mid }},j,h\\right)\\right)={V}_{k}\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,h-1\\left)\\right)\\\\ +\\sigma ({a}_{{i}_{\\hbox{ start }}+i-{\\lambda }_{k}+h-1},\\\\ {b}_{{j}_{\\hbox{ start }}+j-{\\lambda }_{k}+h-1})\\end{array} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} E\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right)=max\\left\\{\\begin{array}{c}E\\left({\\mathcal{M}}_{k}^{D}\\right({i}_{\\hbox{ mid }},j\\left)\\right),E\\left({\\mathcal{M}}_{k}^{I}\\right({i}_{\\hbox{ mid }},j\\left)\\right),\\\\ E\\left({\\mathcal{N}}_{k}\\right({i}_{\\hbox{ mid }},j,{\\lambda }_{k}\\left)\\right)\\\\ {V}_{k}\\left({\\mathcal{M}}_{k}\\right({i}_{\\hbox{ mid }},j\\left)\\right)+\\sigma ({a}_{{i}_{\\hbox{ start }}+i-1,}\\\\ {b}_{{j}_{\\hbox{ start }}+j-1}),\\end{array}\\right\\} \\end{document};",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nv\nk,k+1 = Vk(Mk(imid,j));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nV\nk(\u2133k(imid,j)) = tempk(\u2133k(imid,j));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nk \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nV\nk(\ud835\udca9(imid,j,h)) = tempk(\ud835\udca9k(imid,j,h));",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\ni = m and k \u2265 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nfor\nh = 1 to \u03bbkdo",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nh = 1 then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nj = 1 and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ start }}+i-{\\lambda }_{k}}\\ne {c}_{h}^{k} \\end{document}then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\u210bA(k,h) = 1; else \u210bA(k,h) = 0;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ start }}+j-{\\lambda }_{k}}\\ne {c}_{h}^{k} \\end{document}\nthen\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\u210bB(j,k,h) = 1; else \u210bB(j,k,h) = 0;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nelse\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\nj = 1 and \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {a}_{{i}_{\\hbox{ start }}+i-{\\lambda }_{k}+h-1}\\ne {c}_{h}^{k} \\end{document}then",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\u210bA(k,h) = \u210bA(k,h \u2212 1) + 1;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nif\n\\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {b}_{{j}_{\\hbox{ start }}+j-{\\lambda }_{k}+h-1}\\ne {c}_{h}^{k} \\end{document}\nthen \u210bB(j,k,h)",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "=\u210bB(j,k,h \u2212 1)+ 1;",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend if\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "\nend for\n",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "Now, we analyze the time-complexity of our CPSA-DC algorithm for solving the CPSA. As shown in Figure 2, after determining the middle position (imid, jmid, kmid) of the optimal path in \ud835\udca2, we can divide the original problem into two subproblems, each of which further can be recursively divided into two smaller subproblems using the same way. Note that regardless of where the optimal path passes through (imid, jmid, kmid), the total size of the two reduced subproblems is just half the size of the original problem, where the size is measured by the number of entries in \ud835\udca2. It is not hard to see that the time-complexity of determining the middle position of each subproblem at each recursive stage is proportional to the size of the subproblem. Let \u03a8 denote the size of the original problem (i.e. \u03a8 = \u03b3mn). Then the total time-complexity of our CPSA-DC algorithm is equal to \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} \\Psi +\\frac{\\Psi }{2}+\\frac{\\Psi }{4}+\\dots =2\\Psi  \\end{document}, which is twice as high as the CPSA-DP algorithm. Using the CPSA-DC algorithm as a kernel, we were able to design a memory-efficient algorithm, termed CMSA-DC, for progressively aligning multiple input sequences into a CMSA according to the branching order of a guide tree. The above progressive method we adopted was proposed by (Tang et al. 2003). Owing to space limitation, we refer the reader to their paper for the details of its implementation.",
+            "cite_spans": [],
+            "section": "3 ALGORITHM",
+            "ref_spans": []
+        },
+        {
+            "text": "We use Java language to implement the CMSA-DC algorithm as a web server, called as MuSiC-ME (Memory-Efficient tool for Multiple Sequence Alignment with Constraints). The input of the MuSiC-ME system consists of a set of protein/DNA/RNA sequences and a set of user-specified constraints, each with a fragment of residue/nucleotide that (approximately) appears in all input sequences. The output of MuSiC-ME is a CMSA in which the fragments of the input sequences whose residues/nucleotides exhibit a given degree of similarity to a constraint are aligned together. For its biological applications, we refer the reader to other related papers (Tang et al., 2003; Tsai et al., 2004).",
+            "cite_spans": [],
+            "section": "4 EXPERIMENTAL RESULTS",
+            "ref_spans": []
+        },
+        {
+            "text": "In the following, we evaluate our memory-efficient MuSiC-ME system and compare its running time and memory to the original MuSiC system (Tsai et al., 2004), whose kernel CPSA algorithm was implemented by the dynamic programming approach. We chose five families of protein/RNA sequences as our testing datasets, each of which has been shown to contain an ordered series of conserved motifs related to the structures/functionalities/consensuses of the family (McClure et al., 1994; Chin et al., 2003; Tang et al., 2003; Tsai et al., 2004): (1) the aspartic acid protease family (Protease), (2) the hemoglobins family (Globin), (3) the ribonuclease family (RNase), (4) the kinase family (Kinase) and (5) the 3\u2032- untranslated region of the coronaviruses (CoV-3\u2032-UTR). From each family, we have selected a representative set of sequences and adopted the ordered series of conserved motifs as the constraints. Table 1 lists the information of the tested families and their constraints. All tests were run with default parameters on IBM PC with 1.26 GHz processor and 512 MB RAM under Linux system. Table 2 lists the CPU time and memory usage of our experiments using MuSiC and MuSiC-ME. It shows that the memory usage of MuSiC-ME is much smaller than that of MuSiC for large-scale sequences, and the CPU time required by MuSiC-ME is smaller than that required by MuSiC for short sequences, since we have simplified the recurrences of the dynamic programming here.",
+            "cite_spans": [],
+            "section": "4 EXPERIMENTAL RESULTS",
+            "ref_spans": []
+        },
+        {
+            "text": "It is worth mentioning that in MuSiC-ME system, the letters representing the constraints are not just the individual residues/nucleotides, but also the IUPAC (International Union of Pure and Applied Chemistry) codes. For example, nucleotides N and R have the meanings of any nucleotides and purine (i.e. A or G), respectively. This enhanced improvement will enable the user to define more flexible constraints or combine several small constraints with fixed distances into a large one. For example, consider our fifth experiment above related to the 3\u2032-UTRs of the coronavirus sequences, including HCV-229E (human coronavirus), PEDV (porcine epidemic diarrhea virus), TGEV (porcine transmissible gastroenteritis virus), BCV (bovine coronavirus), MHV (mouse hepatitis virus) and SARS-TW1 (severe acute respiratory syndrome virus). All the 12 adopted constraints appear in the fragment sequences that were able to fold themselves into a stable pseudoknot structure (Williams et al., 1999; Tsai et al., 2004). However, these adopted constraints are too short to correctly align the truly conserved motifs of sequences together, since the short constraints occur frequently in the large genomic sequences that led to the difficulty in identifying the true occurrences. In fact, four pairs of two consecutive constraints appear in the stem regions (containing no loops) of pseudoknots and each paired constraints is separated by a non-conserved subsequence of fixed length. Hence, we can combine each pair of constraints into a new and larger constraint by representing the non-conserved part with N. Consequently, we got eight new constraints with the order of (CUNNNNC, A, AA, G, C, UNNNA, GNNNNAG, UNNNA) for this dataset. After running MuSiC-ME, a satisfied CMSA was found (Figure 4), where the band of the resulting CMSA corresponding to a constraint is black and its corresponding constraint is displayed beneath it. This resulting CMSA implies that the fragment of SARS-TW1 between the first band and the last band may fold into a pseudoknot structure that is possibly involved in replicating SARS viruses (Pleij, 1994; Deiman and Pleij, 1997). In fact, this fragment is the pseudoknot sequence of SART-TW1 that was found by (Tsai et al. 2004) using MuSiC to align the 3\u2032-UTR of SARS-TW1 with the pseudoknot sequences, instead of 3\u2032-UTRs, of other coronaviruses. The input sequences of the above experiment were also tested by Clustal W 1.82, the most commonly used MSA tool. According to its resulting MSA as shown in Figure 5, the fragments of all pseudoknots, including our detected pseudoknot for SARS-TW1, were not able to align well so that it is difficult for us to identify the exact fragment of the SARS-TW1 pseudoknot from this MSA.",
+            "cite_spans": [],
+            "section": "4 EXPERIMENTAL RESULTS",
+            "ref_spans": []
+        },
+        {
+            "text": "In this paper, we designed a memory-efficient program for performing the CMSA, which can incorporate the knowledge of biologists about the structures/functionalities/consensuses of their datasets into sequence alignment such that the user-specified residues/nucleotides are aligned together. We first used the divide-and-conquer approach to design a memory-efficient algorithm for optimally aligning two sequences with constraints, and then based on this algorithm, we used the progressive method to develop a memory-efficient tool, called MuSiC-ME, for heuristically aligning multiple sequences with constraints. The proposed MuSiC-ME system makes it possible to align several large-scale protein/DNA/RNA sequences with constraints through the desktop PC with the limited memory. In this system, moreover, the letters allowed to represent the constraints are the IUPAC codes, which will enable the user to define more flexible constraints or combine several small constraints with fixed distances into a large one. It is worth mentioning that the A* algorithm, a heuristic search method in Artificial Intelligence, has been extensively used to time- and/or memory-efficiently solve the general MSA problem without constraints (Ikeda and Imai, 1994, 1999; Kobayashi and Imai, 1999; Lermen and Reinert, 2000). Hence, it is interesting to study whether or not the A* algorithm can still be applied to the CMSA problem.",
+            "cite_spans": [],
+            "section": "5 CONCLUSIONS",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Table 2: The information of the tested families and their constraints\n",
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Table 2: The comparison of CPU time and memory usage between MuSiC and MuSiC-ME\n",
+            "type": "table"
+        },
+        "FIGREF0": {
+            "text": "Fig. 1: The schematic diagram of four adjacent entries of \ud835\udca2, where entry (i, j, k) consists of four nodes \u2133k, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D} \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I} \\end{document} and \ud835\udca9k corresponding to \u2133k(i, j), \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{D}(i,j) \\end{document}, \\batchmode \\documentclass[fleqn,10pt,legalpaper]{article} \\usepackage{amssymb} \\usepackage{amsfonts} \\usepackage{amsmath} \\pagestyle{empty} \\begin{document} {\\mathcal{M}}_{k}^{I}(i,j) \\end{document} and \ud835\udca9k(i, j, \u03bbk), respectively.",
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Fig. 2: Schematic diagram of divide-and-conquer approach: two light gray areas are the reduced subproblems after middle position (imid, jmid, kmid) is determined, each of which will be further divided into two subproblems of dark gray areas.",
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fig. 3: The grid locations of E(k \u2212 1), E(k) and the values in Vk\u22121 and Vk when the entry (i, j, k) of \ud835\udca2, marked with \u2018?\u2019, is reached for the computation.",
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Fig. 4: The partial display of the resulting CMSA of MuSiC-ME by aligning the sequences of SARS-TW1 3\u2032-UTR with those of other five coronaviruses.",
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Fig. 5: The partial display of the resulting MSA of Clustal W 1.82 by aligning the 3\u2032-UTR sequences of six coronaviruses, where the bases not in the pseudoknots are marked with dots.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [],
+            "year": 1997,
+            "venue": "Theoret. Comput. Sci.",
+            "volume": "182",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF1": {
+            "title": "",
+            "authors": [],
+            "year": 1987,
+            "venue": "J. Mol. Evol.",
+            "volume": "25",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [],
+            "year": 1993,
+            "venue": "Bull. Math. Biol.",
+            "volume": "55",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [],
+            "year": 1997,
+            "venue": "Algorithms on Strings, Trees, and Sequences: Computer Science and Computational Biology",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [],
+            "year": 1988,
+            "venue": "Gene",
+            "volume": "73",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [],
+            "year": 1975,
+            "venue": "Commun. ACM",
+            "volume": "18",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "Proceedings of the Genome Informatics Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [],
+            "year": 1999,
+            "venue": "Theoret. Comput. Sci.",
+            "volume": "210",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF8": {
+            "title": "",
+            "authors": [],
+            "year": 1993,
+            "venue": "Proceedings of the Fourth Annual Symposium on Combinatorial Pattern Matching (CPM 2004)",
+            "volume": "684",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [],
+            "year": 1999,
+            "venue": "Proceedings of the Genome Informatics Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [],
+            "year": 2000,
+            "venue": "J. Comput. Biol.",
+            "volume": "7",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [],
+            "year": 2001,
+            "venue": "Theoret. Comput. Sci.",
+            "volume": "259",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF12": {
+            "title": "",
+            "authors": [],
+            "year": 2000,
+            "venue": "Proceedings of the Thirty Second Annual ACM Symposium on Theory of Computing (STOC 2000)",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "Mol. Biol. Evol.",
+            "volume": "11",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF14": {
+            "title": "",
+            "authors": [],
+            "year": 1999,
+            "venue": " Bioinformatics",
+            "volume": "15",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [],
+            "year": 1988,
+            "venue": "Comput. Appl. Biosci.",
+            "volume": "4",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [],
+            "year": 1996,
+            "venue": "J. Comput. Biol.",
+            "volume": "3",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF17": {
+            "title": "",
+            "authors": [],
+            "year": 2002,
+            "venue": "Biotechniques",
+            "volume": "32",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF18": {
+            "title": "",
+            "authors": [],
+            "year": 2002,
+            "venue": "Pharmacogenomics",
+            "volume": "3",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF19": {
+            "title": "",
+            "authors": [],
+            "year": 2000,
+            "venue": "J. Mol. Biol.",
+            "volume": "302",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF20": {
+            "title": "",
+            "authors": [],
+            "year": 1992,
+            "venue": "SIAM J. Appl. Math.",
+            "volume": "52",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF21": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "Curr. Opin. Struct. Biol.",
+            "volume": "4",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF22": {
+            "title": "",
+            "authors": [],
+            "year": 1988,
+            "venue": "SIAM J. Appl. Math.",
+            "volume": "48",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF23": {
+            "title": "",
+            "authors": [],
+            "year": 2003,
+            "venue": "Bioinformatics",
+            "volume": "19",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF24": {
+            "title": "",
+            "authors": [],
+            "year": 1991,
+            "venue": "Proteins",
+            "volume": "9",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF25": {
+            "title": "",
+            "authors": [],
+            "year": 1998,
+            "venue": "Gene",
+            "volume": "211",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF26": {
+            "title": "",
+            "authors": [],
+            "year": 1997,
+            "venue": "Comput. Appl. Biosci.",
+            "volume": "13",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF27": {
+            "title": "",
+            "authors": [],
+            "year": 1997,
+            "venue": "Appl. Math. Lett.",
+            "volume": "10",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF28": {
+            "title": "",
+            "authors": [],
+            "year": 2003,
+            "venue": "J. Bioinform. Comput. Biol.",
+            "volume": "1",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF29": {
+            "title": "",
+            "authors": [],
+            "year": 1987,
+            "venue": "Comput. Appl. Biosci.",
+            "volume": "3",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF30": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "J. Comput. Biol.",
+            "volume": "1",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF31": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "Nucleic Acids Res.",
+            "volume": "22",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF32": {
+            "title": "",
+            "authors": [],
+            "year": 2000,
+            "venue": "Nucleic Acids Res.",
+            "volume": "28",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF33": {
+            "title": "",
+            "authors": [],
+            "year": 1992,
+            "venue": "Bull. Math. Biol.",
+            "volume": "54",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF34": {
+            "title": "",
+            "authors": [],
+            "year": 1996,
+            "venue": "Gene",
+            "volume": "172",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF35": {
+            "title": "",
+            "authors": [],
+            "year": 2004,
+            "venue": "Bioinformatics",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF36": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "J. Comput. Biol.",
+            "volume": "1",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF37": {
+            "title": "",
+            "authors": [],
+            "year": 1999,
+            "venue": "J. Virol.",
+            "volume": "73",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF38": {
+            "title": "",
+            "authors": [],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF39": {
+            "title": "",
+            "authors": [],
+            "year": 1994,
+            "venue": "J. Comput. Biol.",
+            "volume": "1",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF40": {
+            "title": "",
+            "authors": [],
+            "year": 2003,
+            "venue": "Proceedings of the IEEE Computer Society Bioinformatics Conference (CSB 2003)",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF41": {
+            "title": "",
+            "authors": [],
+            "year": 1988,
+            "venue": "Nucleic Acids Res.",
+            "volume": "16",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF42": {
+            "title": "",
+            "authors": [],
+            "year": 1997,
+            "venue": "Semin. Virol.",
+            "volume": "8",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF43": {
+            "title": "",
+            "authors": [],
+            "year": 1992,
+            "venue": "Comput. Appl. Biosci.",
+            "volume": "8",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        }
+    }
+}
