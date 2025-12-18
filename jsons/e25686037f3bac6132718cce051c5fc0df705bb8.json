@@ -1,0 +1,3416 @@
+{
+    "paper_id": "e25686037f3bac6132718cce051c5fc0df705bb8",
+    "metadata": {
+        "title": "Predicting COVID-19 Pneumonia Severity on Chest X-ray with Deep Learning",
+        "authors": [
+            {
+                "first": "Joseph",
+                "middle": [
+                    "Paul"
+                ],
+                "last": "Cohen",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Lan",
+                "middle": [],
+                "last": "Dao",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Paul",
+                "middle": [],
+                "last": "Morrison",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Karsten",
+                "middle": [],
+                "last": "Roth",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Yoshua",
+                "middle": [],
+                "last": "Bengio",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Beiyi",
+                "middle": [],
+                "last": "Shen",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Almas",
+                "middle": [],
+                "last": "Abbasi",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Mahsa",
+                "middle": [],
+                "last": "Hoshmand-Kochi",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Marzyeh",
+                "middle": [],
+                "last": "Ghassemi",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Haifang",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Tim",
+                "middle": [
+                    "Q"
+                ],
+                "last": "Duong",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "The need to streamline patient management for COVID-19 has become more pressing than ever. Chest X-rays provide a non-invasive (potentially bedside) tool to monitor the progression of the disease. In this study, we present a severity score prediction model for COVID-19 pneumonia for frontal chest X-ray images. Such a tool can gauge severity of COVID-19 lung infections (and pneumonia in general) that can be used for escalation or de-escalation of care as well as monitoring treatment efficacy, especially in the ICU. Images from a public COVID-19 database were scored retrospectively by three blinded experts in terms of the extent of lung involvement as well as the degree of opacity. A neural network model that was pre-trained on large (non-COVID-19) chest X-ray datasets is used to construct features for COVID-19 images which are predictive for our task. This study finds that training a regression model on a subset of the outputs from an this pre-trained chest X-ray model predicts our geographic extent score (range 0-8) with 1.14 mean absolute error (MAE) and our lung opacity score (range 0-6) with 0.78 MAE. All code, labels, and data are made available at https:// github.com/mlmed/torchxrayvision and https://github.com/ieee8023/ covid-chestxray-dataset",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "As the first countries explore deconfinement strategies [Wilson & Moulson, 2020] the death toll of COVID-19 keeps rising [O'Grady et al., 2020] . The increased strain caused by the pandemic on healthcare systems worldwide has prompted many physicians to resort to new strategies and technologies. Chest X-rays (CXRs) provide a non-invasive (potentially bedside) tool to monitor the progression of the disease [Yoon et al., 2020; Ng et al., 2020] . As early as March 2020, Chinese hospitals used artificial intelligence (AI)-assisted computed tomography (CT) imaging analysis to screen COVID-19 cases and streamline diagnosis [Jin et al., 2020] . Many teams have since launched AI initiatives to improve triaging of COVID-19 patients (i.e., discharge, general admission or ICU care) and allocation of hospital resources (i.e., direct non-invasive ventilation to invasive ventilation) [Strickland, 2020] . While these recent tools exploit clinical data, practically deployable CXR-based predictive models remain lacking.",
+            "cite_spans": [
+                {
+                    "start": 56,
+                    "end": 80,
+                    "text": "[Wilson & Moulson, 2020]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 121,
+                    "end": 143,
+                    "text": "[O'Grady et al., 2020]",
+                    "ref_id": null
+                },
+                {
+                    "start": 409,
+                    "end": 428,
+                    "text": "[Yoon et al., 2020;",
+                    "ref_id": null
+                },
+                {
+                    "start": 429,
+                    "end": 445,
+                    "text": "Ng et al., 2020]",
+                    "ref_id": null
+                },
+                {
+                    "start": 625,
+                    "end": 643,
+                    "text": "[Jin et al., 2020]",
+                    "ref_id": null
+                },
+                {
+                    "start": 883,
+                    "end": 901,
+                    "text": "[Strickland, 2020]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we build and study a model which predicts the severity of COVID-19 pneumonia, based on CXRs, to be used as an assistive tool when managing patient care. The ability to gauge severity of COVID-19 lung infections can be used for escalation or de-escalation of care, especially in the ICU. An automated tool can be applied to patients over time to objectively and quantitatively track disease progression and treatment response.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We used a retrospective cohort of 94 posteroanterior (PA) CXR images from a public COVID-19 image data collection [Cohen et al., 2020b] . While the dataset currently contains 153 images, it only counted 94 images at the time of the experiment, all of which were included in the study. All patients were reported COVID-19 positive and sourced from many hospitals around the world from December 2019 to March 2020. The images were de-identified prior to our use and there was no missing data. The ratio between male/female was 44/36 with an average age of 56\u00b114.8 (55\u00b115.6 for male and 57\u00b113.9 for female).",
+            "cite_spans": [
+                {
+                    "start": 114,
+                    "end": 135,
+                    "text": "[Cohen et al., 2020b]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "COVID-19 Cohort"
+        },
+        {
+            "text": "Radiological scoring was performed by three blinded experts: two chest radiologists (each with at least 20 years of experience) and a radiology resident. They staged disease severity using a score system adapted from [Wong et al., 2019] , based on two types of scores (parameters): extent of lung involvement and degree of opacity. arXiv:2005.11856v1 [eess.IV] 24 May 2020 1. The extent of lung involvement by ground glass opacity or consolidation for each lung (right lung and left lung separately) was scored as: 0 = no involvement; 1 = <25% involvement; 2 = 25-50% involvement; 3 = 50-75% involvement; 4 = >75% involvement. The total extent score ranged from 0 to 8 (right lung and left lung together).",
+            "cite_spans": [
+                {
+                    "start": 217,
+                    "end": 236,
+                    "text": "[Wong et al., 2019]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Labels"
+        },
+        {
+            "text": "2. The degree of opacity for each lung (right lung and left lung separately) was scored as: 0 = no opacity; 1 = ground glass opacity; 2 = consolidation; 3 = white-out. The total opacity score ranged from 0 to 6 (right lung and left lung together).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Labels"
+        },
+        {
+            "text": "A spreadsheet was maintained to pair filenames with their respective scores. Fleiss Kappa for inter-rater agreement was 0.45 for the opacity score and 0.71 for the extent score..",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Labels"
+        },
+        {
+            "text": "Prior to the experiment, the model was trained on the following public datasets, none of which contained COVID-19 cases: These seven datasets were manually aligned to each other on 18 common radiological finding tasks in order to train a model using all datasets at once (atelectasis, consolidation, infiltration, pneumothorax, edema, emphysema, fibrosis, fibrosis, effusion, pneumonia, pleural thickening, cardiomegaly, nodule, mass, hernia, lung lesion, fracture, lung opacity, and enlarged cardiomediastinum). For example \"pleural effusion\" from one dataset is considered the same as \"effusion\" from another dataset in order to consider these labels equal. In total, 88,079 non-COVID-19 images were used to train the model on these tasks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Non-COVID-19 (Pre-Training) Datasets"
+        },
+        {
+            "text": "In this study, we used a DenseNet model [Huang et al., 2017] from the TorchXRayVision library [Cohen et al., 2020c ;a].",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 60,
+                    "text": "[Huang et al., 2017]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 94,
+                    "end": 114,
+                    "text": "[Cohen et al., 2020c",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model, Preprocessing, and Pre-Training"
+        },
+        {
+            "text": "DenseNet models have been shown to predict Pneumonia well [Rajpurkar et al., 2017] . Images were resized to 224 224 pixels, utilizing a center crop if the aspect ratio was uneven, and the pixel values were scaled to [-1024, 1024] for the training. More details about the training can be found in [Cohen et al., 2020a] .",
+            "cite_spans": [
+                {
+                    "start": 58,
+                    "end": 82,
+                    "text": "[Rajpurkar et al., 2017]",
+                    "ref_id": null
+                },
+                {
+                    "start": 216,
+                    "end": 229,
+                    "text": "[-1024, 1024]",
+                    "ref_id": null
+                },
+                {
+                    "start": 296,
+                    "end": 317,
+                    "text": "[Cohen et al., 2020a]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Model, Preprocessing, and Pre-Training"
+        },
+        {
+            "text": "Before even processing the COVID-19 images, a pretraining step was performed using the seven datasets to train feature extraction layers and a task prediction layer (shown in Figure 1 ). This \"pre-training\" step was performed on a large set of data in order to construct general representations about lungs and other aspects of CXRs that we would have been unable to achieve on the small set of COVID-19 images available. Some of these representations are expected to be relevant to our downstream tasks. There are a few ways we can extract useful features from the pre-trained model as detailed in Figure 1 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 175,
+                    "end": 183,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 599,
+                    "end": 607,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Model, Preprocessing, and Pre-Training"
+        },
+        {
+            "text": "Similarly to the images from non-COVID-19 datasets used for pre-training, each image from the COVID-19 dataset was preprocessed (resized, centercropped, rescaled), then processed by the feature extraction layers and the task prediction layer of the network. The network was trained on existing datasets before the weights were frozen. COVID-19 images were processed by the network to generate features used in place of the images. As was the case with images from the seven non-COVID-19 datasets, the feature extraction layers produced a representation of the 94 COVID-19 images using a 1024 dimensional vector, then the fully connected task prediction layer produced outputs for each of the 18 original tasks. We build models on the pre-sigmoid outputs.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "Linear regression was performed to predict the aforementioned scores (extent of lung involvement and opacity) using these different sets of features in place of the image itself:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "1. Intermediate network features -the result of the convolutional layers applied to the image resulting in a 1024 dimensional vector which is passed to the task prediction layer;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "2. 18 outputs -each image was represented by the 18 outputs (pre-sigmoid) from the pre-trained model;",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "3. 4 outputs -a hand picked subset of outputs (presigmoid) were used containing radiological findings more frequent in pneumonia (lung opacity, pneumonia, infiltration, and consolidation);",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "4. Lung opacity output -the single output (pre-sigmoid) for lung opacity was used because it was very related to this task. This feature was different from the opacity score that we would like to predict. For each experiment performed, the 94 images COVID-19 dataset was randomly split into a train and test set roughly 50/50. Multiple timepoints from the same patient were grouped together into the same split so that a patient did not span both sets. Sampling was repeated throughout training in order to obtain a mean and standard deviation for each performance. As linear regression was used, there was no early stopping that had to be done to prevent the model from overfitting. Therefore, the criterion for determining the final model was only the mean squared error (MSE) on the training set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Training"
+        },
+        {
+            "text": "In order to ensure that the models are looking at reasonable aspects of the images [Reed & Marks, 1999; Zech et al., 2018; Viviano et al., 2019] , a saliency map is computed by computing the gradient of the output prediction with respect to the input image (if a pixel is changed how much will it change the prediction). In order to smooth out the saliency map, it is blurred using a 5x5 Gaussian kernel. Keep in mind that these saliency maps have limitations and only offer a restricted view into why a model made a prediction [Ross et al., 2017; Viviano et al., 2019] .",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 103,
+                    "text": "[Reed & Marks, 1999;",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 104,
+                    "end": 122,
+                    "text": "Zech et al., 2018;",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 123,
+                    "end": 144,
+                    "text": "Viviano et al., 2019]",
+                    "ref_id": null
+                },
+                {
+                    "start": 528,
+                    "end": 547,
+                    "text": "[Ross et al., 2017;",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 548,
+                    "end": 569,
+                    "text": "Viviano et al., 2019]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Saliency maps"
+        },
+        {
+            "text": "Quantitative performance metrics The single \"lung opacity\" output as a feature yielded the best correlation (0.80), followed by 4 outputs (lung opacity, pneumonia, infiltration, and consolidation) parameters (0.79) ( Table 1 and 2).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 217,
+                    "end": 224,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Building a model on only a few outputs provides the best performance. The mean absolute error (MAE) is useful to understand the error in units of the scores that are predicted while the mean squared error (MSE) helps to rank the different methods based on their furthest outliers. One possible reason that fewer features work best is that having fewer parameters prevents overfitting. Some features could serve as proxy variables to confounding attributes such as sex or age and preventing these features from being used prevents the distraction from hurting generalization performance. Hand selecting feature subsets which are intuitively related to this task imparts domain knowledge as a bias on the model which improves performance. Thus, the top performing model (using the single \"lung opacity\" output as a feature) is used for the subsequent qualitative analysis.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "Qualitative analysis of predicted scores Figure 2 shows the top performing model's (using the single \"lung opacity\" output as a feature) predictions against the ground truth score (given by the blinded experts) on held out test data. Majority of the data points fall close to the line of unity. The model overestimates scores between 1 and 3 and underestimates scores above 4. However, generally the predictions seem reasonable given the agreement of the raters.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 41,
+                    "end": 49,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Studying learned representations In Figure 3 , we explore what the representation used by one of the best models looks at in order to identify signs of overfitting and to gain insights into the variation of the data. A t-distributed stochastic neighbor embedding (t-SNE) [van der Maaten & Hinton, 2008] is computed on all data (even those not scored) in order to project the features into a two-dimensional (2D) space. Each CXR is represented by a point in a space where relationships to other points are preserved from the higher dimensional space. The cases of the survival group tend to cluster together as well as the cases of the deceased group. This clustering indicates that score predictions align with clinical outcomes.",
+            "cite_spans": [
+                {
+                    "start": 271,
+                    "end": 302,
+                    "text": "[van der Maaten & Hinton, 2008]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 44,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "Inspecting saliency maps In Figure 4 , images are studied which were not seen by the model during training. For most of the results, the model is correctly looking at opaque regions of the lungs. Figure 4b shows no signs of opacity and the model is focused on the heart and diaphragm, which is likely a sign that they are used as a color reference when determining what qualifies as opaque. In Figure 4c and 4d, we see erroneous predictions. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 28,
+                    "end": 36,
+                    "text": "Figure 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 196,
+                    "end": 205,
+                    "text": "Figure 4b",
+                    "ref_id": null
+                },
+                {
+                    "start": 394,
+                    "end": 403,
+                    "text": "Figure 4c",
+                    "ref_id": null
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "In the context of a pandemic and the urgency to contain the crisis, research has increased exponentially in order to alleviate the healthcare systems burden. However, many prediction models for diagnosis and prognosis of COVID-19 infection are at high risk of bias and model overfitting as well as poorly reported, their alleged performance being likely optimistic [Wynants et al., 2020] . In order to prevent premature implementation in hospitals [Ross, 2020] , tools must be robustly evaluated along several practical axes [Wiens et al., 2019; Ghassemi et al., 2019; Cohen et al., 2020a] . Indeed, while some AI-assisted tools might be powerful, they do not replace clinical judgment and their diagnostic performance cannot be assessed or claimed without a proper clinical trial [Nagendran et al., 2020] .",
+            "cite_spans": [
+                {
+                    "start": 365,
+                    "end": 387,
+                    "text": "[Wynants et al., 2020]",
+                    "ref_id": null
+                },
+                {
+                    "start": 448,
+                    "end": 460,
+                    "text": "[Ross, 2020]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 525,
+                    "end": 545,
+                    "text": "[Wiens et al., 2019;",
+                    "ref_id": null
+                },
+                {
+                    "start": 546,
+                    "end": 568,
+                    "text": "Ghassemi et al., 2019;",
+                    "ref_id": null
+                },
+                {
+                    "start": 569,
+                    "end": 589,
+                    "text": "Cohen et al., 2020a]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 781,
+                    "end": 805,
+                    "text": "[Nagendran et al., 2020]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Our models ability to gauge severity of COVID-19 lung infections could be used for escalation or de-escalation of care as well as monitoring treatment efficacy, especially in the intensive care unit (ICU) [Toussie et al., 2020] . The use of a score combining geographical extent and degree of opacity allows clinicians to compare CXR images with each other using a quantitative and objective measure. Also, this can be done at scale for a large scale analysis.",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 227,
+                    "text": "[Toussie et al., 2020]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Existing work focuses on predicting severity from a variety of clinical indicators which include findings from chest imaging [Jiang et al., 2020; Shi et al., 2020] . Models such as the one presented in this work can complement and improve these models and potentially help to make decisions from CXR as opposed to CT.",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 145,
+                    "text": "[Jiang et al., 2020;",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 146,
+                    "end": 163,
+                    "text": "Shi et al., 2020]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Challenges in creating a predictive model involve labelling the data and achieving good inter-rater agreement as well as learning a representation which will generalize to new images when the number of labelled images is so low. In the case of building a predictive tool for COVID-19 CXR images, the lack of a public database made it difficult to conduct large-scale robust evaluations. This small number of samples prevents proper cohort selection which is a limitation of this study and exposes our evaluation to sample bias. However, we use a model which was trained on a large dataset with related tasks which provided us with a robust unbiased COVID-19 feature extractor and allows us to learn only two parameters for our best linear regression model. Restricting the complexity of the learned model in this way reduces the possibility of overfitting.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        },
+        {
+            "text": "Our evaluation could be improved if we were able to obtain new cohorts labelled with the same severity score to ascertain the generalization of our model. Also, it is unknown if these radiographic scores of disease severity reflect actual functional or clinical outcomes as the open data do not have those data. We make the images, labels, model, and code public from this work so that other groups can perform follow-up evaluations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A large chest x-ray image dataset with multi-label annotated reports",
+            "authors": [
+                {
+                    "first": "Aurelia",
+                    "middle": [],
+                    "last": "Bustos",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pertusa",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Antonio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jose-Maria",
+                    "middle": [],
+                    "last": "Salinas",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [],
+                    "last": "De La Iglesia-Vay\u00e1",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Padchest",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "On the limits of cross-domain generalization in automated X-ray prediction",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hashir",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mohammad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rupert",
+                    "middle": [],
+                    "last": "Brooks",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hadrien",
+                    "middle": [],
+                    "last": "Bertrand",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Medical Imaging with Deep Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Preparing a collection of radiology examinations for distribution and retrieval",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                },
+                {
+                    "first": "Paul",
+                    "middle": [],
+                    "last": "Morrison",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lan",
+                    "middle": [
+                        ";"
+                    ],
+                    "last": "Dao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Viviano",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Joseph",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohammad",
+                    "middle": [],
+                    "last": "Hashir",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bertrand",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hadrien ; Demner-Fushman",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Dina",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marc",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Kohli",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marc",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Rosenman",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sonya",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Shooshan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rodriguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Laritza",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Antani",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sameer",
+                    "suffix": ""
+                },
+                {
+                    "first": "George",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Thoma",
+                    "suffix": ""
+                },
+                {
+                    "first": "Clement",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Mcdonald",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "Journal of the American Medical Informatics Association",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1093/jamia/ocv080"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Practical guidance on artificial intelligence for health-care data",
+            "authors": [
+                {
+                    "first": "Marzyeh",
+                    "middle": [],
+                    "last": "Ghassemi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Naumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tristan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Schulam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Beam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Irene",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Rajesh",
+                    "middle": [],
+                    "last": "Ranganath",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Densely Connected Convolutional Networks",
+            "authors": [
+                {
+                    "first": "Gao",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhuang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Laurens",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Weinberger",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Kilian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A Large Chest Radiograph Dataset with Uncertainty Labels and Expert Comparison",
+            "authors": [
+                {
+                    "first": "Jeremy",
+                    "middle": [],
+                    "last": "Irvin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rajpurkar",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pranav",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ko",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yifan",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ciurea-Ilcus",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Silviana",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chute",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chris",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Marklund",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Henrik",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Haghgoo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Behzad",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ball",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Robyn",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shpanskaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Katie",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jayne",
+                    "middle": [],
+                    "last": "Seekins",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Mong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Halabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Safwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jesse",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Sandberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ricky",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Larson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Curtis",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Langlotz",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Patel",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Bhavik",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthew",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Lungren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Andrew",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chexpert",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Predicting COVID-19 Pneumonia Severity on Chest X-ray with Deep Learning In AAAI Conference on Artificial Intelligence",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Towards an Artificial Intelligence Framework for Data-Driven Prediction of Coronavirus Clinical Severity. Computers, Materials & Continua",
+            "authors": [
+                {
+                    "first": "Xiangao",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Coffee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Megan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bari",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Anasse",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Junzhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jiang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xinyue",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jianping",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jichan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jianyi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jing",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tianxiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhengxing",
+                    "suffix": ""
+                },
+                {
+                    "first": "Guiqing",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yitong",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.32604/cmc.2020.010691"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Military Medical Research",
+            "authors": [
+                {
+                    "first": "Ying-Hui",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhen-Shun",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fan",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yi-Pin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Di",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lu-Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Qiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yong",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Bing",
+                    "middle": [
+                        "-"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yi-Rong",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Liang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Li-Kai",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Li-Sha",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jing",
+                    "suffix": ""
+                },
+                {
+                    "first": "Lin-Lu",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhi-Yong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yun-Bao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhen-Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xue-Qun",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hui-Min",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ying",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yun-Yun",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Weng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wei",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chao-Jie",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Dong-Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xia",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jian",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yong",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Hai",
+                    "middle": [
+                        "-"
+                    ],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiao-Mei",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ye",
+                    "middle": [],
+                    "last": "Yu-Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tai-Sheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Xiao-Chun",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ying-Wen",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yin-Gao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hua-Min",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yan",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming-Juan",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zeng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xian-Tao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Wang",
+                    "middle": [],
+                    "last": "Yong-Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xing-Huan",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/s40779-020-0233-6"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "MIMIC-CXR: A large publicly available database of labeled chest radiographs",
+            "authors": [
+                {
+                    "first": "Alistair",
+                    "middle": [
+                        "E W"
+                    ],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tom",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Pollard",
+                    "suffix": ""
+                },
+                {
+                    "first": "Seth",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Berkowitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "Nathaniel",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Greenbaum",
+                    "suffix": ""
+                },
+                {
+                    "first": "Matthew",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Lungren",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chih-Ying",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Roger",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Mark",
+                    "suffix": ""
+                },
+                {
+                    "first": "Steven",
+                    "middle": [],
+                    "last": "Horng",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Nature Scientific Data",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Chest Radiograph Interpretation with Deep Learning Models: Assessment with Radiologist-adjudicated Reference Standards and Population-adjusted Evaluation",
+            "authors": [
+                {
+                    "first": "Anna",
+                    "middle": [],
+                    "last": "Majkowska",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sid",
+                    "suffix": ""
+                },
+                {
+                    "first": "David",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Steiner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joshua",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Reicher",
+                    "suffix": ""
+                },
+                {
+                    "first": "Scott",
+                    "middle": [],
+                    "last": "Mckinney",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mayer",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gavin",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Duggan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Eswaran",
+                    "suffix": ""
+                },
+                {
+                    "first": "Cameron",
+                    "middle": [],
+                    "last": "Krish",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Po-Hsuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yun",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Sreenivasa",
+                    "middle": [],
+                    "last": "Kalidindi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Raju",
+                    "suffix": ""
+                },
+                {
+                    "first": "Alexander",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Greg",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "Daniel",
+                    "middle": [],
+                    "last": "Tse",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shetty",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shravya",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Radiology",
+            "volume": "12",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1148/radiol.2019191293"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Artificial intelligence versus clinicians: Systematic review of design, reporting standards, and claims of deep learning studies in medical imaging",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Nagendran",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Myura",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yang",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Lovejoy",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anthony",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Gordon",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Komorowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Matthieu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Harvey",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hugh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Topol",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [
+                        "P A"
+                    ],
+                    "last": "Ioannidis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gary",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Collins",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mahiben",
+                    "middle": [],
+                    "last": "Maruthappu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "The BMJ",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1136/bmj.m689"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Imaging Profile of the {COVID}-19 Infection: Radiologic Findings and Literature Review. Radiology: Cardiothoracic Imaging",
+            "authors": [
+                {
+                    "first": "Ming-Yen",
+                    "middle": [],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y P",
+                    "middle": [],
+                    "last": "Elaine",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jin",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fangfang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xia",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hongxia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Macy",
+                    "middle": [],
+                    "last": "Lui",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mei-Sze",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christine",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shing-Yen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Barry",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Khong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Pek-Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christopher",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kim-Ming",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yuen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kwok-Yung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Kuo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "David",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1148/ryct.2020200034"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "covid-19 death toll surpasses 2,000 in one day and 100,000 total worldwide",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "O&apos;grady",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Siobhn",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Noack",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Rick",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mettler",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Katie",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Knowles",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hannah",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Armus",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Teo",
+                    "suffix": ""
+                },
+                {
+                    "first": "John",
+                    "middle": [],
+                    "last": "Wagner",
+                    "suffix": ""
+                },
+                {
+                    "first": "Brittany",
+                    "middle": [],
+                    "last": "Shammas",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Neural smithing : supervised learning in feedforward artificial neural networks",
+            "authors": [
+                {
+                    "first": "Russell",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Reed",
+                    "suffix": ""
+                },
+                {
+                    "first": "Robert",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Marks",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Right for the Right Reasons: Training Differentiable Models by Constraining their Explanations",
+            "authors": [
+                {
+                    "first": "Andrew",
+                    "middle": [],
+                    "last": "Ross",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hughes",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "Finale",
+                    "middle": [],
+                    "last": "Doshi-Velez",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Joint Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "AI used to predict Covid-19 patients' decline before proven to work",
+            "authors": [
+                {
+                    "first": "Casey",
+                    "middle": [],
+                    "last": "Ross",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Host susceptibility to severe COVID-19 and establishment of a host risk score: Findings of 487 cases outside Wuhan",
+            "authors": [
+                {
+                    "first": "Yu",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Xia",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ruihong",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jifang",
+                    "middle": [],
+                    "last": "Sheng",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Critical Care",
+            "volume": "12",
+            "issn": "2020",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1186/s13054-020-2833-7"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "AI Can Help Hospitals Triage COVID-19 Patients",
+            "authors": [
+                {
+                    "first": "Eliza",
+                    "middle": [],
+                    "last": "Strickland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Clinical and Chest Radiography Features Determine Patient Outcomes In Young and Middle Age Adults with COVID-19. Radiology",
+            "authors": [
+                {
+                    "first": "Danielle",
+                    "middle": [],
+                    "last": "Toussie",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Voutsinas",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Nicholas",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Finkelstein",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Mark",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mario",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Cedillo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Manna",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sayan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Maron",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Samuel",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Jacobi",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Adam",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Michael",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bernheim",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Adam",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Eber",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Corey",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jose",
+                    "middle": [],
+                    "last": "Concepcion",
+                    "suffix": ""
+                },
+                {
+                    "first": "Zahi",
+                    "middle": [],
+                    "last": "Fayad",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yogesh",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": ";",
+                    "middle": [],
+                    "last": "Sean",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Laurens",
+                    "suffix": ""
+                },
+                {
+                    "first": "Geoffrey",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Journal of Machine Learning Research",
+            "volume": "5",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1148/radiol.2020201754.vanderMaaten"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Underwhelming Generalization Improvements From Controlling Feature Attribution",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Viviano",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Simpson",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Becks",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Dutil",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Francis",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yoshua",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Paul",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases",
+            "authors": [
+                {
+                    "first": "Xiaosong",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yifan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Zhiyong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Mohammadhadi",
+                    "middle": [],
+                    "last": "Bagheri",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Summers",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ronald",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1109/CVPR.2017.369"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Do no harm: a roadmap for responsible machine learning for health care",
+            "authors": [
+                {
+                    "first": "Anna",
+                    "middle": [],
+                    "last": "Goldenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Nature Medicine",
+            "volume": "8",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/s41591-019-0548-6"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Children in Spain allowed to play outdoors as country eases COVID-19 lockdown",
+            "authors": [
+                {
+                    "first": "Joseph",
+                    "middle": [],
+                    "last": "Wilson",
+                    "suffix": ""
+                },
+                {
+                    "first": "Geir",
+                    "middle": [],
+                    "last": "Moulson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Frequency and Distribution of Chest Radiographic Findings in COVID-19 Positive Patients",
+            "authors": [
+                {
+                    "first": "Ho Yuen",
+                    "middle": [],
+                    "last": "Wong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Yin",
+                    "middle": [],
+                    "last": "Hiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sonia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ambrose",
+                    "middle": [],
+                    "last": "Fong",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ho Tung",
+                    "suffix": ""
+                },
+                {
+                    "first": "Siu",
+                    "middle": [],
+                    "last": "Leung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ting",
+                    "suffix": ""
+                },
+                {
+                    "first": "Thomas",
+                    "middle": [
+                        "Wing"
+                    ],
+                    "last": "Chin",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christine",
+                    "middle": [],
+                    "last": "Lo",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Shing Yen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Macy",
+                    "middle": [
+                        "Mei"
+                    ],
+                    "last": "Lui",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Sze",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jonan",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chun Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Keith",
+                    "middle": [
+                        "Wan"
+                    ],
+                    "last": "Chiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hang",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Chung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Tom",
+                    "suffix": ""
+                },
+                {
+                    "first": "Elaine",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yuen Phin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [
+                        "Yuk"
+                    ],
+                    "last": "Wan",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Fai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Fan",
+                    "middle": [
+                        "Ngai"
+                    ],
+                    "last": "Hung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ivan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Tina",
+                    "middle": [
+                        "Poy"
+                    ],
+                    "last": "Lam",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Wing",
+                    "suffix": ""
+                },
+                {
+                    "first": "Michael",
+                    "middle": [],
+                    "last": "Kuo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ming",
+                    "middle": [],
+                    "last": "Ng",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yen",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Radiology",
+            "volume": "3",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1148/radiol.2020201160"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Prediction models for diagnosis and prognosis of covid-19 infection: Systematic review and critical appraisal",
+            "authors": [
+                {
+                    "first": "Laure",
+                    "middle": [],
+                    "last": "Wynants",
+                    "suffix": ""
+                },
+                {
+                    "first": "Van",
+                    "middle": [],
+                    "last": "Calster",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ben",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Bonten",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Marc",
+                    "suffix": ""
+                },
+                {
+                    "first": "Gary",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Collins",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Debray",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "De",
+                    "middle": [],
+                    "last": "Vos",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Maarten",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maria",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Haller",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Heinze",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Georg",
+                    "suffix": ""
+                },
+                {
+                    "first": "Karel",
+                    "middle": [
+                        "G M"
+                    ],
+                    "last": "Moons",
+                    "suffix": ""
+                },
+                {
+                    "first": "Richard",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Riley",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Schuit",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ewoud",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Smits",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Luc",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kym",
+                    "middle": [
+                        "I E"
+                    ],
+                    "last": "Snell",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Steyerberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ewout",
+                    "suffix": ""
+                },
+                {
+                    "first": "Christine",
+                    "middle": [],
+                    "last": "Wallisch",
+                    "suffix": ""
+                },
+                {
+                    "first": "Van",
+                    "middle": [],
+                    "last": "Smeden",
+                    "suffix": ""
+                },
+                {
+                    "first": "Maarten",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "The BMJ",
+            "volume": "4",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1136/bmj.m1328"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Chest Radiographic and {CT} Findings of the 2019 Novel Coronavirus Disease ({COVID}-19): Analysis of Nine Patients Treated in Korea",
+            "authors": [
+                {
+                    "first": "Soon",
+                    "middle": [],
+                    "last": "Yoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kyung",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hee",
+                    "suffix": ""
+                },
+                {
+                    "first": "Jin",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Young",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Kyung",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Ko",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hongseok",
+                    "suffix": ""
+                },
+                {
+                    "first": "Ki",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Hwan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Chang",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "Kim",
+                    "middle": [],
+                    "last": "Min",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Yun-Hyeon",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Korean Journal of Radiology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.3348/kjr.2020.0132"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Variable generalization performance of a deep learning model to detect pneumonia in chest radiographs: A crosssectional study",
+            "authors": [
+                {
+                    "first": "John",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Zech",
+                    "suffix": ""
+                },
+                {
+                    "first": "Marcus",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Badgeley",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Manway",
+                    "suffix": ""
+                },
+                {
+                    "first": "Anthony",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Costa",
+                    "suffix": ""
+                },
+                {
+                    "first": "Joseph",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Titano",
+                    "suffix": ""
+                },
+                {
+                    "first": "Eric",
+                    "middle": [],
+                    "last": "Oermann",
+                    "suffix": ""
+                },
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Karl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PLoS Medicine",
+            "volume": "7",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Detail of the different features being used. The two dataset blocks show that COVID-19 images were not used to train the neural network. The network diagram is split into 3 sections. The feature extraction layers are convolutional layers which transform the image into a 1024 dimensional vector which is called the intermediate network features. These features are then transformed using the task prediction layer (a sigmoid function for each task) into the outputs for each task. The different groupings of outputs used in this work are shown.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Scatter plots showing alignment between our best model predictions and human annotation (ground truth) for Geographical Extent and Opacity scores. Evaluation is on a hold out test set. The grey dashed line is a perfect prediction. Red lines indicate error from a perfect prediction. R 2 : coefficient of determination.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "A spatial representation of pneumonia specific features (lung opacity, pneumonia, infiltration, and consolidation) when projected into 2 dimensions (2D) using a t-distributed stochastic neighbor embedding (t-SNE)[van der Maaten & Hinton, 2008]. In this 2D space, the high dimensional (4D) distances are preserved, specifically what is nearby. CXR images which have similar outputs are close to each other. Features are extracted for all 208 images in the dataset and the geographic extent prediction is shown for each image. The survival information available in the dataset represented by the shape of the marker.(a) Geographic Extent Score: 5, Predicted: 5.3 (b) Geographic Extent Score: 0, Predicted: -0.8 (c) Geographic Extent Score: 2, Predicted: 0.62 (d) Geographic Extent Score: 0, Predicted: 1.Examples of correct (a,b)and incorrect (c,d) predictions by the model are shown with a saliency map generated by computing the gradient of the output prediction with respect to the input image and then blurred using a 5x5 Gaussian kernel. The assigned and predicted scores for Geographic Extent are shown to the right.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Performance metrics of each set of features for the Geographic Extent prediction. Evaluation is performed on 50 randomly chosen train test splits and the metrics here are computed on a hold out test set. R 2 : coefficient of determination; MAE: mean absolute error; MSE: mean squared error. \"4 outputs\" refers to lung opacity, pneumonia, infiltration, and consolidation.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This research is based on work partially supported by the CI-FAR AI and COVID-19 Catalyst Grants. This work utilized the supercomputing facilities managed by Compute Canada and Calcul Quebec. We thank AcademicTorrents.com for making data available for our research.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements"
+        },
+        {
+            "text": "This project is approved by the University of Montreal's Ethics Committee #CERSES-20-058-D",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ethics"
+        }
+    ]
+}

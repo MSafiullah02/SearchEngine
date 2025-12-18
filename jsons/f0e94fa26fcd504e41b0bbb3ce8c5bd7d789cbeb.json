@@ -1,0 +1,1691 @@
+{
+    "paper_id": "f0e94fa26fcd504e41b0bbb3ce8c5bd7d789cbeb",
+    "metadata": {
+        "title": "Using Image Captions and Multitask Learning for Recommending Query Reformulations",
+        "authors": [
+            {
+                "first": "Gaurav",
+                "middle": [],
+                "last": "Verma",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Adobe Research",
+                    "location": {
+                        "settlement": "Bangalore",
+                        "country": "India"
+                    }
+                },
+                "email": "gaverma@adobe.com"
+            },
+            {
+                "first": "Vishwa",
+                "middle": [],
+                "last": "Vinay",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Adobe Research",
+                    "location": {
+                        "settlement": "Bangalore",
+                        "country": "India"
+                    }
+                },
+                "email": "vinay@adobe.com"
+            },
+            {
+                "first": "Sahil",
+                "middle": [],
+                "last": "Bansal",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "IBM Research",
+                    "location": {
+                        "settlement": "Bangalore",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Shashank",
+                "middle": [],
+                "last": "Oberoi",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Adobe Inc",
+                    "location": {
+                        "settlement": "Noida",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Makkunda",
+                "middle": [],
+                "last": "Sharma",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Indian Institute of Technology Delhi",
+                    "location": {
+                        "settlement": "Delhi",
+                        "country": "India"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Prakhar",
+                "middle": [],
+                "last": "Gupta",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Interactive search sessions often contain multiple queries, where the user submits a reformulated version of the previous query in response to the original results. We aim to enhance the query recommendation experience for a commercial image search engine. Our proposed methodology incorporates current state-of-the-art practices from relevant literature -the use of generation-based sequence-to-sequence models that capture session context, and a multitask architecture that simultaneously optimizes the ranking of results. We extend this setup by driving the learning of such a model with captions of clicked images as the target, instead of using the subsequent query within the session. Since these captions tend to be linguistically richer, the reformulation mechanism can be seen as assistance to construct more descriptive queries. In addition, via the use of a pairwise loss for the secondary ranking task, we show that the generated reformulations are more diverse.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "A successful search relies on the engine accurately interpreting the intent behind a user's query and returning likely relevant results ranked high. There has been much progress allowing search engines to respond effectively even to short keyword queries on rare intents [5, 9, 25] . Despite this, recommendation of queries is an integral part of all search experiences -either in the form of query autocomplete (queries that match the prefix the user has currently typed into the search box) or query suggestions (reformulation options once an initial query has been provided). In this work, we focus on the query suggestion task. Original algorithms for this scenario relied on extracting co-occurrence patterns between query pairs, and their constituent terms, within historical logs [3, 12, 16, 18] . Such methods often work well for frequent queries. Recent work utilizing generative approaches common in natural language processing (NLP) scenarios offer generalization in terms of being able to provide suggestions even for rare queries [10, 21] . More specifically, the work by Sordoni et al. [26] focuses on generating query suggestions that are aware of the context of the user's current session. The current paper is most similar to this work in terms of motivation and the core technical component.",
+            "cite_spans": [
+                {
+                    "start": 271,
+                    "end": 274,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 275,
+                    "end": 277,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 278,
+                    "end": 281,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 787,
+                    "end": 790,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 791,
+                    "end": 794,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 795,
+                    "end": 798,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 799,
+                    "end": 802,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1043,
+                    "end": 1047,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1048,
+                    "end": 1051,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1100,
+                    "end": 1104,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The experiments described here are based on data from a commercial stock image search engine. In this setting, the items in the index are professionally taken high quality images to be used in commercial publishing material. The users of such a system exhibit similar properties to what might be expected on general purpose search engines -i.e., the use of relatively short queries often with multiple reformulations within a session. The logged data therefore contains not only the sequence of within-session queries, but also impression logs listing what images were shown in response to a query and which amongst those were clicked.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The availability of usage data, which provides implicit relevance signals, allows the building of a query reformulation model that includes aspects that have been shown to be useful in related literature: session context capturing information from previous queries in the session, as well as properties of relevant results via a multitask component. Building on state-of-the-art models in this manner, we specialize the solution to our setting by utilizing a novel supervision signal for the reformulation model in the form of linguistically rich captions available for the clicked results (in our case, images) across sessions (Fig. 1 ).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 628,
+                    "end": 635,
+                    "text": "(Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "A user of a search system provides an input query, typically a short list of keywords, into the search box and expects content relevant to their need ranked high in the result list. There are many reasons why a single iteration of search may not be successful -mis-specified queries (including spelling errors), imperfect ranking, ambiguous intent, and many more. As a result, it is useful to think of a search session as a series of interactions -where the user enters a query, examines and potentially interacts with the returned results, and constructs a refined query that is expected to more accurately represent their intent. Search engines therefore mine historical behavior of users on this query and similar ones in an attempt to optimize the entire search session [24] .",
+            "cite_spans": [
+                {
+                    "start": 774,
+                    "end": 778,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Being able to effectively extract these signals from historical logs starts with understanding and interpreting user behavior appropriately. For example, Huang et al. [17] pointed out that successful reformulations, especially those involving changes to words and their order, can be identified as those that retrieve new items which are presented higher in the subsequent results. An automatic reformulation experience involves implementing lessons from such analyses. The first of these is the use of previous queries within the current search sessions to inform the subsequent suggestions -i.e., modeling the session context. Earlier papers (e.g. [7] ) explicitly captured co-occurrence within sessions which, while being an intuitive and simple strategy, had the disadvantage of not being able to account for rarer queries. Newer efforts (e.g. [21] ) therefore utilize distributed representations of terms and queries to help generalize to unseen queries.",
+            "cite_spans": [
+                {
+                    "start": 167,
+                    "end": 171,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 650,
+                    "end": 653,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 848,
+                    "end": 852,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Such efforts are part of a wider expansion of techniques originally common within NLP domains to Information Retrieval (IR) scenarios. Conceptually, a generation-based model for query reformulation is obtained by mapping a query to the subsequent one in the same session. Such a model incorporates two signals known to be useful from traditional IR: (1) sequence of terms within a query & (2) sequence of queries within a session. Recent papers have investigated models anchored in the original generic NLP settings but customized to the characteristics of search queries. For example, Dehghani et al. [11] suggest a 'copy' mechanism within the sequence-to-sequence (seq-to-seq) models [27] to allow for terms to be carried over across queries in the session. In the current paper, we consider the work of Sordoni et al. [26] as a reference for the core seqto-seq model. The model, referred to here as H ierarchical Recurrent E ncoder Decoder (HRED), is a standard encoder-decoder setup, where word embeddings are aggregated into a query representation, a sequence of which in turn leads to a session representation. A decoder for the hierarchically organized query and session encoders is trained to predict the sequence of query words that compose the subsequent query in the session. Along with being a strong baseline, it serves to illustrate the core components of our work: (a) use of a novel supervision signal in the form of captions of clicked results, and (b) jointly optimizing ranking along with query reformulation. These extensions could similarly be done with other seq-to-seq models used for query suggestion.",
+            "cite_spans": [
+                {
+                    "start": 602,
+                    "end": 606,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 686,
+                    "end": 690,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 821,
+                    "end": 825,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our motivation for using captions of clicked images as supervision signal stems from the fact that captions are often succinct summaries of the content of the actual images as the creators are incentivized to have their images found. In particular, captions indicate which objects are present in the image, their corresponding attributes, as well as relationships with other objects in the same image -for example, \"A beautiful girl wearing a yellow shirt standing near a red car\". These properties make the captions a good target.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Multitask learning [8] has been shown to have success in scenarios where related tasks benefit from common signals. A recent paper [1] shows benefits of such a pairing in a search setting. Specifically, Ahmad et al. show that coupling with a classifier distinguishing clicked results from those skipped helps improve a query suggestion model. We extend this work by utilizing a pairwise loss function commonly used in learning-to-rank [6] . We show that not only does this provide the expected increase in the effectiveness of the ranker component, but also increases the diversity of suggested reformulations. Such diversity has been shown to be important for the query suggestion user experience [20] .",
+            "cite_spans": [
+                {
+                    "start": 19,
+                    "end": 22,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 131,
+                    "end": 134,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 203,
+                    "end": 215,
+                    "text": "Ahmad et al.",
+                    "ref_id": null
+                },
+                {
+                    "start": 435,
+                    "end": 438,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 698,
+                    "end": 702,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We begin by providing details of the mathematical notation in the next section, before describing our models in detail. The subsequent experimental section provides empirical evidence of the benefits that our design choices bring.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We define a session as a sequence of queries, S = {q 1 , . . . , q n }. Each query q i in session S has a set of displayed images associated with it, I i = {I 1 i , . . . , I m i }. A subset of images in I i are clicked, we refer to the top-ranked clicked image as I clicked i . All the images in the set I i have a caption describing them, the entire set of which is represented as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "It follows that every I clicked i will also have an associated caption with it, given as C clicked i . Given this, for every successful query q i in session S, we will have an associated clicked image I clicked i and a corresponding caption C clicked i . We consider the size of impression m (number of images) to be fixed for all q i .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "Our models treat each query q i in any given session, as a sequence of words, q i = {w 1 , . . . , w lq }. Captions are represented similarly -as sequences of words, C j i = {w 1 , . . . , w lc }. We use LSTMs [15] to model the sequences, owing to their demonstrated capabilities in modeling various natural language tasks, ranging from machine translation [27] to query suggestion [11] .",
+            "cite_spans": [
+                {
+                    "start": 210,
+                    "end": 214,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 357,
+                    "end": 361,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 382,
+                    "end": 386,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "The input to our models is a query q i in the session S, and the desired output is a target reformulation q reform . This target reformulation q reform can either be (i) the subsequent query q i+1 in the same session S, or (ii) the caption C clicked i corresponding to the clicked image I clicked i . Note that obtaining contextual query suggestions via a translation model that has learnt a mapping between successive queries within a session (i.e., (i)) has been previously proposed in our reference baseline papers [1, 26] . In the current paper, we utilize a linguistically richer supervision signal, in the form of captions of clicked images (i.e., (ii)), and analyze the behavior of the different models across three high level axes -relevance, descriptiveness and diversity of generated reformulations.",
+            "cite_spans": [
+                {
+                    "start": 518,
+                    "end": 521,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 522,
+                    "end": 525,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Notation"
+        },
+        {
+            "text": "In this paper, we evaluate two base models -HRED and HRED with Captions (HREDCap), and to study the effect of multitask learning, we add a ranker component to each of these models; giving us two more multitask variants -HRED + Ranker and HREDCap + Ranker. The underlying architecture of HRED and HREDCap (and the corresponding variants) is essentially the same, but HRED has been trained by using q i+1 as target and HREDCap has been trained using C clicked i as target. HRED comprises of a query encoder, a session encoder, and a query decoder; all of which are descried below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Model Architectures"
+        },
+        {
+            "text": "The query encoder generates a query level encoding V qi for every q i \u2208 S. This is done by first representing the query q i using vector embeddings of corresponding words {w 1 , . . . , w lq }, and then sequentially feeding them into a bidirectional LSTM (BiLSTM) [14] . As shown in Fig. 2 (a), the query encoder takes each of these word representations as input to the BiLSTM at every encoding step and updates the hidden states based on the forward and backward pass over the input query. The forward and backward hidden states are concatenated, and after applying attention [2] over the concatenated hidden states, we obtain a fixed size vector representation V qi for the query q i \u2208 S.",
+            "cite_spans": [
+                {
+                    "start": 264,
+                    "end": 268,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 577,
+                    "end": 580,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 283,
+                    "end": 289,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Query Encoder:"
+        },
+        {
+            "text": "The encoded representation V qi of query q i \u2208 S is used by the session encoder, along with encoded representations {V q1 , . . . , V qi\u22121 } of previous queries within the same session, to capture the context of the ongoing session thus far. The session encoder, which is modeled by a unidirectional LSTM [15] , updates the session context V qi S after each new V qi is presented to it. Figure 2 (b) illustrates one such update where the session encoding is updated to V qi S after V qi is provided as input to the session encoder by the query encoder. Since it is unreasonable to assume access to future queries in the session while generating a reformulation for the current query, we use a unidirectional LSTM to model the forward sequence of queries within a session. Accordingly, the session encoder updates its hidden state based on the forward pass over the query sequence. As shown in Fig. 2(b) , max-pooling is applied over each dimension of the hidden state to obtain the session encoding V qi S . Query Decoder: The generated session encoding V qi S is used as input by a query decoder to generate a reformulationq reform = {\u0175 1 , . . . ,\u0175 lr } for the query q i \u2208 S. As shown in Fig. 2(c) , the reformulation is generated word by word using a single layer unidirectional LSTM. With each unfolding of the decoder LSTM at step t \u2208 {1, . . . , l r }, a new word\u0175 t is generated as per the following probability: 1\u0175",
+            "cite_spans": [
+                {
+                    "start": 305,
+                    "end": 309,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 387,
+                    "end": 395,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 893,
+                    "end": 902,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1191,
+                    "end": 1200,
+                    "text": "Fig. 2(c)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "Here, h t d is the hidden state of the decoder at decoding step t,\u0175 1:t\u22121 denotes the previous words generated by the decoder, and \u03c6(h t d ) is a non-linear operation over h t d . The softmax function g(.) provides a probability distribution over the entire vocabulary V. w i is used to denote the i-th word in V. The joint probability of generating a reformulationq reform = {\u0175 1 , . . . ,\u0175 lr } can be decomposed into",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "However, for the sake of readability, this special consideration for t = 1 has been skipped for the following equations. the ordered conditionals as P (q reform | q i ) = lr t=1 P (\u0175 t |\u0175 1:t\u22121 , V qi S ). During training, the decoder compares each word\u0175 t in the generated reformulation q reform with the corresponding word w t in the target reformulation q reform , and aims to minimize the negative log-likelihood. For a given reformulation by the decoder, the loss is",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "Here,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "is a regularization term added to prevent the predicted probability distribution over the words in the vocabulary from being highly skewed. \u03bb is a regularization hyperparameter. The training loss is the sum of L reform over all query reformulations generated by the decoder during training.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "To summarize, the model encodes the queries, generates session context encodings, and generates the reformulated query using the decoder while updating the model parameters using the gradients of L reform .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Session Encoder:"
+        },
+        {
+            "text": "This additional component is responsible for ranking the m retrieved results for q i \u2208 S. As shown in Fig. 3 (right) , the ranker takes as input the concatenation of query and session encoding [V qi \u2295 V qi S ], for every q i \u2208 S. The concatenated vector representation [V qi \u2295 V qi S ] is used to compute the similarity between the query q i and its candidate results. The concatenation of these encodings is done to ensure that both current query information (as captured in V qi ) and ongoing session context (as captured in V qi S ) is used by the ranker. To obtain a representation of the images, we use their corresponding captions. Formally, for every query q i \u2208 S each image I j i \u2208 I i is represented using C j i . The average of the vector embeddings of words {w 1 , . . . , w lc } in C j i is computed for the image I j i . The cosine similarities between [V qi \u2295 V qi S ] and the image representations C j i \u2208 C i are used to rank order the retrieved results. The j-th element of the similarity vector S i represents the similarity between",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 102,
+                    "end": 116,
+                    "text": "Fig. 3 (right)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "During training, the ranker tries to learn model parameters based on one of the following two objectives: (i) Cross Entropy Loss: As described in [1] , we utilize the 'clicked' versus 'not-clicked' boolean event to train a classifier, where the ranker scores the m retrieved results based on the probability of being clicked by the user. In the following equation, R i for query q i is an m-dimensional vector, where each value in the vector indicates whether the corresponding image was clicked or not. I.e., R j i = 0 if I j i was not clicked, and R j i = 1 if I j i was clicked. A sigmoid of the scores from Eq. 3 is taken as the probability of click. Using the R i as labels, the ranker can now be trained using a standard cross entropy loss function:",
+            "cite_spans": [
+                {
+                    "start": 146,
+                    "end": 149,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "(ii) Pairwise Ranking Loss: As described in [6] , the original boolean labels in R i can be used to construct an alternate event space where labels M jk = 1 when the image at rank j was clicked while the one at k was not. Pairwise ranking loss allows to better model the preferences of certain results over the others.",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 47,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "where,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "Since HRED + Ranker and HREDCap + Ranker are multitask models, their training objective is a weighted combination of L reform and L rank .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "Here, \u03b1 is a hyperparameter used for controlling the relative contribution of the two losses. As mentioned earlier, either the regular binary cross-entropy loss or the pairwise-ranking loss can be used for L rank . We experiment using both and report our results on the effect of using one over the other. The models that are trained using cross entropy loss are appended with (CE), and the models that are trained using pairwise ranking objective are denoted as (RO).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "It is worth noting that since for a given query q i there can be more than one clicked images, our ranker component allows R i to take the value 1 at more than a single place. However, while training the reformulation model, we only consider the caption of the highest ranked clicked image.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ranker Component:"
+        },
+        {
+            "text": "Dataset: We use logged impression data from Adobe Stock 2 . The query logs contain information about the queries that were issued by users, and the images that were presented in response to those queries. Additionally, they contain information about which of the displayed images were clicked by the user. We consider the top-10 ranked results, i.e., the number of results to be considered for each query is m = 10. The queries are segmented into sessions (multiple queries by the same user within a 30 min time window), while maintaining the sequence in which they were executed by a user. We retain both multi-query sessions as well as single-query sessions, leading to a dataset comprising 1, 301, 888 sessions, 2, 122, 079 queries, and 10, 185, 979 unique images. We note that \u223c24.8% of the sessions are single-query sessions, while rest all are multi-query sessions; each of which, on average, comprise of 2.19 queries. Additionally, we remove all nonalphanumeric characters from the user-entered queries, while keeping spaces, and convert all characters to lowercase.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "To obtain the train, test and validation set, we first shuffle the sessions and split them in a 80 : 10 : 10 ratio, respectively. While it is possible for a query to be issued by different users in distinct sessions, a given search session occurs in only one of these sets. These sets are kept the same for all experiments, to ensure consistency while comparing the performance of trained models. The validation set is used for hyperparameter tuning.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We construct a global vocabulary V of size 37, 648 comprising of words that make up the queries and captions for images. Each word in the vocabulary is represented using a 300-dimensional vector w i . Each w i \u2208 V is initialized using pre-trained GloVe vectors [23] . Words in our vocabulary V that do not have a pre-trained embedding available in GloVe (1, 941 in number), are initialized using samples from a standard normal distribution. Since the average number of words in a query, average number of words in a caption, and average number of queries within a session are 2.31, 5.22, and 1.63, we limit their maximum sizes to 5, 10, and 5, respectively. For queries and captions that contain less than 5 and 10 words respectively, we pad them using '< p >' tokens. The number of generated words inq reform was limited to 10, i.e., l r = 10.",
+            "cite_spans": [
+                {
+                    "start": 261,
+                    "end": 265,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup:"
+        },
+        {
+            "text": "During training, we use Adam optimizer [19] with a learning rate initialized to 10 \u22123 . Across all the models, the regularization coefficient \u03bb is set to be 0.1. For multitask models, the loss trade-off hyperparameter \u03b1 is set to 0.45. The sizes of the hidden states of query level encoder \u2212 \u2192 h q and \u2190 \u2212 h q are set to 256, and that of session level encoder h S is set to 512. The size of the decoder's hidden state is kept to be 256. We train all the models for a maximum of 30 epochs, using batches of size 512, with early stopping based on the loss over the validation set. The best trained models are quantitatively and qualitatively evaluated and we discuss the results in the upcoming section.",
+            "cite_spans": [
+                {
+                    "start": 39,
+                    "end": 43,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup:"
+        },
+        {
+            "text": "At test time, we use a beam search-based decoding approach to generate multiple reformulations [2] . For our experiments, we set the beam width K = 3. The choice of K was governed by observations that will be discussed later, while analyzing the diversity and relevance of generated reformulations. These three reformulations are rank ordered using their generation probability.",
+            "cite_spans": [
+                {
+                    "start": 95,
+                    "end": 98,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup:"
+        },
+        {
+            "text": "We experiment with a range of hyperparameters and find that the evaluation results are stable with respect to our hyperparameter choices. However, our motivation is less about training the most accurate models, as we wish to measure the effect of the supervision signal and training objective when used alongside the baseline models. While presenting the results in Tables 1 and 2, we report the average of values over 10 different runs, as well the standard deviations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup:"
+        },
+        {
+            "text": "In this section, we evaluate the performance of the aforementioned models using multiple metrics for each of the two tasks: query reformulation and ranking. The metrics used here are largely inspired from [11] , and we discuss these below briefly. Towards the end of the section we also provide some qualitative results. ",
+            "cite_spans": [
+                {
+                    "start": 205,
+                    "end": 209,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation and Results"
+        },
+        {
+            "text": "Evaluation for query reformulation involves comparing the generated reformulationq reform with the target reformulation q reform . For all the models, irrespective of whether they utilize the next query within the session q i+1 as the target reformulation, or the caption C clicked i corresponding to the clicked image, the ground truth reformulation q reform is always taken to be q i+1 3 . This consistency has been maintained across all models to ensure that their performance is comparable, no matter what signal was used to train the reformulation model. The metrics used here cover three aspects: 'Relevance' (BLEU & sim emb ), 'Ranking' (MRR) and 'Diversity' (analyzed later).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "BLEU Score: This metric [22] , commonly used in machine translation scenarios, quantifies the similarity between a predicted sequence of words and the target sequence of words using n-gram precision. A higher BLEU score corresponds to a higher similarity between the predicted and target reformulations.",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 28,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "Embedding Based Query Similarity: This metric takes semantic similarity of words into account, instead of their exact overlap. A phrase-level embedding is calculated using vector extrema [13] , for which pretrained GLoVe embeddings were used. The cosine similarity between the phrase-level vectors for the two queries is given by sim emb . A higher value of sim emb is taken to signify a greater semantic similarity between the prediction and the ground truth. Unlike BLEU, we expect sim emb to provide a notion of similarity of the generated query to the target that allows for replacement words that are similar to the observed ones.",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 191,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Metrics"
+        },
+        {
+            "text": "The ranker's effectiveness is evaluated using MRR [28] , which is given as the reciprocal rank of the first relevant (i.e., clicked) result averaged over all queries, across all sessions. A higher value of MRR will signify a better ranker in the proposed multitask models. To have a standard point of reference to compare against, we computed the observed MRR for the queries in the test set and found it to be 0.31. This means that on average, for queries in our test set, the first image clicked by the users was at rank \u223c 3.1.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 54,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Mean Reciprocal Rank (MRR):"
+        },
+        {
+            "text": "Having discussed the metrics, we will now present the performance of our models on the two tasks under consideration, namely query reformulation and ranking. Table 1 provides these results as well as the effect of different ranking lossesdenoted by (RO) and (CE ) respectively.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 158,
+                    "end": 165,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Main Results"
+        },
+        {
+            "text": "For the purpose of this evaluation, we fix the beam width K = 3 and report the average of maximum values among all the candidate reformulations, across all queries in our test set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Based on Reformulation:"
+        },
+        {
+            "text": "While comparing HRED and HRED + Ranker (both CE and RO), we observe that the multitask version performs better across all metrics. A similar trend can be observed when comparing HREDCap with its multitask variants. For all the three metrics for query reformulations, the best performing model is a multitask model -this validates the observations from [1] in our context.",
+            "cite_spans": [
+                {
+                    "start": 352,
+                    "end": 355,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Based on Reformulation:"
+        },
+        {
+            "text": "When comparing the two core reformulation models -HRED & HREDCap, we find that the richer captions data that HREDCap sees is aiding the model -while HRED scores better sim emb , HREDCap wins out on BLEU & Diversity. The drop in sim emb values can be explained by noting that on average captions contain more words than queries (5.22 in comparison to 2.31), and hence similarity-based measures, due to additional words in the captions, will not be as high as overlapbased measures (i.e., BLEU). Evaluation based on Ranking: To evaluate the performance of the ranker component in our proposed multitask models, we use MRR. We use the observed MRR of clicked results in the test set (0.31) as the baseline. We also analyze the effect of using the pairwise objective as opposed to the binary cross entropy loss.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Based on Reformulation:"
+        },
+        {
+            "text": "Looking at the results presented in Table 1 , three trends emerge. Firstly, all the proposed multitask models perform better than the baseline. The best performing model, i.e., HREDCap + Ranker with pairwise loss (RO), outperforms the baseline by about 32%. Secondly, we observe that using pairwise loss leads to an increase in MRR, for both of the cases under consideration, with only marginal drop in reformulation metrics -we revisit this observation in the next section. Lastly, the multitask models that use captions perform better than multitask models that use subsequent queries.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 43,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Evaluation Based on Reformulation:"
+        },
+        {
+            "text": "In this section, we concentrate on the following two aspects of the generated query reformulations: (a) diversity, and (b) descriptiveness.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Analysis"
+        },
+        {
+            "text": "The importance of suggesting diverse queries to enhance user search experience is well established within the IR community. The mechanism to obtain a diverse set of reformulation alternatives is via the use of beam search based decoding. In scenarios where a set of top-K candidates are required, we take inspiration from Ma et al. [20] to evaluate the predictions of our models for their diversity. For a beam width of K, a reformulation model will generate R gen = {r 1 , r 2 , . . . , r K } candidate reformulations for a given original query. We quantify the diversity in the candidate reformulations by comparing each candidate reformulation r i with other reformulations r j \u2208 R gen : i = j. The diversity of a set of K queries is evaluated as",
+            "cite_spans": [
+                {
+                    "start": 332,
+                    "end": 336,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Diverse Query Reformulations due to Multitasking:"
+        },
+        {
+            "text": "In Table 1 , it can be observed that multitask models generate more diverse reformulations than models trained just for the task of query reformulation. This is particularly evident when comparing the effect of the ranking loss. From Fig. 4 , it can be noted that as more candidate reformulations are taken into consideration, i.e., as the beam width K is increased, the average relevance of the reformulations decreases across all the models. However, the diverseness of R gen flattens after K = 3. This was the reason for setting the beam width to 3 while presenting results in Table 1 . 4 . The trade-off between relevance (as quantified by sim emb ) and diversity. As K is increased, the relevance of generated predictions drops across all models.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 234,
+                    "end": 240,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 580,
+                    "end": 587,
+                    "text": "Table 1",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 590,
+                    "end": 591,
+                    "text": "4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Diverse Query Reformulations due to Multitasking:"
+        },
+        {
+            "text": "The motivation for generating more descriptive reformulations is of central importance to our idea of using image captions. To this end, we analyze the generated reformulations to assess if this is indeed the case. We start by noting (see Table 2 ) that captions corresponding to clicked images for queries in our test set contain, on average, more words than the queries. Following this, we analyze the generated reformulations by two of our multitask models -(i) HRED + Ranker (RO), which guides the process of query reformulation using subsequent queries within a session, and (ii) HREDCap + Ranker (RO), which guides the process of query reformulation using captions corresponding to clicked images. For this entire analysis, we removed stop words [4] from all the queries and captions under consideration.",
+            "cite_spans": [
+                {
+                    "start": 752,
+                    "end": 755,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 239,
+                    "end": 246,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Descriptive Reformulations using Captions:"
+        },
+        {
+            "text": "As can be noted from Table 2 , reformulations using captions tend to contain more words than reformulations without them. However, number of words in a query is only a facile proxy for its descriptiveness. Acknowledging this, we perform a secondary aggregate analysis on the number of novel words inserted into the reformulation and number of words dropped from the original query. We identify novel words as words that were not present in the original query q i but have been generated in the reformulationq reform , and dropped words as the words that were present in the original query but are absent from the generated reformulation. Table 2 indicates that, on average, the model trained using captions tends to insert more novel words while reformulating the query, and at the same time drops fewer words from the query. Interestingly, models trained using subsequent queries inserts almost as many words into the reformulation as it drops from the original query.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 21,
+                    "end": 28,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 638,
+                    "end": 645,
+                    "text": "Table 2",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Descriptive Reformulations using Captions:"
+        },
+        {
+            "text": "To analyze this further, we compute the average similarity between the novel words that were inserted and the words that were dropped, by averaging the GloVe vector based similarity between words, across all queries in our test set. For HRED + Ranking (RO) this average similarity is 0.64, while for HREDCap + Ranker (RO) it is 0.41. A higher similarity value for the former suggests that the model largely substitutes the existing words with words having similar semantic meaning. Using captions, on the other hand, is more likely to generate novel words which bring in additional meaning. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Descriptive Reformulations using Captions:"
+        },
+        {
+            "text": "In Table 3 , we present a few examples depicting the descriptive nature of generated reformulations. The generated reformulations by HRED + Ranker are compared against those by HREDCap + Ranker. We only present the top ranked reformulation among top-K reformulations. We note that using captions as target generates reformulations that are more descriptive and the process of generation results in more insertions of novel words, in comparison to using subsequent queries as targets. These qualitative observations, along with quantitative observations discussed earlier, reinforce the efficacy of using captions of clicked images for the task of query reformulation. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 10,
+                    "text": "Table 3",
+                    "ref_id": "TABREF4"
+                }
+            ],
+            "section": "Qualitative Results"
+        },
+        {
+            "text": "In this paper, we build upon recent advances in sequence-to-sequence models based approaches for recommending queries. The core technical component of our paper is the use of a novel supervision signal for training seq-to-seq models for query reformulation -i.e., captions of clicked images instead of subsequent queries within a session, as well as the use of a pairwise preference based objective for the secondary ranking task. The effect of these are evaluated alongside baseline model architectures for this setting. Our extensive analysis evaluated the model and training method combinations towards being able to generate a set of descriptive, relevant and diverse reformulations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "Although the experiments were done on data from an image search engine, we believe that similar improvements can be observed if content properties from textual documents can be integrated into the seq-to-seq models. Future work will look into the influence of richer representations on the behavior of the ranker, and in turn on the characteristics of the reformulations.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Multi-task learning for document ranking and query suggestion",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "U"
+                    ],
+                    "last": "Ahmad",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Neural machine translation by jointly learning to align and translate",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Bahdanau",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1409.0473"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Agglomerative clustering of a search engine query log",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Beeferman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Berger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Proceedings of the Sixth ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "407--416",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "NLTK: the natural language toolkit",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bird",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Loper",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the ACL 2004 on Interactive Poster and Demonstration Sessions",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Robust classification of rare queries using web knowledge",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Broder",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fontoura",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Gabrilovich",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Josifovski",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 30th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "231--238",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Learning to rank using gradient descent",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Burges",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 22nd International Conference on Machine Learning, ICML 2005",
+            "volume": "",
+            "issn": "",
+            "pages": "89--96",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Context-aware query suggestion by mining click-through and session data",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 14th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "875--883",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Multitask learning",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Mach. Learn",
+            "volume": "28",
+            "issn": "1",
+            "pages": "41--75",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Personalized query expansion for the web",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Chirita",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Firan",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Nejdl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 30th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "7--14",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Learning phrase representations using RNN encoder-decoder for statistical machine translation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1406.1078"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Learning to attend, copy, and generate for session-based query suggestion",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Dehghani",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rothe",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Alfonseca",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Fleury",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 ACM on Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "1747--1756",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Conceptbased interactive query expansion",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Fonseca",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Golgher",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "P\u00f4ssas",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ribeiro-Neto",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ziviani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 14th ACM International Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "696--703",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Bootstrapping dialog systems with word embeddings",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Forgues",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pineau",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Larchev\u00eaque",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Tremblay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Nips, Modern Machine Learning and Natural Language Processing Workshop",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Framewise phoneme classification with bidirectional LSTM and other neural network architectures",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Neural Netw",
+            "volume": "18",
+            "issn": "5-6",
+            "pages": "602--610",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Long short-term memory",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Hochreiter",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schmidhuber",
+                    "suffix": ""
+                }
+            ],
+            "year": 1997,
+            "venue": "Neural Comput",
+            "volume": "9",
+            "issn": "8",
+            "pages": "1735--1780",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Relevant term suggestion in interactive web search based on contextual information in query session logs",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Chien",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Oyang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "J. Am. Soc. Inf. Sci. Technol",
+            "volume": "54",
+            "issn": "7",
+            "pages": "638--649",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Analyzing and evaluating query reformulation strategies in web search logs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Efthimiadis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the 18th ACM Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "77--86",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Generating query substitutions",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Rey",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Madani",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Greiner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 15th International Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "387--396",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Diversifying query suggestion results",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Lyu",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "King",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Exploring session context using distributed representations of queries and reformulations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 38th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "3--12",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "BLEU: a method for automatic evaluation of machine translation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Papineni",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Roukos",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ward",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "Proceedings of the 40th Annual Meeting on Association for Computational Linguistics",
+            "volume": "",
+            "issn": "",
+            "pages": "311--318",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "GloVe: global vectors for word representation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Pennington",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Manning",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "1532--1543",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Mining query logs: turning search usage data into knowledge",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Silvestri",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Found. Trends R Inf. Retr",
+            "volume": "4",
+            "issn": "1",
+            "pages": "171--174",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Optimal rare query suggestion with implicit user feedback",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of the 19th International Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "901--910",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A hierarchical recurrent encoder-decoder for generative context-aware query suggestion",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sordoni",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Vahabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lioma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Simonsen",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1507.02221"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Sequence to sequence learning with neural networks",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3104--3112",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Overview of the TREC 2003 question answering track",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Dang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "54--68",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The basic idea behind our work. We generate query reformulations using (a) subsequent queries within sessions, and (b) the captions of clicked images, as supervision signals. In both the cases, the task of generating reformulations is done while jointly optimizing the ranking of results.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "An illustration of the (a) query encoder, (b) session encoder, and (c) query decoder",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Fig. 4. The trade-off between relevance (as quantified by sim emb ) and diversity. As K is increased, the relevance of generated predictions drops across all models.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Fig. 3. The proposed architecture of our multitask model: HRED + Ranker (left). For the sake of brevity, we have shown the ranker component separately (right). For HREDCap + Ranker, the supervision signals are obtained from captions of clicked images and not subsequent queries.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Performance of models based on reformulation and ranking metrics",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Analyzing the effect of using captions on length of generated query reformulations, along with influence on generating novel words while dropping the existing ones.Avg. # of words in queries 2.31 \u00b1 0.92 word(s) Avg. # of words in captions 5.22 \u00b1 2.37 word(s)",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": "Qualitative results comparing the generated reformulation by HRED + Ranker and HREDCap + Ranker. The words in bold are novel insertions.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

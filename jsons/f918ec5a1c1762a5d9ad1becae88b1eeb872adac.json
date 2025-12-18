@@ -1,0 +1,1204 @@
+{
+    "paper_id": "f918ec5a1c1762a5d9ad1becae88b1eeb872adac",
+    "metadata": {
+        "title": "Balancing Exploration and Exploitation in Self-imitation Learning",
+        "authors": [
+            {
+                "first": "Chun-Yao",
+                "middle": [],
+                "last": "Kang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "National Taiwan University",
+                    "location": {
+                        "settlement": "Taipei",
+                        "country": "Taiwan"
+                    }
+                },
+                "email": "cykang@arbor.ee.ntu.edu.tw"
+            },
+            {
+                "first": "Ming-Syan",
+                "middle": [],
+                "last": "Chen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "National Taiwan University",
+                    "location": {
+                        "settlement": "Taipei",
+                        "country": "Taiwan"
+                    }
+                },
+                "email": "mschen@ntu.edu.tw"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Sparse reward tasks are always challenging in reinforcement learning. Learning such tasks requires both efficient exploitation and exploration to reduce the sample complexity. One line of research called self-imitation learning is recently proposed, which encourages the agent to do more exploitation by imitating past good trajectories. Exploration bonuses, however, is another line of research which enhances exploration by producing intrinsic reward when the agent visits novel states. In this paper, we introduce a novel framework Explore-then-Exploit (EE), which interleaves self-imitation learning with an exploration bonus to strengthen the effect of these two algorithms. In the exploring stage, with the aid of intrinsic reward, the agent tends to explore unseen states and occasionally collect high rewarding experiences, while in the selfimitating stage, the agent learns to consistently reproduce such experiences and thus provides a better starting point for subsequent stages. Our result shows that EE achieves superior or comparable performance on variants of MuJoCo environments with episodic reward settings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Reinforcement learning (RL) learns an optimal policy by maximizing the expected return. These methods work well in environments with dense rewards but suffer from degenerate performance when the rewards are sparse, which means rewards are almost zero during an episode. In such cases, the agent requires both an efficient exploration method that guides itself to find potentially useful information, and an efficient exploitation technique to make better use of these experiences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Exploration bonus is a simple way for directed exploration, which generates intrinsic rewards every step even when the external rewards are unavailable. This bonus is designed to be higher in novel states than in those visited frequently, and thus encourages the agent to explore new behavior. Even though such method still requires a tremendous amount of time to train, and the intrinsic rewards may vanish when the policy converges to a local optimum.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Another method called self-imitation learning is a recently introduced algorithm that enhances exploitation by storing and reusing useful experiences.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Once the agent occasionally generates high rewarding trajectories, they are collected and stored in a replay buffer. The policy is then trained to imitate those trajectories in the buffer and thus the resulting agent consistently reproduces past good behavior. This method is shown to have high sample efficiency, though it hurts the exploration and has a chance to stuck at local optima. Besides, selfimitation learning relies on other techniques to bootstrap the process before the first trajectory is added to the buffer.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we propose a framework Explore-then-Exploit (EE) which combines random network distillation (RND) [5] , a kind of exploration bonus, and generative adversarial self-imitation learning (GASIL) [7] . By integrating these two methods, the RND bonus solves the initial bootstrap problem of selfimitation and potentially prevents the policy from getting stuck at local optima. On the other hand, GASIL speeds up the convergence of the policy and provides good starting points for later exploration. Nevertheless, a direct composition does not make sense due to that the agent will prefer unpredictable actions with exploration bonuses while tend to reproduce past behaviors with self-imitation. Mixing these two objectives will confuse the agent and lead to an undesired result. Instead, we suggest to combine them in an interleaving manner. By doing so, the agent only learns one concept at each stage and switch to another one when certain criteria are reached. We formulate our framework in the form of reward interpolation and provide some heuristic methods to determine the weight between exploration and self-imitation. Finally, we evaluate our model on several MuJoCo tasks [19] with episodic rewards and empirically show that EE improves over GASIL or RND in most environments.",
+            "cite_spans": [
+                {
+                    "start": 113,
+                    "end": 116,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 207,
+                    "end": 210,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1191,
+                    "end": 1195,
+                    "text": "[19]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Exploration. There have been many researchers working on exploration in RL. Count-based exploration gives a reward to rarely visited states [2, 13] . Prediction-based exploration, also known as the curiosity-driven method, predicts the agent's dynamics and treats the prediction error as intrinsic reward [1, 4, 14, 18] . Random network distillation (RND) [5] further improves by utilizing two neural networks: a randomly initialized target network, and a predictor network trained to minimize the difference between the outputs of the two networks. The difference is then used as the exploration bonus.",
+            "cite_spans": [
+                {
+                    "start": 140,
+                    "end": 143,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 305,
+                    "end": 308,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 309,
+                    "end": 311,
+                    "text": "4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 312,
+                    "end": 315,
+                    "text": "14,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 316,
+                    "end": 319,
+                    "text": "18]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 356,
+                    "end": 359,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "Self-imitation. Self-imitation learning (SIL) [12] was recently proposed to exploit past good behaviors. This algorithm stores the transitions in a replay memory, and uses them to update the policy when the stored return is higher than the current state value estimation. Generative adversarial self-imitation learning (GASIL) [7] is a generative adversarial extension to SIL, which instead stores top-k experiences based on episode returns and formulates it as a divergence minimization problem. Combined with actor-critic methods, GASIL learns a shaped, dense reward function that can be used as an extra reward signal. Another method [6] also utilizes the generative adversarial structure, but instead trains an ensemble of agents and uses a special optimization technique to guarantee the diversity among these agents. This work focuses on the interaction between multiple agents, while our work only considers one agent. This technique can be used simultaneously with our framework without problems.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 50,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 327,
+                    "end": 330,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 637,
+                    "end": 640,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "Amplifying the Imitation Effect. In a very recent work, AIE [10] was proposed to combine RND and SIL, which has similar idea as our method. This work combines these two algorithms directly and introduces several techniques to enhance the effect of RND, whereas ours integrates GASIL in an interleaving fashion, and evaluates it on common RL benchmarks.",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 64,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Works"
+        },
+        {
+            "text": "Consider a state space S and an action space A. The purpose of RL is to find a parameterized policy \u03c0 \u03b8 (a|s) where s \u2208 S and a \u2208 A, which maximizes the expected discounted sum of rewards:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reinforcement Learning"
+        },
+        {
+            "text": "where \u03b3 \u2208 (0, 1] is the discount factor and r t is the reward at time t. The objective is non differentiable and hence requires the technique called policy gradient to estimate the gradient. A commonly used gradient estimator of the objective \u03b7(\u03c0 \u03b8 ) is given by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reinforcement Learning"
+        },
+        {
+            "text": "where\u00c2 t is the advantage estimation at time t. The estimator \u2207 \u03b8 \u03b7(\u03c0 \u03b8 ) can be obtained by differentiating the surrogate objective",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Reinforcement Learning"
+        },
+        {
+            "text": "GASIL involves a good trajectory buffer B = {\u03c4 i } and a discriminator D \u03c6 (s, a). The buffer B stores the top-k good trajectories according to the total trajectory reward R = \u221e t=0 r t , where each trajectory \u03c4 i consists of a sequence of states and actions {s 0 , a 0 , s 1 , a 1 , . . . s t , a t }. The algorithm treats the trajectories stored in the buffer B as the expert demonstrations, and utilizes the GAIL framework [8] to obtain a similar generative adversarial loss",
+            "cite_spans": [
+                {
+                    "start": 426,
+                    "end": 429,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Generative Adversarial Self-imitation Learning"
+        },
+        {
+            "text": "where \u03c4 \u03c0 , \u03c4 E are the trajectories sampled from the policy \u03c0 \u03b8 and the buffer B respectively, and \u03bbH(\u03c0 \u03b8 ) is the entropy regularization term. The discriminator D \u03c6 is updated via",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generative Adversarial Self-imitation Learning"
+        },
+        {
+            "text": "and the policy \u03c0 \u03b8 is updated via the approximate gradient",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generative Adversarial Self-imitation Learning"
+        },
+        {
+            "text": "The Eq. (5) has a similar form as policy gradient (1), and thus can be combined together as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Generative Adversarial Self-imitation Learning"
+        },
+        {
+            "text": "where\u00c2 \u03b1 t is the advantage estimation by replacing r(s, a) with a modified reward a) can be seen as an intrinsic reward signal generated by the discriminator to encourage the agent to imitate the past behaviors.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 83,
+                    "end": 85,
+                    "text": "a)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Generative Adversarial Self-imitation Learning"
+        },
+        {
+            "text": "RND introduces a fixed and randomly initialized target network f : S \u2192 R k , which takes a state as input and outputs a k-dimensional embedding, together with a predictor networkf :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random Network Distillation"
+        },
+        {
+            "text": "The exploration bonus is defined as the prediction error f (s) \u2212 f (s) 2 , which is expected to be lower for the states similar to the frequently visited ones.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Random Network Distillation"
+        },
+        {
+            "text": "Our EE framework incorporates the exploration bonus component into the GASIL structure. We choose RND as the exploration algorithm because of the simplicity of implementation. Both GASIL and RND generate extra reward signals, which allows us to formulate our framework as an interpolation of the rewards from three different sources: (a) the external environment reward r ext , (b) the imitation bonus r im = \u2212 log D \u03c6 (s, a) which is derived from the discriminator and (c) the exploration bonus r exp = f (s) \u2212 f (s) 2 which is given by the predictor network. It does not make sense to directly sum up these rewards, as the imitation bonus and exploration bonus guides the agent to different directions. Instead, we use an dynamically adaptive reward",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Explore-then-Exploit Framework"
+        },
+        {
+            "text": "where \u03bd controls the ratio between exploration and self-imitation. The parameter \u03bd is explicitly assigned to 0 or 1 to prevent these two terms from interfering with each other. In the exploration stage, we set \u03bd = 1 to completely eliminate the effect of self-imitation, which allows the agent to freely explore the environment. While in the self-imitation stage, we set \u03bd = 0 to make the agent purely rely on Fig. 2 . Heuristic method which sets \u03bd = 1 for the first 3 \u00d7 10 5 steps and sets \u03bd = 0 for the remaining time the imitation bonus. As such, the agent will quickly converge to a local optimum and begin to explore again when it switches back to the exploration stage.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 409,
+                    "end": 415,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Explore-then-Exploit Framework"
+        },
+        {
+            "text": "It is crucial to determine when to assign the ratio \u03bd to 0, which implies the self-imitation stage, or vice versa. In this work, we introduce a heuristic method that works well in the underlying benchmarks. We assign the ratio \u03bd as a square wave with period T and duty cycle d. A particular setting T = 10 6 and d = 25% is used throughout the paper, which is shown in Fig. 1 . Another method is to set the agent in the exploration stage for certain steps in the beginning and switch to the self-imitation stage for the remaining time, as shown in Fig. 2 . We found that by doing so, the agent often leads to superior performance.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 368,
+                    "end": 374,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 547,
+                    "end": 553,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                }
+            ],
+            "section": "Explore-then-Exploit Framework"
+        },
+        {
+            "text": "Our framework only involves the reward interpolation, and thus can be plugged into any actor-critic based algorithm such as A2C [11] or PPO [16] . We demonstrate the combination of our method with PPO in Algorithm 1. Note that the rewards used to determine the ranking of the trajectories stored in the replay buffer do not include the exploration bonuses. More specifically, the total trajectory reward is defined as R = \u221e t=0 r ext t . ",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 140,
+                    "end": 144,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Explore-then-Exploit Framework"
+        },
+        {
+            "text": "The experiments are designed to answer the following questions:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments and Results"
+        },
+        {
+            "text": "1. Is EE better than running RND or GASIL alone? 2. Is the RND exploration bonus itself necessary, or a random exploration also works? 3. Is the effect of interleaving fashion critical?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments and Results"
+        },
+        {
+            "text": "We evaluated our method on several OpenAI Gym [3] MuJoCo continuous control tasks. The specs of environments used are listed in Table 1 . All of the benchmarks were modified as episodic reward environments, which means that rather than providing the per timestep reward r t , we provided the whole episode reward R = \u221e t=0 r t at the last step of an episode and zero rewards in other steps. We implemented the following agents based on this PPO implementation [17] :",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 49,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 460,
+                    "end": 464,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 128,
+                    "end": 135,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "-PPO: The proximal policy optimization [16] baseline.",
+            "cite_spans": [
+                {
+                    "start": 39,
+                    "end": 43,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "-PPO + RND: PPO combined with RND bonus [5] .",
+            "cite_spans": [
+                {
+                    "start": 40,
+                    "end": 43,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "-PPO + GASIL: PPO combined with GASIL [7] .",
+            "cite_spans": [
+                {
+                    "start": 38,
+                    "end": 41,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "-EE interval : Our method where \u03bd is assigned to be the square wave with period 10 6 and duty cycle 25%. -EE first exp: Our method where \u03bd is assigned to be 1 for the first 3 \u00d7 10 5 steps and to be 0 for the remaining steps.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "The hyperparameters used in our experiments are shown in Table 2 . Every feed-forward networks including the actor-critic network, the discriminator and the predictor has 2 hidden layers with 64 neurons. Note that the parameter \u03b1 is only used in PPO + GASIL, not in EE. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 57,
+                    "end": 64,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Implementation Details"
+        },
+        {
+            "text": "We first evaluated 5 types of agents on 6 MuJoCo tasks. The result in Fig. 3 shows that EE performs better than all of the baseline on Walker2d, Hopper and HalfCheetah, and performs comparably with GASIL on Swimmer. This is because the Swimmer task is relatively simple that exploration is not even necessary. However, on more complicated tasks such as Walker2d and Hopper, the benefit of integrating exploration and self-imitation is significant. For Ant and Humanoid, all of the 5 agents fail to learn a meaningful policy. This is mainly due to the high dimensions of the observation space, which makes the networks difficult to train.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 70,
+                    "end": 76,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Episodic MuJoCo"
+        },
+        {
+            "text": "In Fig. 3 , we see that the EE interval has an obvious performance drop when the agent is in the exploration stage and begins to climb again when it switches back to the self-imitation stage. This is the expected behavior since the agent tends to select unpredictable behavior, which potentially causes early termination of an episode. Unfortunately, EE interval performs slightly worse than EE first exp, which seems to indicate that the interleaving one does not have the advantage over the non-interleaving one. One possible reason is that MuJoCo environments do not have the sequentially dependent structure, which means that reliably producing certain rewards does not make it easier to obtain the subsequent rewards. In this case, it is not beneficial at all to first converge to a good policy and then begin to explore from that state. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 9,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Episodic MuJoCo"
+        },
+        {
+            "text": "In Fig. 3 , it should be noticed that adding the RND bonus alone does not take any notable effect, which gives rise to the question of the effectiveness of RND. We carried out another experiment to investigate this phenomenon. We modified the behavior of EE first exp agent in the exploration stage as follows: no exp indicates that the RND bonus is removed from the reward interpolation, which means that the agent only relies on external reward r ext ; random exp indicates that the agent always takes a random action; EE first exp remains unchanged. The result in Fig. 4 shows that integrating GASIL with RND indeed amplifies the effect of exploration compared to a purely random one. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 3,
+                    "end": 9,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 567,
+                    "end": 573,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Effect of RND"
+        },
+        {
+            "text": "To justify the statement that directly mixing the imitation bonus and exploration bonus results in poor performance, we modified the reward interpolation to be r = \u03b1 r im + (1 \u2212 \u03b1) r ext + \u03b2r exp where \u03b1 was fixed at 0.8 throughout the experiment, and \u03b2 coefficient was set to be {1, 2, 4, 8, 16} respectively. This agent is referred to as direct. Figure 5 shows that direct method with \u03b2 = 1 performs much the same as GASIL, which points out the fact that imitation bonus is likely to dominate the outcoming policy when given similar weights. Furthermore, the performance drops when setting higher weights on exploration bonus. This result again demonstrates that mixing different behavior will bring about inferior performance. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 348,
+                    "end": 356,
+                    "text": "Figure 5",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Direct Interpolation"
+        },
+        {
+            "text": "In this paper, we proposed Explore then Exploit (EE), a novel framework that combines GASIL and RND in a form of reward interpolation, and provided a heuristic way to interleaves between exploration and self-imitation stage. We demonstrated that EE significantly improves over existing single-agent methods on several continuous control tasks with episodic rewards. We also empirically justified our hypothesis that separating the objectives of exploration and imitation is better than mixing them together. Developing appropriate ways to automatically adjust the ratio between exploration and imitation will be an important future work. Further, we will apply our framework to more complicated environments such as Atari.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Surprise-based intrinsic motivation for deep reinforcement learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Achiam",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sastry",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1703.01732"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Unifying count-based exploration and intrinsic motivation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bellemare",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Srinivasan",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ostrovski",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schaul",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Saxton",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Munos",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sugiyama",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Luxburg",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Guyon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "29",
+            "issn": "",
+            "pages": "1471--1479",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Openai gym",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Brockman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Largescale study of curiosity-driven learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Burda",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Edwards",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Pathak",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Storkey",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1808.04355"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Exploration by random network distillation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Burda",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Edwards",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Storkey",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Klimov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.12894"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Learning self-imitating diverse policies",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Gangwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1805.10309"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Generative adversarial self-imitation learning",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Oh",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1812.00950"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Generative adversarial imitation learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ho",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ermon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "4565--4573",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Amplifying the imitation effect for reinforcement learning of UCAV's mission execution",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.05856"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Asynchronous methods for deep reinforcement learning",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Mnih",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1928--1937",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Self-imitation learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Oh",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "3875--3884",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Count-based exploration with neural density models",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ostrovski",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Bellemare",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Van Den Oord",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Munos",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning",
+            "volume": "70",
+            "issn": "",
+            "pages": "2721--2730",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Curiosity-driven exploration by self-supervised prediction",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Pathak",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Agrawal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "The IEEE Conference on Computer Vision and Pattern Recognition (CVPR) Workshops",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "High-dimensional continuous control using generalized advantage estimation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schulman",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Moritz",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Levine",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Jordan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Abbeel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1506.02438"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Proximal policy optimization algorithms",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Schulman",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wolski",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Dhariwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radford",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Klimov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1707.06347"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Modularized implementation of deep RL algorithms in PyTorch",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Shangtong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Incentivizing exploration in reinforcement learning with deep predictive models",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Stadie",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Levine",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Abbeel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1507.00814"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "MuJoCo: a physics engine for model-based control",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Todorov",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Erez",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tassa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "2012 IEEE/RSJ International Conference on Intelligent Robots and Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "5026--5033",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Square wave with period 10 6 and duty cycle 25%.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Learning curves for PPO, RND, GASIL, and our method EE with two different scheduling on 6 OpenAI MuJoCo tasks with episodic rewards. Mean and standard deviation over 5 random seeds are plotted.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Learning curves for EE with 3 different exploration behaviors on 3 MuJoCo tasks. Mean and standard deviation over 5 random seeds are plotted.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Learning curves for agents with two types of reward interpolation trained on 3 MuJoCo tasks. Mean and standard deviation over 5 random seeds are plotted.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Update B by the full trajectory stored in E associated with the episode reward R = \u221e t=0 r ext",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "State and action space of OpenAI Gym MuJoCo tasks",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "EE hyperparameters on MuJoCo.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgements. The authors would like to thank Dr. Kuan-Ting Lai for his helpful comments which improve the presentation of this paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        }
+    ]
+}

@@ -1,0 +1,1365 @@
+{
+    "paper_id": "e6a3779b476d944ef2f2365f66cb8a6ca6a62049",
+    "metadata": {
+        "title": "Mining Dynamic Graph Streams for Predictive Queries Under Resource Constraints",
+        "authors": [
+            {
+                "first": "Xuanming",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts",
+                    "location": {
+                        "settlement": "Lowell",
+                        "country": "USA"
+                    }
+                },
+                "email": "xliu@cs.uml.edu"
+            },
+            {
+                "first": "Tingjian",
+                "middle": [],
+                "last": "Ge",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Massachusetts",
+                    "location": {
+                        "settlement": "Lowell",
+                        "country": "USA"
+                    }
+                },
+                "email": "ge@cs.uml.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Knowledge graph streams are a data model underlying many online dynamic data applications today. Answering predictive relationship queries over such a stream is very challenging as the heterogeneous graph streams imply complex topological and temporal correlations of knowledge facts, as well as fast dynamic incoming rates and statistical pattern changes over time. We present our approach with two major components: a Count-Fading sketch and an online incremental embedding algorithm. We answer predictive relationship queries using the embedding results. Extensive experiments over real world datasets show that our approach significantly outperforms two baseline approaches, producing accurate query results efficiently with a small memory footprint.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The knowledge graph model is widely used to represent online data [5, 13, 15] . It consists of (h, r, t) triples, where h is the head entity, t is the tail entity, and r is their relationship. Each triple is called a knowledge fact, and there are typically multiple types of vertices and relationships. With an ever-increasing amount of ubiquitous data captured online, this model also provides rich structural semantics to data streams. For example, in communication networks, road traffic graphs, and user-product-purchase real-time graphs used by companies such as Amazon [4] , dynamic knowledge facts stream in. Thus, the model comprises a dynamic portion which is a graph stream [18] -a sequence of knowledgefact edges with timestamps, as well as an optional static graph portion.",
+            "cite_spans": [
+                {
+                    "start": 66,
+                    "end": 69,
+                    "text": "[5,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 70,
+                    "end": 73,
+                    "text": "13,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 74,
+                    "end": 77,
+                    "text": "15]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 575,
+                    "end": 578,
+                    "text": "[4]",
+                    "ref_id": null
+                },
+                {
+                    "start": 684,
+                    "end": 688,
+                    "text": "[18]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Let us look at some examples. Traffic and commute are an integral part of people's life. Dense and dynamic traffic data has been collected and made available online as a service, such as the New York taxi cab data [2] . It contains taxi trip information, including pick-up and drop-off locations, trip start time and duration, number of passengers, among others.",
+            "cite_spans": [
+                {
+                    "start": 214,
+                    "end": 217,
+                    "text": "[2]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This knowledge graph stream is illustrated in Fig. 1(a) . We partition the whole geographic area into a dense grid, where each vertex corresponds to a 0.5 mile by 0.5 mile square area. Two neighboring vertices are connected by a static thin edge in the figure, indicating the \"proximity\" relationship (an undirected edge is treated as two directed edges in both directions). The bold red edges denote trip information, i.e., from a grid point to another during a time interval. These are dynamic edges and can be of two relationships: \"fast\", or \"slow\" (compared to past statistics).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 46,
+                    "end": 55,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "As an example in a different domain, companies, e.g., Amazon, are collecting information about users, product items, purchase/rating history as online data for business and service. Another example is dynamic movie rating and tagging as in MovieLens [1] , illustrated in Fig. 1(b) . There are four types of vertices-users, movies, genres, and tags, and four relationship types: movie \u2192 genre (black solid edges), movie \u2192 tag (green dashed edges), user \"likes\" a movie (red solid edges), and user \"dislikes\" a movie (red dashed edges), with the former two being static and the latter two being dynamic with timestamps.",
+            "cite_spans": [
+                {
+                    "start": 250,
+                    "end": 253,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 271,
+                    "end": 280,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Predictive Relationship Queries. Given a knowledge graph stream, we focus on predictive relationship queries. As in previous work such as [13] , we follow the local closed world assumption: for a target knowledge (h, r, t) not in the graph, if there exists (h, r, t ) where t = t, then we consider (h, r, t) as false; otherwise it is unknown-indeed, knowledge facts are too abundant and a system may not have the time/resource to acquire all. The relationship queries are based on the predictive results of unknown edges; the details are in Sects. 2 and 4. To see a simple example, for relationship temporal joins, in Fig. 1(a) , one may be interested in querying the correlation of two trips over time-when each trip's fastness/slowness property is treated as a sequence. The result of such queries would be useful for traffic planning and management.",
+            "cite_spans": [
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[13]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 618,
+                    "end": 627,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "Resource Constraints. In Fig. 1(a) , the number of vertices can be thousands or millions in a large area, and the total number of edges can be a quadratic function of that. Likewise in Fig. 1(b) , there is a large number of high-rate concurrent purchases and rating edges. There are always resource constraints for real-time stream processing. In order to answer queries online in real time, we may only access a limited amount of memory, and cannot afford to access disks. This is more so with the trend of edge computing [14] , where more processing is pushed to smaller or less powerful devices at the edge of a cloud system. Furthermore, even in memoryabundant server environment, sketches are needed as a small, lightweight component for approximate analysis within a broader stream processing pipeline [9] . Sharing similar motivations as ours, sketches are used for predictive linear classifiers over data streams [21] .",
+            "cite_spans": [
+                {
+                    "start": 523,
+                    "end": 527,
+                    "text": "[14]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 808,
+                    "end": 811,
+                    "text": "[9]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 921,
+                    "end": 925,
+                    "text": "[21]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 25,
+                    "end": 34,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 185,
+                    "end": 194,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "We first devise a novel sketch called a Count-Fading (CF) sketch (Sect. 3); then we extend previous work on knowledge graph embedding [22] to the context of graph streams, using CF. This in turn helps us answer relationship queries (Sect. 4). Finally, we perform comprehensive experiments that demonstrate the effectiveness and efficiency of our solution (Sect. 5).",
+            "cite_spans": [
+                {
+                    "start": 134,
+                    "end": 138,
+                    "text": "[22]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Related Work. Sketches, as data summaries, have been studied for data streams. It starts from Bloom filters [6] . Later ones include AMS sketch [3] and Count-Min (CM) sketch [12] . There has also been attempt to add time decay into a sketch. Cafaro et al. [10] combine a \"forward decay\" model with CM sketch and a Spacing-Saving algorithm to solve the problem of mining frequent items. Our CF sketch is significantly different from previous work, and targets a completely different problem-serving dynamic graph stream embedding. We study the choice of sketch size based on dynamic incoming rate and allowed false-positive rate. Moreover, CF sketches dynamically grow/shrink in response to the fluctuation of stream rates, which has not been addressed in previous work.",
+            "cite_spans": [
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "[6]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[3]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 174,
+                    "end": 178,
+                    "text": "[12]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 256,
+                    "end": 260,
+                    "text": "[10]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Knowledge embedding refers to a technique that models multi-relational data by constructing latent representations for entities and relationships. Researchers developed translation-based embedding model to jointly model entities and relationships within a single latent space, such as translational embedding (transE) [7] , translation on hyperplanes (transH) [23] , and relation-specific entity embedding (transR) [16] . However, graph stream embedding is an open problem [11] . Our work is an endeavor towards this direction. Moreover, we target a more diverse set of predictive relationship queries than link prediction. To our knowledge, these have not been studied before.",
+            "cite_spans": [
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "[7]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 360,
+                    "end": 364,
+                    "text": "[23]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 415,
+                    "end": 419,
+                    "text": "[16]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 473,
+                    "end": 477,
+                    "text": "[11]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "where V is the set of vertices, E s is a set of static edges, E d is a set of dynamic edges, and R is a set of relationships. Every edge e \u2208 E d has a timestamp ts(e) corresponding to the edge's arrival time. Each edge e \u2208 E s \u222a E d is in the form of (h, r, t), where h \u2208 V and t \u2208 V are called the head and tail, respectively, and r \u2208 R is a relationship. Given G, we answer predictive relationship queries below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "A basic one is local relationship queries. At time t, given vertices u, v \u2208 V , and a relationship r \u2208 R, a local relationship query asks for the probability that a knowledge fact (u, r, v) holds at time t. Another close one is called a relationship ranking query. Given multiple edges (u 1 , r 1 , v 1 ), ..., (u k , r k , v k ) (e.g., a special case is r 1 = r 2 = ... = r k ), the query asks to rank these k predictive edges in the order of their probabilities. We call the above two types basic predictive relationship queries. In Sect. 4, we also discuss relationship temporal joins, user defined relationships, and global relationship queries as extended types.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "Basic Scheme. We devise a novel time-adaptive dynamic-size sketch based on the Count-Min (CM) sketch [12] , and call it a Count-Fading (CF) sketch. Some background on CM is in the Supplementary Material [17] . CF significantly extends the CM in Fig. 2(a) . Our goal is to track ever-increasing continuous counts of items (knowledge fact edges), with higher weights for recent ones. Secondly, we need our sketch to last, remaining low errors, and adapt to data stream bursts. As illustrated in Fig. 2(b) , CF has dynamic versions that grow/shrink over time. Let us first focus on a single version, version 1 in Fig. 2 (b) (to the left of a vertical divider corresponding to time up to some value T 1 ). Each row i corresponds to a hash function h i (1 \u2264 i \u2264 d), and there are w 1 columns for version 1. Each cell has two fields, a count c \u2208 R and a timestamp t. By design, logically, at each time step, we deduct 1 from the count c in each cell of the CF with probability p \u2212 . Intuitively, old counts decay over time, while new counts keep being added-so our embedding learning will be adaptive. Additionally, as shown below, it has an important purpose-the count errors become bounded and fade out with time, in contrast to the unbounded/accumulated errors without the fading. However, it is too costly to update all the counts at every time step. We defer the deductions and batch them until a particular cell is needed. This is achieved by adding a \"time\" field to each cell (t in Fig. 2(b) ), indicating the last time step when the count c is up to date.",
+            "cite_spans": [
+                {
+                    "start": 101,
+                    "end": 105,
+                    "text": "[12]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 203,
+                    "end": 207,
+                    "text": "[17]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 245,
+                    "end": 254,
+                    "text": "Fig. 2(a)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 493,
+                    "end": 502,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 610,
+                    "end": 616,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 1484,
+                    "end": 1493,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "To increment the count of an item x, we first locate the cell in row i and column h i (x) mod w 1 , for each 1 \u2264 i \u2264 d. For each of these d cells with content (c, t), we update its c to max(\u03b5, c \u2212 p \u2212 \u00b7 (t now \u2212 t)) + 1 and its t to t now , where t now is the current time, and \u03b5 is a tiny constant (e.g., 0.01). Similarly, tolook up the count of an item x, for each of those d cells, we get a count max(\u03b5, c\u2212p \u2212 \u00b7(t now \u2212t)), and update its t to t now . The minimum of these d values is returned. We save the update cost by batch updates using expectations, sufficient for our incremental embedding. The reason for the constant \u03b5 is to record the fact that the edge did once exist. We hash a triple (u, r, v) for an item. We may choose to clear \u03b5 cells to 0 after a certain amount of time. We now quantify the errors from CF. The proofs of all theorems are in the technical report [17] . Theorem 1. Let the load factor of a CF (i.e., the fraction of cells that are nonzero) be \u03c1, and the graph stream edge incoming rate be \u03bb per time step. Then the probability that the count of an item x has any error is \u03c1 d . Moreover, the probability that the error is greater than \u03b1 is no more than ( \u03bbwp\u2212+\u03bb 2 2w 2 \u03b1p\u2212 ) d .",
+            "cite_spans": [
+                {
+                    "start": 882,
+                    "end": 886,
+                    "text": "[17]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "Dynamic Growth/Shrinkage. We propose the dynamic growth/shrinkage of CF based on the incoming rate. The basic idea is to make CF \"elastic\" to the incoming edge rate \u03bb and the required load factor \u03c1. Intuitively, when the stream rate is high, we increase the width of CF, as illustrated in version 2 in Fig. 2(b) , and decrease the width when the rate is too low.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 302,
+                    "end": 311,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "Theorem 2. Setting the width of CF sketch to w = \u03bb \u03c1p\u2212 gives an expected load factor \u03c1 of the sketch, where the graph stream average input rate is \u03bb edges per time step, and p \u2212 is the fading parameter.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "We start with width w 1 as shown in Fig. 2(b) . When Theorem 2 suggests a w > w 1 , we increase it to w 2 = 2w 1 . Later on, when we access an edge e in version 1, we get the count c e of e from version 1 as before, and deduct c e from each of the d cells in version 1 for e. Then we add e with count c e into version 2. Each version i is associated with a cut-off timestamp T i , i.e., version i contains edges inserted up to time",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 36,
+                    "end": 45,
+                    "text": "Fig. 2(b)",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "where t now is the current time, and c max is the maximum count of any cell in version i. Intuitively, it is the time when the maximum cell count fades to 0. The version sequence can either grow or shrink (i.e., halve in width) from version i to version i + 1, depending on the change direction of \u03bb. At any time we keep at most k versions (e.g., k = 5). When we look up the count of an edge, we examine the versions in reverse order starting from the latest, and return the count as soon as it is found to be non-zero. We increase p \u2212 according to Theorem 2 if we reach the memory constraint.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A Count-Fading Sketch"
+        },
+        {
+            "text": "To answer predictive relationship queries, we devise a general method based on graph embedding. However, it is an open problem to do embedding for dynamic graphs or graph streams [11] . There are a number of embedding algorithms for static knowledge graphs, including TransE, TransH, and TransR, among others [22] , and the list is still growing. However, this is an orthogonal issue, as our techniques are independent and can be readily plugged into any of them. For clarity, we present our techniques with TransE [7] . Let us start with the static knowledge graph embedding. The goal is to give an embedding vector (e.g., a vector of 100 real values) to each node in the knowledge graph, as well as to each relationship. The idea is to convert a knowledge fact edge (u, r, v) in the training set into a soft constraint u + r = v. Thus, the following conditional probability is a key component of our objective function:",
+            "cite_spans": [
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[11]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[22]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 515,
+                    "end": 518,
+                    "text": "[7]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Stream Embedding and Query Answering"
+        },
+        {
+            "text": "Intuitively, if nodes u and v satisfy the relationship r, then the vector u + r should be close to vector v; hence the numerator in Eq. 1 should be large, and the conditional probability is high. We optimize the log likelihood of the observed ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Graph Stream Embedding and Query Answering"
+        },
+        {
+            "text": "Our goal is to perform online, adaptive, and incremental graph embedding as edges stream in, as an anytime algorithm [25] . Any memory constraint must also be satisfied. Thus, we maintain the following data structures: (1) the embedding vectors of each node and each relationship type, (2) the top-m edges E m with respect to the accumulated counts, and (3) the CF sketch of all edges. We use a CF sketch to hash stream edges, and maintain an accumulated/decayed count for each edge. In addition, using a priority queue, we maintain a buffer that consists of the top-m edges with the highest dynamic counts. The algorithm is in OnlineKGStreamEmbedding.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[25]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Stream Embedding and Query Answering"
+        },
+        {
+            "text": "Lines 3-5 of the algorithm maintain the top-m edge buffer E m . The loop in lines 6-20 performs stochastic gradient descent (SGD) [8] to optimize Eq. 2, using both positive samples (stream edges) and negative samples [19] . The loop continues as time allows; when a new edge arrives, the algorithm will pause the loop and handle the new edge first, before returning to SGD loops. The sets N + and N \u2212 in line 7 are for positive and negative edges, respectively. In lines 10-12, with some probability we sample a static edge that intersects with either node x or node y. E S (x) denotes the set of static edges with one endpoint being x, which are neighbors of the current dynamic edge used in optimization. Lines 17-18 follow the aforementioned local closed world assumption [13] -the unobserved (x, r, y ) is considered negative since we have (x, r, y) in the stream. In line 19, k \u2212 is the number of negative edges required in each round. Line 20 does the SGD update based on Eq. 2, where \u03c3(x) = 1 1+e \u2212x is the sigmoid function. The following lemma follows from the edge buffer maintenance of the algorithm.",
+            "cite_spans": [
+                {
+                    "start": 130,
+                    "end": 133,
+                    "text": "[8]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 217,
+                    "end": 221,
+                    "text": "[19]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 775,
+                    "end": 779,
+                    "text": "[13]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Graph Stream Embedding and Query Answering"
+        },
+        {
+            "text": "In summary, our algorithm prioritizes the top-m edges based on the decayed counts for adaptive and incremental embedding. Importantly, CF keeps the counts of all edges, not just those in top-m, which is essential as we need to know if an edge is negative for the negative sampling.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Lemma 1. The edges in the top-m store are always the edges with top-m highest expected weight conditioned on all the readings of edges from the CF."
+        },
+        {
+            "text": "Based on the embedding, we now discuss several types of analytical predictive queries. The first two types are closely related, namely local relationship queries and relationship ranking queries. Their formal semantics are already presented in Sect. 2. An example of relationship ranking query in Fig. 1(a) is to rank several trips from one source node (e.g., home) to several destination nodes based on the probabilities of being slow. Or for the same pair nodes, rank the probabilities that the trip will be slow versus fast. To answer such queries, we use the embedding vectors and Eq. 1, where the denominator is estimated based on negative sampling discussed earlier (i.e., estimating the average of exp((u + r) \u00b7 v ), and hence the sum). For ranking we may only need to compare the numerators when the denominators are the same.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 297,
+                    "end": 306,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Answering Predictive Queries."
+        },
+        {
+            "text": "We also find it useful to answer relationship temporal join queries. Such a query asks for the correlation of these two predictive edges (relationships) over time. Specifically, every \u0394t time, r is either true or false for (u 1 , v 1 ), giving us a binary sequence s 1 . Similarly, we get another binary sequence s 2 for (u 2 , v 2 ) at the same time. Then the query asks to measure the correlation/similarity between s 1 and s 2 . For example, in Fig. 1(a) , we may want to find out the temporal correlation between the traffic of a pair of locations (l 1 , l 2 ) and (l 3 , l 4 ), helpful for traffic analysis, planning, and management. To answer such a query, at every \u0394t time, we estimate the probabilities that (u 1 , r, v 1 ) and (u 2 , r, v 2 ) hold using the embedding vectors. Then we can use Pearson correlation coefficient [20] to measure their similarity. Alternatively, we compare the binary sequences s 1 and s 2 using the Sokal-Michener similarity [24] , which is defined as S11+S00 N , where N is the length of the two sequences, and S 11 (resp. S 00 ) is the number of time instants when both values are true (resp. false).",
+            "cite_spans": [
+                {
+                    "start": 834,
+                    "end": 838,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 963,
+                    "end": 967,
+                    "text": "[24]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 448,
+                    "end": 457,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Answering Predictive Queries."
+        },
+        {
+            "text": "A novel type of analytical predictive query that we study is based on what we call a user defined relationship (UDR). A user may first define a new relationship r, based on existing ones. Then the system learns the embedding vectors of r along with other relationships and nodes to answer queries. For instance, in Fig. 1(b) , one may define a relationship (user, tag) which indicates that the user likes movies bearing the tag. Essentially this corresponds to a two-edge path in the original graph. UDR gives users flexibility and convenience in querying novel relationships.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 315,
+                    "end": 324,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Answering Predictive Queries."
+        },
+        {
+            "text": "Finally, we also extends our study to what we call global relationship queries. The idea is that we treat each relationship as a relational table with three columns: from (vertex), to (vertex), and time. Each observed edge corresponds to one tuple in one of the tables. Thus, each table has an observed part and an extended part predicted to be likely (e.g., from embedding vectors). Such queries would be useful for a global view of relationships. In the example in Fig. 1(b) , a global query may ask the fraction of the user population who will \"like\" a particular movie, which may include both the observed and predicted tuples. The result can be estimated by sampling all user nodes and performing a local relationship query with the movie node. One may also ask a join query between two such global tables. We have more examples in the experiment section.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 467,
+                    "end": 476,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Answering Predictive Queries."
+        },
+        {
+            "text": "We use two real datasets, New York taxi data and movie data as described in Sect. 1 (Fig. 1) . Some statistics are shown in Table 1 . We implement all the algorithms in Java (with maximum heap size 256 MB), as well as two baseline algorithms described below. For graph embedding, as in previous work [7] , we use a default dimensionality of 50 and a learning rate of 0.01. The experiments are performed on a MacBook Pro machine with OS X version 10.11.4 and a 2.5 GHz Intel Core i7 processor. ",
+            "cite_spans": [
+                {
+                    "start": 300,
+                    "end": 303,
+                    "text": "[7]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 84,
+                    "end": 92,
+                    "text": "(Fig. 1)",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 124,
+                    "end": 131,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Datasets and Setup"
+        },
+        {
+            "text": "We first use the taxi data, preprocessed as described in Sect. 1 (for Fig. 1(a) ), to evaluate local queries. For predictive local queries, in every 1000 incoming edges, we predict 20 edges uniformly at random-whether an edge is a fast trip (the algorithms have a warm start after running the first 10,000 edges). We remove all the occurrences of these 20 test edges from the dataset when answering queries.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 70,
+                    "end": 79,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "We compare against two baseline algorithms. Baseline 1 performs embedding without using edge time information, as in previous work-note that, although there is no absolute winner of link prediction for all applications, network embedding is currently considered as the state-of-the-art method for link prediction [11] . For each type of edge, it stores the occurrence count as the weight, which is used for weighted sampling of edges for iterative training. Baseline 2 maintains a sliding window of the most recent edges (using the same amount of memory as our approach), and iteratively performs embedding over those edges. We vary the edge inter-arrival time and show the result accuracy in Fig. 3 . As our query processing is an anytime algorithm, the inter-arrival time specifies a time budget, exploring the tradeoff between efficiency and accuracy. Our method has an accuracy between 0.85 and 0.9, and the accuracy improves when the edge inter-arrival time increases because there is time for more iterations over the SGD optimization. The improvement eventually levels off as the iterations near convergence. Our method has a clear advantage over the two baselines. Baseline 1 is inaccurate because it does not consider the trip property's dynamic changes over time. Baseline 2, although on a sliding window, does not use CF sketch, and hence it only has very limited edge temporal count information. For instance, for negative sampling, it lacks information on which edges are negative. Likewise, we work with the movie data, and define two static relationshipsmovie \u2192 its genres and movie \u2192 its tags with a relevance score at least 0.9. Most of the edges are dynamic with a timestamp-a user's rating to a movie. We define two relationships: a user \"likes\" a movie if the rating is at least 4 (in the range [0, 5.0]); a user \"dislikes\" a movie if the rating is \u2264 2. We predict the \"like\" relationship. The result is in Fig. 4 , varying the number of edges in the edge buffer. Again our method has a clear advantage over the two baselines for the same reason. All the three algorithms have slightly better accuracy than the taxi data. This is because the taxi data is even more dynamic with faster changes, and is hence harder to predict.",
+            "cite_spans": [
+                {
+                    "start": 313,
+                    "end": 317,
+                    "text": "[11]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 693,
+                    "end": 699,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1927,
+                    "end": 1933,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Baselines."
+        },
+        {
+            "text": "We now examine relationship ranking queries, first with taxi data. As a trip edge e = (u, v) comes in, we take its from vertex u. In subsequent edges, we take the first two edges that also start from u, i.e., edges e = (u, v ) and e = (u, v ). Our relationship ranking query is to rank e, e , and e in the order of their \"fastness\" (relative to the average statistics). We answer the predictive query by removing the three edges from data. Since the query result is a permutation of three edges, we define a metric for result accuracy: 1 \u2212 inv P , where P = 3 2 = 3 is the total number of pairs out of the three edges, and inv is the number of pair-wise inversions between query result and ground truth. For instance, if the ground truth ranking is e, e , e , while the query result ranking is e , e, e , then the accuracy is 1 \u2212 1 3 = 2 3 , as there is only one pair (e, e ) whose order is inverted in the query result. In Fig. 5 , we show the average ranking query result accuracy over 200 such queries. The accuracy from our method is significantly higher than the two baselines. One thing to note is that all three methods' accuracy for relationship ranking queries is slightly lower than that of the local queries. This is because relationship ranking result involves multiple pairs of edges and is more difficult to be all correct. Similarly, we show the ranking query result accuracy for movie data in Fig. 6 , where we vary the edge buffer size. We next examine temporal joins, user defined relationships, and global relationship queries. We begin with temporal joins using taxi data. We randomly pick a pair of trips (edges), e.g., (e 1 , e 2 ). Then the query measure the correlation between e 1 and e 2 over time-between the two binary variables indicating whether they are \"slow\". We use the Sokal-Michener similarity [24] as described in Sec. 4. We repeat the query for five random pairs of trips, and show the result in Fig. 7 from our method, compared to the ground truth. Our result is accurate, due to the fact that our dynamic graph embedding using CF and top-m edges adaptively captures the edge transitions.",
+            "cite_spans": [
+                {
+                    "start": 1830,
+                    "end": 1834,
+                    "text": "[24]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 924,
+                    "end": 930,
+                    "text": "Fig. 5",
+                    "ref_id": null
+                },
+                {
+                    "start": 1409,
+                    "end": 1415,
+                    "text": "Fig. 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 1934,
+                    "end": 1940,
+                    "text": "Fig. 7",
+                    "ref_id": null
+                }
+            ],
+            "section": "Baselines."
+        },
+        {
+            "text": "We now study UDR queries with movie data, and define a relationship (user,tag) to indicate that user likes a movie bearing tag. This is a two-edge path. We arbitrarily pick five tags \"thriller\", \"fight scenes\", \"technology\", \"funny\", and \"touching\", and evaluate the five queries for users seen in the stream. Once a UDR is defined, the rest is similar to a local query using the auxiliary edge. The accuracy results are in Fig. 8 . Last we study global queries. For movie data, we query the fraction of the user population who will \"like\" a particular movie. The result is estimated by sampling all user nodes and performing a local relationship query with the movie node. We arbitrarily pick three movies, \"Titanic\", \"Leaving Las Vegas\", and \"Mission Impossible II\", and show the result in Fig. 9 (the first bar of each movie). We also compare it against the ratio calculated from the dataset but only based on those users who gave a rating to the movie (the second bar of each movie). The query results are all slightly smaller than those calculated from the users who rated the movies. A possible reason is that those who rated a movie were motivated to watch the movie in the first place, and hence had a higher chance to like the movie than the general population.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 424,
+                    "end": 430,
+                    "text": "Fig. 8",
+                    "ref_id": null
+                },
+                {
+                    "start": 792,
+                    "end": 798,
+                    "text": "Fig. 9",
+                    "ref_id": null
+                }
+            ],
+            "section": "Baselines."
+        },
+        {
+            "text": "Similarly, using taxi data, we query the fraction of all possible (source, destination) pairs that are slow at some point within a time period of 10 min. We estimate the result of this query by sampling a pair of location nodes. Figure 10 shows the results for three time periods (first bar of each time period), where we also compare with the ratio of slow trips among those that are reported during that time period in the dataset. The estimated ratios are slightly higher, with the intuition that a randomly picked pair is more likely to hit a slow link. We next look into the memory footprint. The results for movie data are in Fig. 11 and 12 as we vary the edge arrival rate and the edge buffer size, respectively, and in Fig. 13 and 14 for the taxi data. For both datasets, as the edge arrival rate increases, the width of CF also increases, and so does the memory footprint. In general, the movie data has a higher memory footprint than taxi data. This is because the movie data has significantly more vertices. Hence, with the movie data, more vertices tend to be loaded into memory, along with the embedding vectors of each vertex. Overall, our approach has a very small footprint. Finally, we evaluate the usage of CF in our scheme, compared to the off-the-shelf CM sketch. We examine the result accuracy of local relationship queries for the movie data in Fig. 15 , and for the taxi data in Fig. 16 . Using CF gives much more accurate results. This is because CM always accumulates its counts in each cell, and the false positive errors are never erased, compromising its accuracy. In addition, it does not dynamically adjust its size as CF does.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 229,
+                    "end": 238,
+                    "text": "Figure 10",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 632,
+                    "end": 646,
+                    "text": "Fig. 11 and 12",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 727,
+                    "end": 734,
+                    "text": "Fig. 13",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1367,
+                    "end": 1374,
+                    "text": "Fig. 15",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1402,
+                    "end": 1409,
+                    "text": "Fig. 16",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Baselines."
+        },
+        {
+            "text": "Knowledge graph streams are a common model for many applications. Predictive relationship queries are important for data analytics. We devise an approach that performs online incremental embedding using a novel sketch. Our approach is general enough to answer many types of predictive relationship queries. The experimental results show that our approach gives accurate query results efficiently and has a small memory footprint.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Movielens data",
+            "authors": [],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "The space complexity of approximating the frequency moments",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Alon",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Matias",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "J. Comput. Syst. Sci",
+            "volume": "58",
+            "issn": "",
+            "pages": "137--147",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Linked data -the story so far",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Bizer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Heath",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Berners-Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Int. J. Semantic Web Inf. Syst",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Space/time trade-offs in hash coding with allowable errors",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Bloom",
+                    "suffix": ""
+                }
+            ],
+            "year": 1970,
+            "venue": "Commun. ACM",
+            "volume": "13",
+            "issn": "",
+            "pages": "422--426",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Translating embeddings for modeling multi-relational data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bordes",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Garcia-Duran",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Yakhnenko",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "2787--2795",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Stochastic learning",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bottou",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bousquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [],
+                    "last": "Von Luxburg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "ML -2003",
+            "volume": "3176",
+            "issn": "",
+            "pages": "146--168",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-28650-9_7"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Summingbird: a framework for integrating batch and online MapReduce computations",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Boykin",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ritchie",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "O&apos;connell",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Mining frequent items in the time fading model",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cafaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Pulimeno",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Epicoco",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Aloisio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Inf. Sci",
+            "volume": "370",
+            "issn": "",
+            "pages": "221--238",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "A comprehensive survey of graph embedding: problems, techniques and applications",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Cai",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "C C"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "TKDE",
+            "volume": "30",
+            "issn": "",
+            "pages": "1616--1637",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "An improved data stream summary: the countmin sketch and its applications",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cormode",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Muthukrishnan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "J. Algorithms",
+            "volume": "55",
+            "issn": "",
+            "pages": "58--75",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Knowledge vault: a web-scale approach to probabilistic knowledge fusion",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Edge-centric computing: vision and challenges. SIGCOMM Comput",
+            "authors": [
+                {
+                    "first": "Garcia",
+                    "middle": [],
+                    "last": "Lopez",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Commun. Rev",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Google inside search",
+            "authors": [
+                {
+                    "first": "",
+                    "middle": [],
+                    "last": "Google",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Learning entity and relation embeddings for knowledge graph completion",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Mining dynamic graph streams for predictive queries under resource constraints",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2020,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Graph stream algorithms: a survey",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mcgregor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "ACM SIGMOD Rec",
+            "volume": "43",
+            "issn": "1",
+            "pages": "9--20",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Note on regression and inheritance in the case of two parents",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Pearson",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proc. R. Soc. Lond. Series I",
+            "volume": "",
+            "issn": "58",
+            "pages": "240--242",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Sketching linear classifiers over data streams",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Tai",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sharan",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bailis",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Valiant",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Knowledge graph embedding: a survey of approaches and applications",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Mao",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "TKDE",
+            "volume": "29",
+            "issn": "12",
+            "pages": "2724--2743",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Knowledge graph embedding by translating on hyperplanes",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "14",
+            "issn": "",
+            "pages": "1112--1119",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Properties of binary vector dissimilarity measures",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Srihari",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Using anytime algorithms in intelligent systems",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zilberstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "AI Mag",
+            "volume": "17",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "(a) Taxi trip information network, (b) dynamic user-movie information graph. (Color figure online)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "(a) A Count-Min sketch, (b) A CF sketch.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "OnlineKGStreamEmbedding (G) Input: G: the graph stream Output: evolving embedding-vectors of nodes and relationships 1 for each incoming edge(u, r, v) \u2208 G do 2 increment the count of (u, r, v) in CF 3 if (u, r, v) / \u2208 Em then 4 if c (u,r,v) > mine\u2208Em ce then 5 add (u, r, v) into Em, and remove one with min e\u2208Em ce 6 while time remains do 7 N + \u2190 \u00d8, N \u2212 \u2190 \u00d8 8 sample an edge (x, r, y) from Em weighted by counts 9 N + \u2190 N + \u222a {(x, r, y)} 10 with probability pS 11 sample edge eS from ES(x) \u222a ES(y) 12 N + \u2190 N + \u222a eS 13 repeat \u2212 \u2190 N \u2212 \u222a {(x, r, y )} 19 until |N \u2212 | = k \u2212 20update node and relationship embeddings w.r.t. the gradients of (x,r,y)\u2208N + log \u03c3((x + r) \u00b7 y) + (x,r,y)\u2208N \u2212 log \u03c3(\u2212(x + r) \u00b7 y) P (v|u, r)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Local Local Relationship rank. (taxi)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Relationship Temporal UDR Global Taxi Memory (movie)",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "CF CF vs CM (taxi)",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "The statistics of the two datasets.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

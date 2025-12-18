@@ -1,0 +1,1174 @@
+{
+    "paper_id": "e0692af66831391452f0c06f19bd869b0d966acd",
+    "metadata": {
+        "title": "A Distributed Coordinate Descent Algorithm for Learning Factorization Machine",
+        "authors": [
+            {
+                "first": "Kankan",
+                "middle": [],
+                "last": "Zhao",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Key Laboratory of Data Engineering and Knowledge Engineering",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "zhaokankan@ruc.edu.cn"
+            },
+            {
+                "first": "Jing",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Key Laboratory of Data Engineering and Knowledge Engineering",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "zhang-jing@ruc.edu.cn"
+            },
+            {
+                "first": "Liangfu",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Key Laboratory of Data Engineering and Knowledge Engineering",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "liangfuzhang@ruc.edu.cn"
+            },
+            {
+                "first": "Cuiping",
+                "middle": [],
+                "last": "Li",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Key Laboratory of Data Engineering and Knowledge Engineering",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "licuiping@ruc.edu.cn"
+            },
+            {
+                "first": "Hong",
+                "middle": [],
+                "last": "Chen",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Key Laboratory of Data Engineering and Knowledge Engineering",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Although much effort has been made to implement Factorization Machine (FM) on distributed frameworks, most of them achieve bad model performance or low efficiency. In this paper, we propose a new distributed block coordinate descent algorithm to learn FM. In addition, a distributed pre-computation mechanism incorporated with an optimized Parameter Server framework is designed to avoid the massive repetitive calculations and further reduce the communication cost. Systematically, we evaluate the proposed distributed algorithm on three different genres of datasets for prediction. The experimental results show that the proposed algorithm achieves significantly better performance (3.8%-6.0% RMSE) than the state-of-the-art baselines, and also achieves a 4.6-12.3\u00d7 speedup when reaching a comparable performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Although there exists some research on adapting FM to the distributed frameworks, the problem remains largely unsolved. As we know, most of them implemented the (stochastic) gradient descent (SGD) to optimize the FM model, which is limited by the appropriate learning rate. Especially when the dataset and model space are quite large, an inappropriate learning rate may waste a lot of time in searching the optimal solution. Although some solutions can adjust the learning rate adaptively, the slow convergence rate is intolerable. Comparing with gradient optimization, coordinate descent (CD) can avoid setting learning rate, which makes CD converge faster and perform better in convex model. Thus, a distributed algorithm for solving FM by the CD algorithm is worth studying.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we propose a novel CD algorithm under the Parameter Server (PS) framework to learn FM model. It divides all the parameters into blocks by the specific blocking scheme, and then updates one block at a time when maintaining the other blocks unchanged. We call this method as Block Coordinate Descent (BCD). It achieves better model performance within the less time.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, the high communication cost and massive repetitive calculations still affect the efficiency of framework. To address the above drawbacks, we design a distributed pre-computation mechanism incorporated with an optimized PS framework, by which we can avoid massive repetitive calculations and reduce the communication cost.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The main contributions of this paper can be listed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We propose a novel distributed BCD method to optimize the FM under the PS. By dividing all the parameters into blocks according to the specific blocking scheme, and updating the parameters in a synchronous way, our proposed approach can achieve better accuracy and efficiency. -We design a distributed pre-computation mechanism incorporated with the optimized PS framework, by which our approach can not only avoid massive repetitive calculations but also reduce the parameter exchanges. -The experimental results show that our algorithm achieves better RMSE performance (3.8%-6.0%) than the state-of-the-art methods, and achieves a 4.6-12.3\u00d7 speedup to obtain a comparable RMSE performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This section describes the FM model and its CD optimization.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Preliminary"
+        },
+        {
+            "text": "Suppose the training set of a prediction problem is formulated by D = {(x, y)}, where each pair (x, y) represents an instance x with p-dimension variables and its target value (or label) y, then a FM model of order d = 2 is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Factorization Machine"
+        },
+        {
+            "text": "where notation w 0 is the global bias, w j models the weight of the j-th variable, and V j represents a k-dimension interaction weight vector of j-th variable. Give each \u03b8 \u2208 (w 0 , w, V), FM can be represented as a linear combination of two functions g \u03b8 and h \u03b8 that are independent of \u03b8. For example, when \u03b8 = w m ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Factorization Machine"
+        },
+        {
+            "text": "Suppose we are updating \u03b8 t j to \u03b8 t+1 j , the least square loss function is defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "By minimizing the above loss function, the optimal \u03b8 t+1 j can be obtained as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "It is clear that whenever updating a parameter, CD enumerates all the instances containing the related non-zero variables, and calculate y \u2212\u0177(x) and h \u03b8 (x) for each instance, which is very time consuming. To improve the training efficiency, [13] proposed a pre-computation mechanism under single-machine FM. To reduce the complexity of computing y \u2212\u0177(x), the term e(x, y) is defined as:",
+            "cite_spans": [
+                {
+                    "start": 242,
+                    "end": 246,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "By storing e(x, y) in a vector e \u2208 R n (n is the number of instances) and pre-computing it at the beginning, the computation of error terms can be done in constant time O (1) . After changing \u03b8 t j to \u03b8 t+1 j , e(x, y) can be updated by:",
+            "cite_spans": [
+                {
+                    "start": 171,
+                    "end": 174,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "To reduce the complexity of calculating V jf , we reformulate h V jf as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "The term q(x, f) can be pre-computed for each instance and stored in a matrix Q \u2208 R n\u00d7k . By pre-computing q(x, f), h \u03b8 (x) can be computed in constant time. When updating V t jf to V t+1 jf , the corresponding q(x, f) is updated as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with Coordinate Descent"
+        },
+        {
+            "text": "In this section, we first introduce how to infer FM by BCD, and then give the details of the propose distributed BCD framework.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed BCD Framework"
+        },
+        {
+            "text": "CD updates one coordinate each time while fixing others unchanged. However, if we directly extend it to the distributed platform without any changes, the model training will be very low-efficiency. To overcome the above drawback, we propose a new CD method named BCD. BCD divides all coordinates into multiple blocks according to the specific scheme. During the training process, all the workers update the same block simultaneously while keeping the other blocks unchanged. The main problem for learning FM under BCD method is how to divide three types of FM model parameters (w 0 , w, V) into blocks? Different blocking schemes may affect the model performance significantly because they correspond to the different orders of the parameter updating in FM. To simplify the blocking process, we combine the global w 0 with w to form an extended w. Then, according to the different combinations of parameter types, we can determine two types of blocking schemes. For the first scheme, each block contains not only w, but also V. In other words, we divide the parameters according to the order of the variables where each variable j correspond to w j and V j , i.e., a block of parameters can be",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with BCD"
+        },
+        {
+            "text": "We name it as Mixed scheme. For the second scheme, each block contains either w or V. Or, put another way, we first update all blocks which include w parameters and then update the blocks with V parameters, i.e., a block of parameters can be",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with BCD"
+        },
+        {
+            "text": "We name this scheme as Separate scheme.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning FM with BCD"
+        },
+        {
+            "text": "After analyzing the detail of inferring FM by BCD algorithm, we propose adapting BCD-based FM to a specific distributed environment. As far as we know, two types of distributed platforms, Map-Reduce (Spark) platform and PS framework, are popular and always used to the machine learning tasks. Generally speaking, PS framework is more efficient than Map-Reduce platform. Therefore, we propose a distributed BCD to learn FM under the PS framework. As mentioned in Sect. 3.1, the key idea of BCD is to update a block of parameters while maintaining all the other parameters unchanged. Thus, we can distribute BCD algorithm under synchronous PS framework. Before the model training, the server first initializes the model parameters and assigns the dataset to each worker randomly. Specific to each epoch, the workers update blocks in turns. In the update of each block, the workers firstly pull the valid parameters of current block and some other related parameters (the parameters which are co-occurrence with the parameters of the current block) from the server, and then calculate the intermediate results by the update rule. When all the workers pushed intermediate results to the server, the server updates the corresponding parameters by aggregating all intermediate results. To make the algorithm more understandable, we illustrate the learning framework of distributed BCD in Fig. 1(a) . In the figure, notation B j denotes the valid parameters of block j, B R j denotes the related parameters which are co-occurrence with the parameters of block j, and IR j denotes the intermediate results for block j.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1382,
+                    "end": 1391,
+                    "text": "Fig. 1(a)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Distributed BCD Under Standard PS"
+        },
+        {
+            "text": "However, we also observe some drawbacks of this approach. First, when updating a block, in addition to the current block, the workers always need to pull some other related parameters. The high communication cost affects the efficiency of the model training. Second, there are only part of parameters changed when calculating\u0177(x) and h V (x) in Eq. (4). But we completely recalculate these two terms for updating each parameter. The massive repetitive calculations are very time consuming. To overcome these problems, we propose a distributed pre-computation mechanism under an optimized PS framework in the next section.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed BCD Under Standard PS"
+        },
+        {
+            "text": "In this section, we design a distributed pre-computation mechanism incorporated with an optimized PS framework to solve this problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "As a variant of CD method, our distributed BCD also has the massive repetitive calculations problem. To address this problem, we propose a distributed prcomputation mechanism to further improve the efficiency of our distributed BCD framework. The key idea is to pre-compute e(x, y) and q(x, f) for each instance at the beginning, store these pre-computation terms and the valid parameters (corresponding to non-zero variables of the training instance allocated to it) in each worker, and then modify them incrementally with new parameters.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "However, two problems need to be solved when we implement the precomputation to the distributed BCD framework discussed in Sect. 3.2. First, the workers in the above distributed framework pull the needed parameters before updating the block while the pull operation in the pre-computation mechanism is not necessary because all the valid parameters has been stored in each worker. Second, the pre-computation mechanism requests to update the pre-computation terms with the latest block at the end of block updating but the above system doesn't.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "Obviously, to incorporate the pre-computation into our distributed BCD framework, we must optimize the above synchronous PS architecture. Follow the principle of pre-computation mechanism, we give the detail training process in Algorithm 1. Before the model learning, server node does the same initialization as the algorithm described in Sect. 3.1 (Line 2). And then, each worker pulls all valid parameters, and pre-compute e and q for all instances (Line 4). Specific to the update of each block, the workers first calculate the intermediate results for the current block and then push them back to the server (Line 7&8). After collecting all the intermediate results, server node updates the parameters of current block and then push the latest version back to all workers (Line 14&15). Once each worker receives the latest block, it updates its own parameters and pre-computation terms (Line 9&10). To better understand the algorithm, we illustrate the training architecture of our optimized distributed framework in Fig. 1(b) . The notations e(x, y) and q(x, y) are two pre-computation terms, and B * j denotes the latest parameters in block j. From the perspective of architecture, we can see that the purposes, occasions and triggers of operations are very different in these two frameworks. In terms of framework efficiency, the optimized PS framework has two advantages. First, the massive repetitive calculations can be avoided by the pre-computation. Second, the communication cost between the server and the workers is further reduced because only the parameters of the current block need to transfer in the optimized framework. Compute the inter results with Eq.(4) for b-th block 8:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 1021,
+                    "end": 1030,
+                    "text": "Fig. 1(b)",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "Push all intermediate results to the server 9:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "Receive pushed latest parameters from the server 10:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "Update the pre-computation terms with Eq.(6) and Eq. (8) ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Distributed Precomputation"
+        },
+        {
+            "text": "In this section, we conduct various experiments to evaluate our algorithm.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "Datasets. We perform our experiments on three datasets: MovieLens10M 1 , Movielens20M(See footnote 1) and Yahoo music 2 . The details are shown in Table 1 . Comparison Methods. The comparison methods are as follows: FM-SCD-PS: Implemented by SCD and implemented on PS [20] .",
+            "cite_spans": [
+                {
+                    "start": 268,
+                    "end": 272,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 147,
+                    "end": 154,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "A simple version of distributed FM proposed in [9] which is implemented with standard SGD and asynchronous PS.",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 50,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "FM-Asyn-SGD-PS:"
+        },
+        {
+            "text": "FM-Ada-SGD-PS: Implemented with AdaGrad and asynchronous PS. FM-Syn-SGD-PS: Implemented with standard SGD and synchronous PS. FM-SGD-Spark: Implemented with standard SGD and Spark. For the sake of fairness, we simulate Spark with standard PS system.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FM-Asyn-SGD-PS:"
+        },
+        {
+            "text": "FM-BCD-NPC-PS: Implemented with BCD and PS but no precomputation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FM-Asyn-SGD-PS:"
+        },
+        {
+            "text": "Implemented with BCD and the distributed pre-computation mechanism under our optimized PS. Evaluation Measures. We consider the following performance measurements:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FM-BCD-PS (Our final approach):"
+        },
+        {
+            "text": "-Accuracy & Efficiency Performance. We use RMSE and the training time to compare the performance of different methods respectively. -Parameter Analysis. We analyze the effect of different factors in our methods: different blocking schemes and using pre-computation or not.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FM-BCD-PS (Our final approach):"
+        },
+        {
+            "text": "Platform and Implementation. All methods are implemented using Scala and performed on a cluster containing 16 machines. Among them, 15 machines are used as workers, of which each one contains 2 CPU cores and 16 G memory, and the other one is served as the server, which contains 8 CPU cores and 64 G memory. For the BCD-based algorithms, we default to set the block size as 5000 in Movielens 3 datasets and 10000 in Yahoo music dataset. Due to the different convergence rates of SGD and CD algorithms, we set T as 10, 20 and 3000 for BCD-based methods, CD baseline and gradient based algorithms, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "FM-BCD-PS (Our final approach):"
+        },
+        {
+            "text": "We compare RMSE performance and the corresponding elapsed time of all the comparison methods on the three datasets. To present the learning details of methods, we record a pair of the metric RMSE evaluated on the test set and the corresponding elapsed time. Then we plot all the (RMSE, time) pairs for each algorithm in Fig. 2 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 320,
+                    "end": 326,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "Accuracy and Efficiency Performance"
+        },
+        {
+            "text": "From the results, we can see that the resultant (RMSE, time) points of the proposed FM-BCD-PS are more concentrated in the bottom-left corner than those of other methods, which indicates that FM-BCD-PS can achieve smaller RMSE with less training time than the other methods. The reason for this is that our distributed BCD framework inherits the fast convergence rate of CD method and further improves the efficiency with pre-computation mechanism.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy and Efficiency Performance"
+        },
+        {
+            "text": "Specifically, when comparing with FM-SCD-PS, FM-BCD-PS achieves better RMSE performance (6.0%-7.8%) within less time (4.6-9.7\u00d7 speedup for the same 10 iterations). The reason for this lies in that FM-SCD-PS tries to learn parameters on partial related instances and the corresponding imbalance workload in each worker. When comparing with the SGD-based baselines, FM-BCD-PS improves RMSE performance by 3.8%, 4.4% and 6.0% 4 , respectively, on Movielens10M, Movielens20M and Yahoo music. Meanwhile, it achieves 7. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Accuracy and Efficiency Performance"
+        },
+        {
+            "text": "We now discuss how different factors affect the model performance. Effect of Different Blocking Schemes. As mentioned in Sect. 3.1, our proposed algorithm can apply two types of blocking schemes. We compare them and study how different blocking schemes affect the RMSE performance of FM-BCD-PS in Fig. 3. From Fig. 3 , we can see that the Separate scheme achieves better RMSE performance (4.6%-5.9%) with similar runtime in all datasets than the Mixed scheme. This is due to the fact that Mixed scheme update the coordinates (w i ,v i ) corresponding to the same feature i in the same block which will affect each other. Different from Mixed scheme, Separate scheme not only ensures that the coordinates corresponding to the same features locate in different blocks, but also guarantee that the most coordinates existing in the same instance are put in the different blocks. Thus, we adopt the Separate scheme on our proposed FM-BCD-PS algorithm in all other experiments.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 297,
+                    "end": 316,
+                    "text": "Fig. 3. From Fig. 3",
+                    "ref_id": "FIGREF5"
+                }
+            ],
+            "section": "Parameter Analysis"
+        },
+        {
+            "text": "We compare FM-BCD-NPC-PS with FM-BCD-PS, and study how the proposed pre-computation mechanism affects the efficiency performance of our algorithm in Fig. 4 and 5. In Fig. 4 , we record the runtime for each iteration of two algorithms. From Fig. 4 , we can see that FM-BCD-PS achieves up to 4.6\u00d7 speedup on both Movielens datasets and 7.2\u00d7 speedup on Yahoo music dataset when obtaining a comparable RMSE performance. The reason for this is that FM-BCD-PS not only reduces the size of data exchanged between the server and the workers but also avoids the massive repetitive calculations for updating coordinates. In Fig. 5 , the blue scatter plots and the red scatter plots illustrate the size of exchange data in each block of FM-BCD-PS and FM-BCD-NPC-PS respectively. Furthermore, in the same color of scatter plots, the dot scatter plots and triangle scatter plots are used to respectively represent the maximum and minimum size of exchange data of the block. From Fig. 5 , we can see that FM-BCD-PS achieves fewer exchange data size in each block than FM-BCD-NPC-PS. That is to say, the proposed distributed pre-computation mechanism can also reduce the communication cost between the server and the workers. Effect of Block Size. We study how the block size affects RMSE and efficiency performance of the proposed FM-BCD-PS in Fig. 6 and 7 respectively. To further illustrate the reliability of the experimental results, we sample 20%, 40%, 60%, 80% and 100% of Yahoo music to do experiments, respectively. From Fig. 6 , we can see that there is no big difference of RMSE over different block sizes on all datasets, which indicates that the block size has little or nothing effect on the model performance. The reason is that most coordinates existing in the same instance are still located in the different blocks. That is to say, the update of coordinates in the same block do not affect each other. Figure 7 shows the training time can be reduced by increasing the block size. However, the elapsed time becomes stale when the block size reaches about 6000 on Movielens datasets and 12000 on Yahoo music dataset. This is due to the fact that there is a balance between the communication cost of each block and the number of blocks. In summary, we can speed up the model training by increasing the block size to an appropriate value while keeping the model performance.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 149,
+                    "end": 155,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 166,
+                    "end": 172,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 240,
+                    "end": 246,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 614,
+                    "end": 620,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 966,
+                    "end": 972,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 1330,
+                    "end": 1342,
+                    "text": "Fig. 6 and 7",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 1515,
+                    "end": 1521,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 1905,
+                    "end": 1913,
+                    "text": "Figure 7",
+                    "ref_id": "FIGREF10"
+                }
+            ],
+            "section": "Effect of the Pre-computation Mechanism."
+        },
+        {
+            "text": "To achieve better performance, researchers mainly focus on three directions to extend FM. First, how to learn the FM with high-order interaction? Although [11] gives the general form of the FM model, the papers only propose the learning methods for 2-order FM [5, 11, 13] . To optimize the high-order FM efficiently, [2, 3, 10] give their solutions. Secondly, researchers consider combining FM with neural network algorithms in different ways [6, 15, 17, 19] . Thirdly, to address the non-convex problem of the FM model, researchers try to reconstruct the FM and make it be convex [1, 16] . To improve the training efficiency, some research efforts have been made to scale up FM [4, 9, 18, 20] . These works focus on building FM on distributed frameworks. DiFacto [9] is a distributed FM and can perform finegrained capacity control based on both data and model statistics. Zhong et al. proposed another version of distributed FM which can take advantages of both data parallelism and model parallelism [20] . To address the heavy communication cost problem, [18] proposes a client-to-client architecture to learn FM model.",
+            "cite_spans": [
+                {
+                    "start": 155,
+                    "end": 159,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 260,
+                    "end": 263,
+                    "text": "[5,",
+                    "ref_id": null
+                },
+                {
+                    "start": 264,
+                    "end": 267,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 268,
+                    "end": 271,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 317,
+                    "end": 320,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 321,
+                    "end": 323,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 324,
+                    "end": 327,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 443,
+                    "end": 446,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 447,
+                    "end": 450,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 451,
+                    "end": 454,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 455,
+                    "end": 458,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 581,
+                    "end": 584,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 585,
+                    "end": 588,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 679,
+                    "end": 682,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 683,
+                    "end": 685,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 686,
+                    "end": 689,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 690,
+                    "end": 693,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 764,
+                    "end": 767,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 874,
+                    "end": 886,
+                    "text": "Zhong et al.",
+                    "ref_id": null
+                },
+                {
+                    "start": 1003,
+                    "end": 1007,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 1059,
+                    "end": 1063,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Factorization Machine"
+        },
+        {
+            "text": "To adapt the CD to large scale datasets, researchers tried to extend it to distributed platform [14, 20] . [14] designed the first distributed CD system: Hydra. It divides the coordinates to disjoint subset and distributes them to all workers. If we adapt FM to Hydra, the instances stored in each worker are in large-scale and the calculation of gradients for coordinates are imbalanced. In such cases, the training efficiency will be greatly affected. Similar to Hydra, [20] proposed a stochastic CD (SCD) under the hybrid distributed framework. The distributed SCD-based FM has two drawbacks. First, its model performance is not good since the update of parameters may be based on the partial related instances. Second, the model training is not efficient because it does not ensure a balanced amount of calculation among the workers.",
+            "cite_spans": [
+                {
+                    "start": 96,
+                    "end": 100,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 472,
+                    "end": 476,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Coordinate Descent on Big Data"
+        },
+        {
+            "text": "We discuss how to distribute logistic regression (LR), matrix factorization (MF) [8] and other factorization models to our proposed framework.",
+            "cite_spans": [
+                {
+                    "start": 81,
+                    "end": 84,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "Logistic Regression. LR only considers the effect of independent variables and equals to the factorization machine that ignores the interaction part, i.e.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "Compared with FM, LR has fewer features but with similar update rule. Thus, LR can directly apply the distributed BCD framework.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "Matrix Factorization. MF only incorporates user and item identifications as features and equals to the FM that ignores the other heuristic features, i.e., (10) where m and n denotes the number of users and items, respectively. In this case, w u represents the bias for user u, and w i is the bias for item i. Accordingly, there is only two interaction latent factors v u and v i for user u and item i, respectively.",
+            "cite_spans": [
+                {
+                    "start": 155,
+                    "end": 159,
+                    "text": "(10)",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "Compared with FM, MF has fewer variables but with the same update rule. Thus, we can implement the distributed BCD on MF.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "Other Factorization Models. FM is a general factorization method, which can mimic other state-of-the-art models like SVD++ [7] , PITF [12] and so on. Therefore, our framework can optimize these models in a similar way.",
+            "cite_spans": [
+                {
+                    "start": 123,
+                    "end": 126,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 134,
+                    "end": 138,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Discussion and Future Work"
+        },
+        {
+            "text": "This paper proposes a new distributed BCD framework to learn the FM. Through conducting a pre-computation mechanism incorporated with our optimized PS framework, we can avoid massive repetitive calculations and further reduce the communication cost. In addition, it is worth mentioning that our proposed distributed BCD framework can also be applied to many other factorization models, such as LR, MF, SVD++ and so on. We compare the proposed algorithm with the state-of-the-art baselines, and find that our proposed FM-BCD-PS can achieve better performance (3.8%-6.0% RMSE) within shorter time (4.6-12.3\u00d7 speedup). For future work, we aim to generalize the distributed BCD framework and apply more other machine learning algorithms on it.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Convex factorization machines",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Blondel",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Fujino",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ueda",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Appice",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Rodrigues",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Santos Costa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gama",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Jorge",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ECML PKDD 2015. LNCS (LNAI)",
+            "volume": "9285",
+            "issn": "",
+            "pages": "19--35",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-23525-7_2"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Higher-order factorization machines",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Blondel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "NIPS 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "3351--3359",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Polynomial networks and factorization machines: new insights and efficient training algorithms",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Blondel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ICML 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "850--858",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Multi-view machines",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "WSDM 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "427--436",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "DeepFM: a factorization-machine based neural network for CTR prediction",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1725--1731",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Factorization meets the neighborhood: a multifaceted collaborative filtering model",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Koren",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "SIGKDD 2008",
+            "volume": "",
+            "issn": "",
+            "pages": "426--434",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Matrix factorization techniques for recommender systems",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Koren",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Computer",
+            "volume": "42",
+            "issn": "8",
+            "pages": "30--37",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "DiFacto: distributed factorization machines",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "WSDM 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "377--386",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Multilinear factorization machines for multi-task multi-view learning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Lu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "WSDM 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "701--709",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Factorization machines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "ICDM 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "995--1000",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Pairwise interaction tensor factorization for personalized tag recommendation",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "WSDM 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "81--90",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Fast context-aware recommendations with factorization machines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "SIGIR 2011",
+            "volume": "",
+            "issn": "",
+            "pages": "635--644",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Distributed coordinate descent method for learning with big data",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Richt\u00e1rik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "17",
+            "issn": "1",
+            "pages": "2657--2681",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Attentional factorization machines: learning the weight of feature interactions via attention networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "3119--3125",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Convex factorization machine for toxicogenomics prediction",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Yamada",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "SIGKDD 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "1215--1224",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Deep learning over multi-field categorical data",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Du",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ECIR 2016",
+            "volume": "9626",
+            "issn": "",
+            "pages": "45--57",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-30671-1_4"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "CDSFM: a circular distributed SGLD-based factorization machines",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "DASFAA 2018",
+            "volume": "10828",
+            "issn": "",
+            "pages": "701--709",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-91458-9_43"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Joint deep modeling of users and items using reviews for recommendation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "WSDM 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "425--434",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Scaling factorization machines with parameter server",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Zhong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CIKM 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "1583--1592",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The distributed BCD framework with pre-computation mechanism or not.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Distributed BCD for FM under optimized PS Input: Dataset D, B blocks, M workers, maximal iterations T Output: Model parameters w and V 1: Servers: 2: Initialize parameters and assign D to workers 3: Workers: 4: Pull valid parameters and conduct pre-computing e(x, y) and q(x, f) 5: for t = 0 to T do 6: for b = 0 to B do 7:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Movielens10M, Movielens20M and Yahoo music, respectively. The main reason is that BCD converges faster than SGD.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Performance of all the comparison methods.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Performance of FM-BCD-PS over different blocking schemes.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Runtime of FM-BCD-PS and FM-BCD-NPC-PS.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Exchange Data Size of FM-BCD-PS and FM-BCD-NPC-PS.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "RMSE of FM-BCD-PS over different block sizes.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": "Efficiency of FM-BCD-PS over different block sizes.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Aggregate all intermediate results from workers and update parameters 15: Push the latest parameters to each worker",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Datasets",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

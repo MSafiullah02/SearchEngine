@@ -1,0 +1,2919 @@
+{
+    "paper_id": "fca8a095b67b9c13bc969d3b726c3996b9550816",
+    "metadata": {
+        "title": "Feature Driven and Point Process Approaches for Popularity Prediction",
+        "authors": [
+            {
+                "first": "Swapnil",
+                "middle": [],
+                "last": "Mishra",
+                "suffix": "",
+                "affiliation": {},
+                "email": "swapnil.mishra@anu.edu.au"
+            },
+            {
+                "first": "Marian-Andrei",
+                "middle": [],
+                "last": "Rizoiu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "marian-andrei.rizoiu@anu.edu.au"
+            },
+            {
+                "first": "Lexing",
+                "middle": [],
+                "last": "Xie",
+                "suffix": "",
+                "affiliation": {},
+                "email": "lexing.xie@anu.edu.au"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Predicting popularity, or the total volume of information outbreaks, is an important subproblem for understanding collective behavior in networks. Each of the two main types of recent approaches to the problem, feature-driven and generative models, have desired qualities and clear limitations. This paper bridges the gap between these solutions with a new hybrid approach and a new performance benchmark. We model each social cascade with a marked Hawkes selfexciting point process, and estimate the content virality, memory decay, and user influence. We then learn a predictive layer for popularity prediction using a collection of cascade history. To our surprise, Hawkes process with a predictive overlay outperform recent feature-driven and generative approaches on existing tweet data [44] and a new public benchmark on news tweets. We also found that a basic set of user features and event time summary statistics performs competitively in both classification and regression tasks, and that adding point process information to the feature set further improves predictions. From these observations, we argue that future work on popularity prediction should compare across feature-driven and generative modeling approaches in both classification and regression tasks.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Popularity prediction, especially in the context of online media, has seen increased attention, as successful solutions would help both content consumers to cope with information overload, and content producers to disseminate information within limited resources. Accurate models will help producers to identify the trends, discover useful content and decimate it faster to improve the content delivery of the network. Furthermore, this would provide with more insights into understanding collective behaviour by compiling Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and the full citation on the first page. Copyrights for components of this work owned by others than ACM must be honored. Abstracting with credit is permitted. To copy otherwise, or republish, to post on servers or to redistribute to lists, requires prior specific permission and/or a fee. Request permissions from permissions@acm.org. When presented with the task of predicting popularity, a clear gap appears between the two main classes of approaches: the feature-driven approaches and the generative approaches. Feature-driven approaches [3, 7, 25, 29] summarize network, user, and event history information into an extensive set of features, and they use machine learning approaches to predict future popularity. Generative methods [12, 34, 43, 44] leverage fine-grained timing information in the event series, however they make stronger assumptions about the diffusion process. A thorough understanding of strengths and weaknesses of the two classes is currently missing, especially since the generative methods are usually designed for explaining the mechanisms that generate attention, and not optimized for prediction. Another gap arises between the different problem settings. Prior work has address problems like predicting the volume of attention [34, 44] , predicting if a cascade will double in size [7] , whether an item will have 10 million views [33] , or be among the top 5% most popular [42] . However, the understanding of how the different approaches and the different features generalize over the various problem settings is incomplete. In addition, a practical bottleneck is the availability of certain types of these features, such as network data and corresponding features -for example the number of users exposed in the diffusion up to a time t or potential number of reachable users. A third gap in the current available work is the consensus and understanding about which features are informative for feature-driven models and the lack of benchmark datasets on which new methods can be devised.",
+            "cite_spans": [
+                {
+                    "start": 1305,
+                    "end": 1308,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1309,
+                    "end": 1311,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1312,
+                    "end": 1315,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1316,
+                    "end": 1319,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1500,
+                    "end": 1504,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1505,
+                    "end": 1508,
+                    "text": "34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 1509,
+                    "end": 1512,
+                    "text": "43,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 1513,
+                    "end": 1516,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 2022,
+                    "end": 2026,
+                    "text": "[34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 2027,
+                    "end": 2030,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 2077,
+                    "end": 2080,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 2126,
+                    "end": 2130,
+                    "text": "[33]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 2169,
+                    "end": 2173,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "In this paper, we address the above challenges in the context of predicting the final size of retweet cascades. We build two predictive approaches, one generative and one featuredriven, and we show how to combine them into a hybrid predictor to further increase performances. The generative method is a two-layered approach, built on the intuitive Hawkes self-exciting process [15] model. Self-exciting point processes are a class of stochastic processes, in which the occurrence of past events makes the occurrence of future events more probable. Three key factors in information diffusion are built into the proposed model: the social influence of users, the length of \"social memory\" and the inherent tweet quality. We use a predictive layer on top of the generative model to make final predictions. This helps us to take into account other cascades and mitigate limitations of model assumptions and parameter estimation. Our second proposed approach, the feature-based method, uses only Figure 1 : Two retweet cascades announcing the death of \"Mr. Spock\". The underlying diffusion processes of tw1 and tw2 are very different: tw1 lasts for 2.5 hours. It attracts the attention of highly influential users, especially music related channels, however the generative kernel of tw2 amplifies more than that of tw1. tw2 diffuses faster and ends in just 12 minutes, but the final sizes for the two cascades are similar (224 retweets for tw1 and 219 for tw2). We model and interpret these cascades using our generative model in Sec. 3.4. x-axis: time in seconds; y-axis: number of followers each tweet can reach; \u03c6m(\u03c4 ): memory kernel of Eq. (2) plotted with m = 1000.",
+            "cite_spans": [
+                {
+                    "start": 377,
+                    "end": 381,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 991,
+                    "end": 999,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "features which can be computed on data containing solely the message content and basic user profiles, and which were highlighted as most predictive by recent studies: user related features [25] and temporal activity features [7] . This results in a competitive feature-based predictor, which consistently outperforms the current state-of-the-art popularity prediction model [44] -reducing the mean absolute relative error by more than 200% when compared to the latter, after observing the retweet series for 10 minutes. We show that the same set of features can be employed in both regression and classification tasks. We further experiment with a hybrid predictor, which uses both data features and measures issued from the generative model, and we show additional performance improvement. We conduct experiments on a large dataset, containing 49.7 million tweets containing links to top 10 news sites in English, gathered using the public API over a period of 4 months, in 2015. Fig. 1 illustrates two of the retweet cascades in this dataset, relating the passing of the actor for \"Mr. Spock\". Even though the two cascades achieve similar popularities, our generative model is capable of differentiating between their very different diffusion dynamics. For example, the memory kernel \u03c6m(\u03c4 ) of tw2i.e. the contribution of each event to the spawning of future events -amplifies more (shown by a larger area under the \u03c6m(\u03c4 )), but is forgotten faster (the entire diffusion ends in just 12 minutes).",
+            "cite_spans": [
+                {
+                    "start": 189,
+                    "end": 193,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 225,
+                    "end": 228,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 374,
+                    "end": 378,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 981,
+                    "end": 987,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "There are three main contributions of this paper:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "\u2022 Bridging the popularity prediction problem space: we address three types of gaps: problem settings and task (e.g. regression vs. classification), type of approach (feature-based vs. generative) and the generalization of the features across feature-driven approaches. \u2022 Comparative understanding of feature-driven and generative models: we propose a generative method, based on Hawkes self-exciting processes, which features the advantages of generative methods -e.g. interpretable results -and which is adapted for predicting the final cascade popularity by using an additional predictive layer; we compare approaches to popularity prediction from the two main classes, i.e. feature-based and generative, and we show that combining them into a hybrid approach increases performances. \u2022 Dataset: we identify a set of features that generalize over different settings and can be constructed with only message content and basic user features; we curate a large, domain-specific dataset of retweet diffusion cascades, which can be used by both feature-driven and generative models for prediction. Dataset along with code is publicly available for download. 1 This new dataset allows comprehensive performance benchmarks on features about users and temporal activity. The rest of this paper is structured as follows. Sec. 2 presents related work. Sec. 3 details the proposed generative model and fitting methods, while Sec. 4 presents how the popularity prediction is performed, based on the fitted model parameters. The dataset and feature construction for the feature-driven approach are detailed in Sec. 5 and the experiments are outlined in Sec. 6. We conclude in Sec. 7.",
+            "cite_spans": [
+                {
+                    "start": 1154,
+                    "end": 1155,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "INTRODUCTION"
+        },
+        {
+            "text": "We structure the discussion of related work onto the two broad previously mentioned categories: feature-driven approaches and generative approaches. For generative models, being somewhat recent, we discuss their application in popularity prediction as well as their use in other social media settings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Predicting popularity with feature-driven models. Data-driven approaches [11, 19] treat popularity as a nondecomposable process and take a bottom-up approach. They rely on machine learning algorithms to make the connection between item popularity and an extensive set of features. Most often the main contributions of such approaches are collecting large-scale datasets and constructing informative features. Bakshy et al. [4] and later Martin et al. [25] predict tweet popularity, defined as the total size of its retweet cascade. Both studies construct features relating to the user having posted the tweet and posted content. User features, particularly past user success -the ability of a user to start large cascades -are shown more informative, however prediction performances are limited. Martin et al. make the hypothesis of an inherent popularity randomness, which sets limits to its predictability. The situation is different when part of the diffusion cascade is observable, as early activity has been shown predictive for total popularity [29, 37] . When predicting whether a Facebook cascade will double in size, Cheng et al. [7] found that temporal features -like the resharing rate or the acquired volume of views -are the most informative features. Prediction performances are further improved when adding features which account for specific contexts of the information diffusion. For example, Li et al. [22] add propagation network measurements, Chang et al. [6] add sophisticated features relating to audience behavior when predicting the popularity of serials and Vallet et al. [38] construct features relating to two social networks: Youtube and Twitter. Many proposed features cannot be used outside of the proposed context, being either data-source specific or relying on information that is not publicly accessible. The feature-driven methods that we propose use only the best-performing features shown in previous studies and which can be extracted from public data.",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 77,
+                    "text": "[11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 78,
+                    "end": 81,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 423,
+                    "end": 426,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 451,
+                    "end": 455,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1051,
+                    "end": 1055,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 1056,
+                    "end": 1059,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 1139,
+                    "end": 1142,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1420,
+                    "end": 1424,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 1476,
+                    "end": 1479,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1597,
+                    "end": 1601,
+                    "text": "[38]",
+                    "ref_id": "BIBREF37"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Generative models in social media. Generative models start by modeling a set of phenomena into a parametric model and fitting the parameters of the model to observed data. Such approaches have been successfully used in neuro-biology to model neuronal spiking activity [20] , in economics to model the evolution of stock prices [14] , in physics to model earthquake aftershocks occurrence [35, 17, 36] and in criminology to model crime patterns [27] . In social media such approaches have been used extensively [18, 30, 31] , mainly due to their capability to model phenomena like user interactions and diffusion susceptibility. Hidden network properties, such as connexions between individuals [23, 24] or the evolution of the diffusion network topology [13] , have been uncovered using generative methods, such as selfexciting point processes. The main difficulty with such approaches is scalability, since each social phenomenon must be accounted manually in the model.",
+            "cite_spans": [
+                {
+                    "start": 268,
+                    "end": 272,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 327,
+                    "end": 331,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 388,
+                    "end": 392,
+                    "text": "[35,",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 393,
+                    "end": 396,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "36]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 444,
+                    "end": 448,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 510,
+                    "end": 514,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 515,
+                    "end": 518,
+                    "text": "30,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 519,
+                    "end": 522,
+                    "text": "31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 694,
+                    "end": 698,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 699,
+                    "end": 702,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 754,
+                    "end": 758,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Modeling and predicting popularity using generative models. Popularity modeling [9, 12, 43] and prediction [34, 44] has been a particularly fertile field for pointprocess based generative models. In their seminal work, Crane and Sornette [9] showed how a Hawkes point-process can account for popularity bursts and decays. Afterwards, more sophisticated models have been proposed to model and simulate popularity in microblogs [43] and videos [12] . These approaches successfully account for the social phenomena which modulate online diffusion: the \"rich-get-richer\" phenomenon and social contagion. Certain models can output an estimate for the total size of a retweet cascade. Shen et al. [34] employ reinforced Poisson processes, modeling three phenomena: fitness of an item, a temporal relaxation function and a reinforcement mechanism. Zhao et al. [44] propose SEISMIC, which employs a double stochastic process, one accounting for infectiousness and the other one for the arrival time of events. It is the current state of the art in popularity prediction and, throughout this paper, we compare against it. Our proposed generative model uses the same information as SEISMIC -tweet timestamps and the number of followers of the user posting the tweet -, but uses a simpler, more intuitive modeling of the diffusion cascade.",
+            "cite_spans": [
+                {
+                    "start": 80,
+                    "end": 83,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 84,
+                    "end": 87,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 88,
+                    "end": 91,
+                    "text": "43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 107,
+                    "end": 111,
+                    "text": "[34,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 238,
+                    "end": 241,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 426,
+                    "end": 430,
+                    "text": "[43]",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 442,
+                    "end": 446,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 691,
+                    "end": 695,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 853,
+                    "end": 857,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "Generative models are typically designed to explain popularity, not predict it. Most of the methods presented earlier introduce multiple regularization and correction factors in order to make meaningful predictions. This is sub-optimal both for prediction and for interpretation. By contrast, our Hawkes predictive model separates modeling from prediction accounting directly for the most important three factors at individual cascade level: user influence, decaying social attention and content quality, followed by a predictive layer tuned from historical data.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RELATED WORK"
+        },
+        {
+            "text": "We first introduce the Hawkes self-exciting point process, a stochastic event model for describing retweeting cascades.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RETWEETING AS A POINT PROCESS"
+        },
+        {
+            "text": "We then describe a procedure for maximum-likelihood estimation of model parameters from an observed cascade. We present observations of the Hawkes model on individual and collections cascades, illustrating the interplay of individual memory kernel and user influence in diffusion dynamics.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "RETWEETING AS A POINT PROCESS"
+        },
+        {
+            "text": "In self-exciting processes the occurrences of past events make future events more probable. In particular, we model each retweet as a stochastic event, and model three key intuitions in a social network: magnitude of influence, tweets by users with many followers tend to get retweeted more; memory over time, that most retweeting happens when the content is fresh [41] ; and content quality.",
+            "cite_spans": [
+                {
+                    "start": 365,
+                    "end": 369,
+                    "text": "[41]",
+                    "ref_id": "BIBREF40"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A self-exciting point processes"
+        },
+        {
+            "text": "The marked Hawkes process [15] is a well-known selfexciting process that captures these properties. Its event rate is written as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A self-exciting point processes"
+        },
+        {
+            "text": "where \u03bb(t) is the arrival rate of new events. It depends on each previously occurred event (mi, ti) of magnitude mi at time ti through the triggering kernel \u03c6m(\u03c4 ). For the problem of estimating the size of a retweet cascade, there are no exogenously generated events (as in a general Hawkes process [16] ) apart from the initial tweet, which is accounted for with magnitude m0 at time t0 = 0. The effects of mi and ti are separable in our triggering kernel:",
+            "cite_spans": [
+                {
+                    "start": 300,
+                    "end": 304,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A self-exciting point processes"
+        },
+        {
+            "text": "\u03ba describes the virality -or quality -of the tweet content and it scales the subsequent retweet rate; \u03b2 introduces a warping effect for the user influence and it is related to the observed long-tail distribution of user influence in social networks; and 1 + \u03b8 (\u03b8 > 0) is the power-law exponent, describing how fast an event is forgotten, parameter c > 0 is a temporal shift term to keep \u03c6m(\u03c4 ) bounded when \u03c4 0 ; Here \u03bam \u03b2 accounts for the magnitude of influence, and the power-law kernel (\u03c4 + c) \u2212(1+\u03b8) models the memory over time. We approximate user influence m using the number of followers obtained from Twitter API. Table 1 summarizes the parameters of the model, along with their interpretations.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 622,
+                    "end": 629,
+                    "text": "Table 1",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "A self-exciting point processes"
+        },
+        {
+            "text": "Throughout literature, three families of functions have been mainly used to model temporal decay with Hawkes point-processes [32] : power-law functions \u03c6 p (\u03c4 ) = (\u03c4 +c) \u2212(1+\u03b8) , used in geophysics [17] and social networks [9] ; exponential functions \u03c6 e (\u03c4 ) = e \u2212\u03b8\u03c4 , used in financial data [14] ; Reyleigh functions \u03c6 r (\u03c4 ) = e \u2212 1 2 \u03b8\u03c4 2 , used in epidemiology [40] . We experimented with all three kernels with the setting in Sec. 6, and found that the power-law kernel consistently outperform the other two. Consequently, we only discuss detailed results from the power law kernel in the rest of this paper.",
+            "cite_spans": [
+                {
+                    "start": 125,
+                    "end": 129,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 198,
+                    "end": 202,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 223,
+                    "end": 226,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 293,
+                    "end": 297,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 366,
+                    "end": 370,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A self-exciting point processes"
+        },
+        {
+            "text": "One of the key quantities that describe a Hawkes process is the branching factor n * , defined as the expected number of children events directly spawned by an event. Note that the total number of expected events from one initial event is the sum of a geometric series \u221e k=1 (n * ) k . For n * < 1, the process in a subcritical regime: the total number of retweets is bounded, the event rate \u03bb(t) decays to zero over time and the retweet cascade dies out. When n * > 1, the process is in a so-called supercritical regime with the total number conditional intensity -or event rate -of a nonhomogeneous Poisson Process. \u03c6m(\u03c4 ) triggering kernel. Contribution of event the (m, t) to the total event rate, calculated at time t + \u03c4 . n * branching factor, mean number of children events spawned by a parent event. For n * < 1 the cascade dies out (subcritical regime), for n * > 1 the cascade explodes exponentially (supercritical regime). T time extent of the observed series of events in the beginning of a retweet cascade. T = max(t i ). n number of events in the observed series of events in the beginning of a retweet cascade. n = max(i). N\u221e expected total number of events in a given retweet cascade, derived from the generative model. N real the real number of events in a given retweet cascade, or total popularity. \u03c9 predictive factor learned using a Random Forest regressor. N\u221e total popularity prediction made using the output of the predictive layer.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "Parameter Interpretation \u03b8 the power-law exponent, describing how fast an event is forgotten. \u03b8 > 0. \u03ba tweet quality. High quality tweets are more likely to generate more retweets. \u03ba > 0. c temporal shift cutoff term so that \u03c6m(\u03c4 ) stays bounded when \u03c4 0. c > 0. \u03b2 user influence power-law warping effect in b(m). \u03b2 > 0. 0 < \u03b2 < \u03b1 \u2212 1 for having a defined branching factor n * . \u03b1 exponent of the user influence power-law distribution. Fitted to the #followers distribution: \u03b1 = 2.016.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "of retweets being unbounded. We compute the branching factor by integrating over time and event magnitudes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "Here we assume mi are i.i.d. samples from a power law distribution of social influence [21] :",
+            "cite_spans": [
+                {
+                    "start": 87,
+                    "end": 91,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "Here \u03b1 is an exponent which controls the heavy tail of the distribution. We extract the number of followers m for a large sample of users from our dataset described in Sec. 5.1 and fit it to a power-law distribution following the method detailed in [8] . We obtain \u03b1 = 2.016 and we use it throughout the experiments. Substituting Eq. (2) and P (m) into (3), we obtain the closed-form expression of the branching factor:",
+            "cite_spans": [
+                {
+                    "start": 249,
+                    "end": 252,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "Not only the branching factor n * is an intuitive descriptor of the virality of a cascade, it is also used for predicting the total popularity in Sec 4 and as a constraint in model estimation in Sec 3.3.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The branching factor"
+        },
+        {
+            "text": "The log-likelihood function. Our marked Hawkes process is completely defined by the four parameters {\u03ba, \u03b2, c, \u03b8}. We now describe a maximum-likelihood estimation procedure of the model from a set of observed events, consisting of {(mi, ti), i = 0, . . . , n} for time t < T . The log-likelihood function of a point-process described by Eq. (1) and (2) is written as ( [10] , Ch. 7.2):",
+            "cite_spans": [
+                {
+                    "start": 368,
+                    "end": 372,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Estimating the Hawkes process"
+        },
+        {
+            "text": "The first two terms in Eq. 5 are from the likelihood computed using the event rate \u03bb(t), the last term is a normalizing factor from integrating the event rate over the observation",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Estimating the Hawkes process"
+        },
+        {
+            "text": "Finding the maximum-likelihood solution. Eq. 5 is a non-linear objective that we optimize to find the set of parameters that maximizes data likelihood. Directly maximizing this objective is more efficient than expectationmaximization approaches [12] that try to estimate the branching structure (of which event triggers which) and that have a quadratic number of latent variables. There are a few natural constraints for each of model parameter, namely: \u03b8 > 0, \u03ba > 0, c > 0, and 0 < \u03b2 < \u03b1 \u2212 1 for the branching factor to be meaningful (and positive). Furthermore, while the supercritical regimes n * > 1 are mathematically valid, they will not lead to a finite cascade size prediction. We note that in reality no retweet cascade can grow indefinitely, due to finite network sizes. We further incorporate n * < 1 as a non-linear constraint for the maximum likelihood estimation. We use the Ipopt [39] , the large-scale interior point solver that handles both non-linear objectives and non-linear constraints, with pre-programmed gradient functions to find the solution. Details of the gradient computation and optimization can be found in an online supplement [1] .",
+            "cite_spans": [
+                {
+                    "start": 245,
+                    "end": 249,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 895,
+                    "end": 899,
+                    "text": "[39]",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1159,
+                    "end": 1162,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Estimating the Hawkes process"
+        },
+        {
+            "text": "Individual cascades: fast vs slow. We first examine the model parameters for the two cascades illustrated in Fig. 1 . These two cascades are about the same event and have similar observed popularities (224 vs. 219) through very different diffusion speeds at a complex interplay between power-law memory (\u03c4 + c) \u2212(1+\u03b8) and user influences. For tw1, the maximum-likelihood estimate of parameters are {\u03ba = 0.75, \u03b2 = 0.27, c = 58.46, \u03b8 = 0.64} with a corresponding n * = 0.12; for tw2, {\u03ba = 1, \u03b2 = 0.42, c = 27.77, \u03b8 = 0.77}, and n * = 0.16 (also shown in Fig. 2 ). The two diffusions unfold in different ways: tw1 has lower value of \u03ba and higher waiting time c, hence its memory kernel \u03c6(\u03c4 ) has lower values than that of tw2 and a slower decay. However, tw1 attracts the attention of some very well-followed music accounts. The original poster (@screencrushnews) has 12,122 followers, and among the retweeters @TasteOf-Country (country music) has 193,081 followers, @Loudwire (rock) had 110,824 followers, @UltClassicRock (classic rock) has 99,074 followers and @PopCrush (pop music) has 114,050 followers. The resulting cascade reached 1/4 its size after half an hour, and the final tweet was sent after 4 days. In contrast, tw2's memory kernel has higher values, but faster decay. The most influential user in tw2 has 412 followers, and the entire diffusion lasted for only 12.5 minutes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 109,
+                    "end": 115,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                },
+                {
+                    "start": 552,
+                    "end": 558,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Interpreting the generative model"
+        },
+        {
+            "text": "Interpreting a collection of cascades. We construct a large subset of 17,146 cascades of the News dataset, described in Sec. 5.1. For each cascade we fit the parameters of its generative model {\u03ba, \u03b2, c, \u03b8}. Fig. 2 shows the density distribution of parameters \u03b8 and \u03ba. As one would expect, most cascades have a low value of \u03ba, and reflect the longtailed distribution of content quality. n * -descriptor of the virality of a cascade -is distributed very similarly to \u03ba, with most cascades showing low n * values (shown in the supplement [1] ). Parameter \u03b8 -which controls for the speed of the decay of the memory kernel \u03c6m(\u03c4 ) -has a more surprising distribution. Recent work [44] on point processes with power-law kernels argued that a unique value of \u03b8 = 0.242 is sufficient to explain the general behavior cascades. We find \u03b8 to vary in the interval (0, 2.8] and showing two maxima at 0.01 and 0.34. This observation indicates that learning individual memory exponents \u03b8 allows us to better describe the diffusion dynamics of each cascade. The distributions of the other parameters are shown in the supplement: c follows a long-tail distribution; \u03b2 shows a maximum of density around 0.08 and a smaller peak around \u03b2 \u223c \u03b1 \u2212 1 resulting from the optimizer terminating at the boundary of the non-linear constraint n * = 1.",
+            "cite_spans": [
+                {
+                    "start": 535,
+                    "end": 538,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 674,
+                    "end": 678,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 207,
+                    "end": 213,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Interpreting the generative model"
+        },
+        {
+            "text": "In this section, we first derive the number of expected future events in a cascade, we then describe a predictive layer tuned for estimating the total size, using information from other cascades in history.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "PREDICTING POPULARITY"
+        },
+        {
+            "text": "Having observed a retweet cascade until time T and fitted the parameters of the point process, one can simulate a possible continuation of the cascade, until it dies outassuming n * < 1. In this section, we derive the expected number of events in the cascade, over all possible continuations. We group events based on the generation of their parents (i.e. the preceding event they are triggered by), and estimate the number of events in each generation. We denote as Generation1 the set of simulated events spawned by the observed events (shown in red in Fig. 3) . Similarly, Generation2 (in green in Fig. 3 ) groups events spawned by events in Generation1, and so on. Let Ai be the expected number of events in Generationi. The expected number of total events in the cascade, N\u221e, is defined as:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 555,
+                    "end": 562,
+                    "text": "Fig. 3)",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 601,
+                    "end": 607,
+                    "text": "Fig. 3",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "Ai ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "where n is the number of observed events. For generations after the first one, the best estimate about Ai, i \u2265 2 is constructed using the average number of children events n * and the number of events in the previous generation, i.e. Ai = Ai\u22121n * . Assuming A1 known, we derive:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "Therefore, the second term in (6) is the sum of a converging geometric progression (assuming n * < 1):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "A1 could also be calculated in a fashion similar to Eq. (7). However, a more precise estimation can be obtained, given that magnitudes of the observed events -parents for events in Generation1 -are known:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "We obtain the estimate of the total number of events in the cascade by introducing (9) and (8) into (6): ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "The expected number of future events"
+        },
+        {
+            "text": "Hawkes + RF n*percentile (b) Figure 4 : Reduction of prediction error for a subset of cascades. For each cascade, the error made when predicting final popularity using the theoretical N\u221e is shown using red circles, and with blue squares the error made when using the predictive layerN\u221e. Each gray arrow shows the reduction of error for a single cascade, and pairs together a red circle with a blue square. The error reduction is show in relation to A1 (a) and n * (b).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 29,
+                    "end": 37,
+                    "text": "Figure 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Hawkes"
+        },
+        {
+            "text": "Using generative models for prediction is often sub-optimal, often due to simplifying assumptions of the generative process. Point processes in general, are optimized for explaining observed event history and not optimized for prediction. Zhao et al. [44] , for example, recently deployed a number of heuristic correction factors to discount the initial burst and account for a long-term decay. We consider that the Hawkes point process can benefit from systematically learning a predictor, to better account for data noise and limiting model assumptions. First, it is well know that using the number of followers as user influences mi is at best an approximation [5] and often does not scale with retweeting propensity. Second, the network in which cascades happen can be inhomogenous over the lifetime of the diffusion, e.g. users who respond early may have a inherently shorter memory than those responding late. Last, point processes cannot generate a meaningful prediction for supercritical cascades, and the model estimation can be prone to local minima. In this section, we leverage a collection of previously observed cascade histories to fine tune popularity prediction. This predictive layer accounts for the limitations above, and places point process estimates in a comparable framework as the feature-driven approaches.",
+            "cite_spans": [
+                {
+                    "start": 251,
+                    "end": 255,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 664,
+                    "end": 667,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Predicting total popularity"
+        },
+        {
+            "text": "Prediction setup. Each retweet cascade is described using four features {c, \u03b8, A1, n * }. These four features were found to be the most correlated with = (N real \u2212 N\u221e) 2 , the error made when predicting popularity using N\u221e. Furthermore, n * and \u03b8 are expressed as percentiles over the range observed in the training set, to account for their non-linear relation with . Note that parameters \u03ba and \u03b2 are not used: the information in \u03ba is already included in A1, whereas \u03b2 was found non-correlated with .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Predicting total popularity"
+        },
+        {
+            "text": "In the classification task detailed in Sec. 6.3, the Random Forest is trained to output the selected class. In the popularity prediction task -Sec. 6.1 and 6.2 -we train the Random Forest to output a scaling factor \u03c9 for the expected number of future events in a given retweet cascade. The final corrected popularity prediction is computed as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Predicting total popularity"
+        },
+        {
+            "text": "Effects of the predictive layer. The immediate effect of introducing the predictive layer is the reduction of the ARE prediction error, measured as detailed in Sec. 6.1. Fig 4 illustrates this reduction on a subset of the cascades in the News dataset -described in Sec. 5.1 -and its relation with A1 and n * . The length of the arrows is proportional with the error reduction. The range the errors made without the predictive layer increases linearly with A1. Consequently the error reduction when usingN\u221e is generally higher when A1 is higher (Fig. 4a) . The relation between n * and the prediction error is non-linear, therefore in Fig. 4b the horizontal axis shows the percentile values of n * . The variation of the error reduction has two maxima, one around 40% and another one around 95%. Fig. 4 can be summarized as follows: the error reduction increases linearly with the expected number of events in Generation1, but exhibits two maxima in relation with the expected number of events in Generationi, i \u2265 2. Another interesting observation is that N\u221e tends to over-estimate cascade sizes, in other words cascades tend to achieve less popularity than expected when observed in isolation. This aligns with the hypothesis that content items compete with each other for a finite amount of human attention [26] .",
+            "cite_spans": [
+                {
+                    "start": 1309,
+                    "end": 1313,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 170,
+                    "end": 187,
+                    "text": "Fig 4 illustrates",
+                    "ref_id": null
+                },
+                {
+                    "start": 544,
+                    "end": 553,
+                    "text": "(Fig. 4a)",
+                    "ref_id": null
+                },
+                {
+                    "start": 634,
+                    "end": 641,
+                    "text": "Fig. 4b",
+                    "ref_id": null
+                },
+                {
+                    "start": 795,
+                    "end": 801,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Predicting total popularity"
+        },
+        {
+            "text": "In this section we describe the two datasets, Tweet-1Mo and News, used in our experiments. Next, we describe the set of features constructed for our feature-driven approach.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "DATA AND FEATURES FOR PREDICTION"
+        },
+        {
+            "text": "Tweet-1Mo: Zhao et al. [44] made publicly available the dataset they used to predict retweet cascade sizes. It contains a sample of all tweets during a month (i.e. using the firehose Twitter API restricted access), further filtered so that the length of each cascade is greater than 50. For each cascade, the dataset contains information about the original tweet id and start time and, for each of the retweets in the cascade, the time offset of the retweet and the number of followers of the user posting the retweet. We randomly sample the cascades in the original dataset and we construct Tweet-1Mo to contain 30,463 cascades of length between 50 and 5000. The resulting dataset has a mean cascade length of 160 and a median of 95.",
+            "cite_spans": [
+                {
+                    "start": 23,
+                    "end": 27,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "News: We construct a domain specific dataset of tweets dealing with news articles, by collecting data using the free Twitter Streaming API 2 , over a period of four moths from April 2015 to July 2015. We track the official twitter handles of ten popular news outlets, namely NewYork Times, Associated Press, CNN, Washington Post, Reuters, Yahoo News, The Guardian, BBC, Huffington Post and Google News. We also capture all tweets containing either i) user mentions of the above users or ii) a commonly used shortened url towards any of the ten news websites. This leads to a collection of 49,735,271 tweets. Most of the cascades in the News dataset are of length one or two and, for compatibility with the Tweet-1Mo, we present the statistics for cascades of length over 50: 110,954 cascades, mean cascade length is 158 and median length is 90.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "Difference between datasets. The News dataset contains several additional information, when compared to Tweet-1Mo: for each user in a retweet cascade, we record her number of friends, number of posted statuses and the account creation time (these information are recorded in every tweet we capture through the API). This additional information is required by the feature-driven method described in Section 5.2, therefore in the experiments in Sec. 6, feature-based methods cannot run on Tweet-1Mo.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "An open-access, domain-specific dataset. Many of the datasets used by prior work for popularity prediction were not made public because of user agreement terms and they are difficult to replicate. The barriers for having an open benchmark include proprietary insider information (e.g. complete Facebook network measurements [7] ), privileged API access (e.g., Twitter firehose [44] ) or contain restricted data from non-English sources [12, 43] . Furthermore, we argue that predicting popularity on a topic-or domain-specific dataset is as relevant as that on the firehose feed -content producers and consumers are often interested in content within a source (e.g. NYTimes) or a topic (e.g. technology). Therefore, we chose to construct News, our domain-specific dataset, using only free access APIs. We present a strong basis for future benchmarking by combining the descriptive power of Feature-Driven and modeling capabilities of Hawkes in Sec. 6.",
+            "cite_spans": [
+                {
+                    "start": 324,
+                    "end": 327,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 377,
+                    "end": 381,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 436,
+                    "end": 440,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 441,
+                    "end": 444,
+                    "text": "43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "Our feature-driven predictor describes each cascade using four types of features: a) basic user features, b) temporal features, c) volume features and d) past user success. They are chosen as being the most informative in recent literature [4, 7, 25, 29, 37] and require only free access to the Twitter data source. In particular, Martin et al. [25] compare a wide range of features, including user, content and user-content interplay features, and they show that basic user features together with past user success features account for 87% of the prediction performance. Cheng et al. [7] showed that temporal features relating to the unfolding of the observed part of the diffusion account for the bulk of the total classification performances. They report only 0.025 additional accuracy when using all the other features combined in addition to temporal features. Lastly, Szabo et al. [37] and later Pinto et al. [29] show that early popularity is predictive for total popularity.",
+            "cite_spans": [
+                {
+                    "start": 240,
+                    "end": 243,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 244,
+                    "end": 246,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 247,
+                    "end": 250,
+                    "text": "25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 251,
+                    "end": 254,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 255,
+                    "end": 258,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 345,
+                    "end": 349,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 585,
+                    "end": 588,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 887,
+                    "end": 891,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 915,
+                    "end": 919,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Features for popularity prediction"
+        },
+        {
+            "text": "Basic User Features [4, 7, 25] . Basic user statistics capture the social influence of a user. When observing the prefix of a cascade, we use the five point summary (min, median, max, 25-th and 75-th percentile) to represent the distribution for a feature: Temporal Features [7] . We capture the temporal dynamics of a cascade using the following features: Volume [29, 37] . Number of retweets in the observed part of the cascade, which captures early popularity.",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 23,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 24,
+                    "end": 26,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 27,
+                    "end": 30,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 275,
+                    "end": 278,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 364,
+                    "end": 368,
+                    "text": "[29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 369,
+                    "end": 372,
+                    "text": "37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Features for popularity prediction"
+        },
+        {
+            "text": "Past User Success [4, 25] . Average size of the cascades started by a given user in past. For an observed cascade, we use the five point summary of the distribution of past user success for all previously known users who participate in the cascade. This feature requires a large volume of historical data and can be computed only for users that have started cascades in the past. We detail its construction in Sec. 6.1.",
+            "cite_spans": [
+                {
+                    "start": 18,
+                    "end": 21,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 22,
+                    "end": 25,
+                    "text": "25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Features for popularity prediction"
+        },
+        {
+            "text": "We first present in Sec. 6.1 a thorough comparison between the Hawkes model and Seismic, the state-of-the-art generative model on popularity prediction, using two datasets. In Sec. 6.2 and Sec. 6.3 we compare the feature-driven classifier to generative approaches. Sec. 6.1 and Sec. 6.2 tackle regression tasks, i.e., predicting total cascade size after observing it for a certain time, while Sec. 6.3 tackles classification tasks, i.e., whether or not the cascade size will double from what has been observed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "EXPERIMENTS"
+        },
+        {
+            "text": "We compare our point processes model, Hawkes, with Seismic on two datasets, Tweet-1Mo and News. Note that Tweet-1Mo is the dataset on which Zhao et al. [44] reported results, while News dataset supports extracting a richer set of features that is not available in Tweet-1Mo. In addition, Zhao et al. [44] showed that Seismic compared favorably against a number of baselines: from auto-regressive and generative models such as dynamic Poisson model [2, 9] and reinforced Poisson model [34] , to linear regression and it's variants [37] .",
+            "cite_spans": [
+                {
+                    "start": 152,
+                    "end": 156,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 300,
+                    "end": 304,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 452,
+                    "end": 454,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 484,
+                    "end": 488,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 530,
+                    "end": 534,
+                    "text": "[37]",
+                    "ref_id": "BIBREF36"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cascade size: two generative methods"
+        },
+        {
+            "text": "Experimental setup. We run our experiments on the Tweet-1Mo dataset and a subset of News: 20,093 cascades from the month of July, which have the total length of at least 50. Both algorithms observe the initial part of each cascade for a limited extent of time and predict its final popularity. We estimate separate sets of parameters for Hawkes and Seismic after observing the cascades for 5 minutes, 10 minutes and 1 hour, respectively. After the fitting is finished, we train the Random Forest regressor in the predictive layer of the Hawkes model. Performance of this regression layer is reported using ten fold cross-validation. 40% of cascades are used for training, 60% for testing. All experimental protocol choices -minimum cascade length threshold, random training/testing split and length of time prefixes -are made to mimic closely the original experimental setup [44] . We use the Absolute Relative Error (ARE) to measure prediction performance on a given cascade w:",
+            "cite_spans": [
+                {
+                    "start": 875,
+                    "end": 879,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cascade size: two generative methods"
+        },
+        {
+            "text": "whereN\u221e and N real are the predicted and observed popularities of cascade w.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cascade size: two generative methods"
+        },
+        {
+            "text": "Results. The prediction results are summarized in Fig. 5 as boxplots of ARE for each combination (dataset, approach, observed time), while Table 2 shows the mean ARE \u00b1 standard deviation. Note that generative models do not output a prediction for all cascades. For example, when branching factor n * \u2265 1 for Hawkes the estimate for cascade size is infinite, similar failures also occur with Seismic when the infectiousness parameter p \u2265 1 n * ([44] Eq (7)). Here we report the number of \"failed\" cascades in Table 2 , and only report the average ARE on cascades that both approach produce a prediction. As shown in right hand side of the Table 2 , we observe that Hawkes is able to produce meaningful predictions for more cascades than Seismic. For example, on News data with 5 minutes, we output prediction for 873 (or 0.7%) more cascades than Seismic.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 50,
+                    "end": 56,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF7"
+                },
+                {
+                    "start": 139,
+                    "end": 146,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 508,
+                    "end": 515,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                },
+                {
+                    "start": 638,
+                    "end": 645,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Cascade size: two generative methods"
+        },
+        {
+            "text": "We can see that Hawkes consistently outperforms Seismic, as it achieves lower average ARE on both datasets. Mean ARE for Hawkes is at least 40% better than Seismic on Tweet-1Mo and 33% on News. We observe that News dataset after 5 minutes of observation seems the most difficult to predict: Hawkes produces a mean ARE of 0.42, while the mean ARE for Seismic is 11.13. Fig. 5 (top row) shows that the median of Hawkes is at least 25% better than Seismic for any time prefix, suggesting that our approach predicts better for most of the cascades in Tweet-1Mo. Similar conclusions can be drawn from the bottom We are glad to see that the Hawkes model achieves better predictive performance than Seismic, by exploiting full flexibility in its non-linear parameters, and a predictive layer that systematically optimizes for future prediction using information from other cascades.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 368,
+                    "end": 384,
+                    "text": "Fig. 5 (top row)",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Cascade size: two generative methods"
+        },
+        {
+            "text": "In this section we compare the performances of featuredriven and generative approaches on the News dataset only, as the Tweet-1Mo does not contain the necessary data to construct the features detailed in Sec. 5.2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cascade size: generative vs. feature-driven"
+        },
+        {
+            "text": "Experimental setup. Similar to the setup in the previous Sec 6.1, we observe cascades for 5 minutes, 10 minutes and 1 hour and fit the Hawkes and Seismic models for each cascade. The train-test split is different, in order to replicate closer the experimental setup in Martin et al. [25] : the data from first half of July (1-15) is used for training and the data from second half of July (16-31) for testing. We use the News historical data from April to June to construct the past user success feature for the feature-driven approach. We consider only those users who initiated at least 2 cascades in the past as active users. Non-active users have a past user success of 0. We also construct a Hybrid approach, which leverages the features of the Hawkes model -i.e. {c, \u03b8, A1, n * } -together with the features detailed in Sec. 5.2. We use a Random Forest regressor for predicting the final volume size after tuning the predictor on the training set with 10 fold cross-validation.",
+            "cite_spans": [
+                {
+                    "start": 283,
+                    "end": 287,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cascade size: generative vs. feature-driven"
+        },
+        {
+            "text": "Results. Similar to the previous subsection, we report in Table 3 the mean ARE \u00b1 standard deviation and in Fig. 6 the box plots of ARE for 10 minutes and 1 hour. In according with the results of Sec. 6 Figure 7 : ARE distribution over popularity percentiles, on News dataset, after observing cascades for 10 minutes. The blue line denotes the overall median ARE shown in Figure 6a . Note that the y-axes are not on the same scale for all three graphs. Fig. 6 shows lower median and quartiles. This indicates that Hawkes predict better than Feature-Driven for most cascades, but the error distribution of Hawkes is skewed by outliers. Hybrid performs the best, with similar boxplot summarization as Hawkes, but with a 42% better mean APE -0.17 to 0.11 for 1 hour. The differences between Hybrid and all the other approaches are statistically significant (details in the supplement [1] ). This result shows that Hawkes and Feature-Driven approaches are complimentary, likely because they summarize the cascade information differently, and the errors are uncorrelated. ARE distribution over cascade popularity. Figure 7 presents the ARE distribution over cascade popularity as boxplots for each popularity decile. Both Hawkes and Feature-Driven predict better for most of the cascades with the middle popularity. For the extreme ends, performance is affected, because for lower popularity percentiles even a small error is amplified to a large ARE and cascades in higher popularity bins are inherently more difficult to predict. The prediction performance of Seismic seems consistent across popularity bins, but always worse than Hawkes or Feature-Driven, as already showed by the aggregated results in Fig. 6a . We also tried to explain prediction performance breaking down by News sources, but we did not see any notable patterns.",
+            "cite_spans": [
+                {
+                    "start": 200,
+                    "end": 201,
+                    "text": "6",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 880,
+                    "end": 883,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 58,
+                    "end": 65,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                },
+                {
+                    "start": 107,
+                    "end": 113,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 202,
+                    "end": 210,
+                    "text": "Figure 7",
+                    "ref_id": null
+                },
+                {
+                    "start": 371,
+                    "end": 380,
+                    "text": "Figure 6a",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 452,
+                    "end": 458,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF8"
+                },
+                {
+                    "start": 1108,
+                    "end": 1116,
+                    "text": "Figure 7",
+                    "ref_id": null
+                },
+                {
+                    "start": 1700,
+                    "end": 1707,
+                    "text": "Fig. 6a",
+                    "ref_id": "FIGREF8"
+                }
+            ],
+            "section": "Cascade size: generative vs. feature-driven"
+        },
+        {
+            "text": "The learning problem in this section is to classify whether an observed cascade will double its volume or not. The experimental setup follows that of Cheng et al. [7] , in which cascades are observed for a fixed number of retweets, instead of for a fixed extend of time in Sec. 6.1 and 6.2. The proposed Hawkes model outputs directly the total popularity as a cascade size and uses the predictive layer to correct the theoretical estimate. As a consequence, it cannot be used in a classification setup. Instead, we construct a classifier HawkesC, in which a Random Forest Classifier is trained on the same features as the predictive layer of Hawkes and used to output a binary decision.",
+            "cite_spans": [
+                {
+                    "start": 163,
+                    "end": 166,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Will this cascade double"
+        },
+        {
+            "text": "Experimental setup. We use the July subset of the News dataset, filtering to only cascades of length greater than or equal to 25. We observe the cascades for two 25 retweets and 50 retweets, and we predict whether they will reach 50 and 100 retweets, respectively. We perform a 40%-60% stratified train-test split. Feature-Driven approach uses the features mentioned in Section 5.2, except for volume which is constant for all cascades. Hybrid approach combines features from both Hawkes and Feature-Driven. The random train-test split is repeated 10 times and we report mean accuracy and standard deviation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Will this cascade double"
+        },
+        {
+            "text": "Results. Table 4 summarizes the classification performances. A random guess (majority class) would output an accuracy of 52% and 53% for an observed length of 25 and 50 respectively. The generative-based classifier HawkesC improves substantially over the baseline of random guess, however Feature-Driven has the best prediction accuracy. Interestingly, combining the generative features with the datadriven features did not lead to a significant improvement, likely due to Feature-Driven already has stronger results than HawkesC. Admittedly, predicting whether a cascade will double in size is an easier problem than forecasting its final volume. Overall, the results suggests that the predictions are robust, and the performance are comparable to earlier results reported by Cheng et al. [7] (0.81 accuracy after seeing the first 50 shares).",
+            "cite_spans": [
+                {
+                    "start": 790,
+                    "end": 793,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 9,
+                    "end": 16,
+                    "text": "Table 4",
+                    "ref_id": "TABREF5"
+                }
+            ],
+            "section": "Will this cascade double"
+        },
+        {
+            "text": "This paper establishes a common benchmark that allows researchers and practitioners to compare feature-driven and generative approaches on different variants of popularity prediction problems. Existing feature-based approaches employ either proprietary insider information, or global network information that is impossible to retrieve with the limited access that are openly available. In this work, we bridge the problem space by first selecting a small set of features which can be obtained by using only free access services and constructing the Feature-Driven method. We further propose a Hawkes self-exciting model, which intuitively aligns with the social factors responsible for diffusion of cascades: social influence of users, social memory and inherent content quality. We systematically construct a predictive layer, which helps optimize predict from other cascades. We perform extensive evaluation on two large datasets: a benchmark dataset constructed by Zhao et al. [44] and a domain-specific dataset curated on news tweets. We compare the feature-driven approaches and generative approaches in two tasks: i) predicting the total size of retweeting cascades and ii) predicting whether cascades will double their size. Both our proposed generative Hawkes method and our Feature-Driven method outperform the current state of the art predictor. Performances are further improved when combining both approaches into Hybrid, which makes us argue that popularity modeling should leverage the best that both worlds have to provide.",
+            "cite_spans": [
+                {
+                    "start": 980,
+                    "end": 984,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "We plan to extend this work by including additional factors such as, different network behaviour for particular types of content, user influence distributions that are varying over time, and explicit modeling of the interplay between the unfolding of related cascades. 2 Additional density distribution graphics Figure 8 shows the density distribution of parameters \u03b2 and c, along with branching factor n * . The density of \u03b2 shows two local maxima: a maximum of density around 0.079 and a smaller peak around \u03b2 \u223c \u03b1\u22121 resulting from the optimizer terminating at the boundary of the non-linear constraint n * = 1.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 312,
+                    "end": 320,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF9"
+                }
+            ],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Parameter n * represents the expected number of events spawned by a single event in the Hawkes process. Its distribution shows a maximum around n = 0.022 and a smaller local maximum around 1, resulted from the same process involving the non-linear constraint n * = 1. The low value of n * Table 5 : Mean and Median values of log-likelihood of unseen data on a sub sample of News dataset with 100 cascades for Seismic and unconstrained version of Hawkes.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 289,
+                    "end": 296,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "CONCLUSION"
+        },
+        {
+            "text": "Seismic -6.620 -4.3964 Hawkes -7.050 -6.620 point towards a fast decaying self-exciting process, resulting in small cascades with short life spans. Parameter c is a cutoff parameter, its purpose is to keep the kernel function \u03c6m(\u03c4 ) bounded when \u03c4 \u223c 0. It controls the reactivity of the initial diffusion: small values lead to the first retweets being posted early after the initial tweet; large values introduce long waiting times between the first tweet and subsequent retweets. Fig. 8(c) shows its long-tail density distribution in log-log scale and Fig 8(d) shows its cumulative density distribution. The large majority of cascades are very reactive, with a median value of c = 111 seconds.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 481,
+                    "end": 490,
+                    "text": "Fig. 8(c)",
+                    "ref_id": "FIGREF9"
+                },
+                {
+                    "start": 553,
+                    "end": 561,
+                    "text": "Fig 8(d)",
+                    "ref_id": "FIGREF9"
+                }
+            ],
+            "section": "Approach Mean Median"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Supplemental material -feature driven and point process approaches for popularity prediction",
+            "authors": [],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Spatio-temporal models for estimating click-through rate",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Agarwal",
+                    "suffix": ""
+                },
+                {
+                    "first": "B.-C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Elango",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "WWW '09",
+            "volume": "",
+            "issn": "",
+            "pages": "21--30",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Predicting the future with social media",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Asur",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huberman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "WI-IAT '10",
+            "volume": "1",
+            "issn": "",
+            "pages": "492--499",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Everyone's an influencer",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Bakshy",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hofman",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Mason",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Watts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "WSDM '11",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Measuring user influence in twitter: The million follower fallacy",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cha",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Haddadi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Benevenuto",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Gummadi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "ICWSM '10",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Predicting the Popularity of Online Serials with Autoregressive Models",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ge",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Tan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "CIKM '14",
+            "volume": "",
+            "issn": "",
+            "pages": "1339--1348",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Can cascades be predicted?",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Adamic",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Dow",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Kleinberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "WWW '14",
+            "volume": "",
+            "issn": "",
+            "pages": "925--936",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Power-Law Distributions in Empirical Data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Clauset",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Shalizi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "E J"
+                    ],
+                    "last": "Newman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "SIAM Review",
+            "volume": "51",
+            "issn": "4",
+            "pages": "661--703",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Robust dynamic classes revealed by measuring the response function of a social system",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Crane",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "105",
+            "issn": "",
+            "pages": "15649--15653",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "An introduction to the theory of point processes",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Daley",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vere-Jones",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "",
+            "volume": "I",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "High Impact Academic Paper Prediction Using Temporal and Topological Features",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Davletov",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Aydin",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cakmak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "CIKM '14",
+            "volume": "",
+            "issn": "",
+            "pages": "491--498",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Video Popularity Prediction by Sentiment Propagation via Implicit Network",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Shang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "CIKM '15",
+            "volume": "",
+            "issn": "",
+            "pages": "1621--1630",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Coevolve: A joint point process model for information diffusion and network co-evolution",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Farajtabar",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Rodriguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zha",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "NIPS '15",
+            "volume": "",
+            "issn": "",
+            "pages": "1945--1953",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Apparent criticality and calibration issues in the Hawkes self-excited point process model: application to high-frequency financial data",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Filimonov",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Spectra of some self-exciting and mutually exciting point processes",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Hawkes",
+                    "suffix": ""
+                }
+            ],
+            "year": 1971,
+            "venue": "Biometrika",
+            "volume": "58",
+            "issn": "1",
+            "pages": "83--90",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A Cluster Process Representation of a Self-Exciting Process",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Hawkes",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Oakes",
+                    "suffix": ""
+                }
+            ],
+            "year": 1974,
+            "venue": "J. Appl. Probab. '",
+            "volume": "74",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Subcritical and supercritical regimes in epidemic models of earthquake aftershocks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Helmstetter",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "J GEOPHYS RES-SOL EA",
+            "volume": "02",
+            "issn": "B10",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Download relaxation dynamics on the WWW following newspaper publication of URL. PhysA '00",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Johansen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "276",
+            "issn": "",
+            "pages": "338--345",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Spatio-temporal meme prediction",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Kamath",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Caverlee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CIKM '13",
+            "volume": "",
+            "issn": "",
+            "pages": "1341--1350",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A Granger causality measure for point process models of ensemble neural spiking activity",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Putrino",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ghosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Brown",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "PLoS Comput. Biol. '",
+            "volume": "11",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "What is twitter, a social network or a news media",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Kwak",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Park",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Moon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "WWW '10",
+            "volume": "",
+            "issn": "",
+            "pages": "591--600",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "On popularity prediction of videos shared in online social networks",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CIKM '13",
+            "volume": "",
+            "issn": "",
+            "pages": "169--178",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Dyadic event attribution in social networks with mixtures of Hawkes processes",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zha",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "CIKM '13",
+            "volume": "",
+            "issn": "",
+            "pages": "1667--1672",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Learning parametric models for social infectivity in multi-dimensional hawkes processes",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zha",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "AAAI '14",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Exploring limits to prediction in complex social systems",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Martin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Hofman",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sharma",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Anderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Watts",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "WWW '16",
+            "volume": "",
+            "issn": "",
+            "pages": "683--694",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Limited communication capacity unveils strategies for human interaction",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Miritello",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Lara",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cebrian",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Moro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Sci. Rep. '",
+            "volume": "13",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Self-Exciting Point Process Modeling of Crime",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "O"
+                    ],
+                    "last": "Mohler",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Short",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Brantingham",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Schoenberg",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Tita",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Amer. Statist. Assoc. '",
+            "volume": "11",
+            "issn": "493",
+            "pages": "100--108",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Seismicity Analysis through Point-process Modeling: A Review",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Ogata",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "PURE APPL GEOPHYS",
+            "volume": "99",
+            "issn": "2-4",
+            "pages": "471--507",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Using early view patterns to predict the popularity of youtube videos",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Pinto",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Almeida",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Gon\u00e7alves",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "WSDM '13",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Trend detection in social networks using hawkes processes",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "C L"
+                    ],
+                    "last": "Pinto",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Chahed",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Altman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ASONAM '15",
+            "volume": "",
+            "issn": "",
+            "pages": "1441--1448",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Modeling temporal activity patterns in dynamic social networks",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Raghavan",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Steeg",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Galstyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Tartakovsky",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "IEEE CSS '",
+            "volume": "14",
+            "issn": "1",
+            "pages": "89--107",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Uncovering the Temporal Dynamics of Diffusion Networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Rodriguez",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Balduzzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ICML'11",
+            "volume": "",
+            "issn": "",
+            "pages": "561--568",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Viral actions: Predicting video view counts using synchronous sharing behaviors",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Shamma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yew",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Kennedy",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Churchill",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ICWSM '11",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Modeling and Predicting Popularity Dynamics via Reinforced Poisson Processes",
+            "authors": [
+                {
+                    "first": "H.-W",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "A.-L",
+                    "middle": [],
+                    "last": "Barab\u00e1si",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "AAAI '14",
+            "volume": "",
+            "issn": "",
+            "pages": "291--297",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Renormalization of earthquake aftershocks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Geophys. Res. Lett. '",
+            "volume": "99",
+            "issn": "13",
+            "pages": "1981--1984",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Endogenous versus exogenous shocks in systems with memory",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Sornette",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Helmstetter",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "",
+            "volume": "318",
+            "issn": "",
+            "pages": "577--591",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Predicting the popularity of online content",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Szabo",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huberman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Communicat. of the ACM",
+            "volume": "53",
+            "issn": "8",
+            "pages": "80--88",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "Characterizing and Predicting Viral-and-Popular Video Content",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vallet",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Berkovsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ardon",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Mahanti",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Kafaar",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "CIKM '15",
+            "volume": "",
+            "issn": "",
+            "pages": "1591--1600",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "On the implementation of a primal-dual interior point filter line search algorithm for large-scale nonlinear programming",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "W\u00e4chter",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Biegler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Mathematical Programming",
+            "volume": "106",
+            "issn": "1",
+            "pages": "25--57",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Different epidemic curves for severe acute respiratory syndrome reveal similar impacts of control measures",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wallinga",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Teunis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Am J Epidemiol",
+            "volume": "04",
+            "issn": "6",
+            "pages": "509--525",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Novelty and collective attention",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Huberman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "PNAS '",
+            "volume": "07",
+            "issn": "45",
+            "pages": "17599--601",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Twitter-driven youtube views: Beyond individual influencers",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sanner",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "MM '14",
+            "volume": "",
+            "issn": "",
+            "pages": "869--872",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Uncovering and predicting the dynamic process of information cascades with survival model",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Know. and Inf. Syst",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "SEISMIC: A Self-Exciting Point Process Model for Predicting Tweet Popularity",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Erdogdu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Rajaraman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "KDD '15",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "October 24-28, 2016, Indianapolis, IN, USA c 2016 ACM. ISBN 978-1-4503-4073-1/16/10. . . $15.00 DOI: http://dx.doi.org/10.1145/2983323.2983812 seemingly incoherent individual responses to a single piece of information.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Density distribution of model parameters \u03ba (a) and \u03b8 (b), on a sample of 17,146 cascades from the News dataset. The dashed vertical lines show fitted parameter values for the two retweet cascades illustrated inFig. 1: tw1 in red and tw2 in blue. We note that Seismic[44] uses a fixed value of \u03b8 = 0.242 for all cascades (denoted in green). The distributions for c, \u03b2 and n * are shown in the supplement[1].",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Illustration of the rationale behind popularity prediction. The model parameters are estimated starting from a series of observed events (mi, ti). Part of one possible unfolding of the diffusion cascade is simulated, using the event rate defined by Eq. (2) and simulated by thinning[28]. The event generations are shown: events in Generation1 are shown in red color, Generation2 in green and Generation k in blue. Note there is no theoretical limit to the number of generations or to the extent of time until the cascade dies out. Some of the parent-child relations between events in consecutive generations are shown.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Number of Followers: count of user followers; \u2022 Number of Friends: count of friends for a user; \u2022 Number of Status: count of statuses posted by user; \u2022 User Time: Time when user account was created.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "First Half Rate: mean waiting time between retweets, during the first half of the observed cascade; \u2022 Second Half Rate: mean waiting time between retweets, during the second half of the observed cascade; \u2022 Waiting Time Distribution: five point summary of waiting times between retweets, in the observed cascade; \u2022 Exposure Distribution: five point summary of the distribution of number of followers for all users before the last retweet, in the observed cascade. Used only in the classification task in Sec. 6.3. Distribution of Absolute Relative Error (ARE) on the Tweet-1Mo dataset (top row) and on the News (bottom row), for Seismic and Hawkes. A part of the diffusion cascade is observed before making the predictions: 5 min (left column), 10 min (middle column) and 1 hour (right column). The red line and the numeric annotations denotes the median values of the distributions.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF8": {
+            "text": "Distribution of ARE on the News dataset, split in time for July, for Seismic, Feature-Driven, Hawkes and Hybrid, after observing 10 minutes (a) and 1 hour (b). The red line and the numeric annotations denote median value. row of Fig. 5 (News data): the median ARE of Hawkes is at most 0.19 at 5 minutes, while the best of Seismic models is a median ARE of .24 at 1 hour.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF9": {
+            "text": "Distribution of parameter \u03b2 (a), n * (b), c in log-log scale (c) and cumulative distribution of c in log-log (d), on a sample of 17,146 cascades from the News dataset. The dashed vertical lines show fitted parameter values for the two retweet cascades illustrated in the main text Fig. 1: tw1 in red and tw2 in blue.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF10": {
+            "text": ">t j \u2212 log(ti \u2212 tj + c) (ti \u2212 tj + c) \u2212(1+\u03b8) (mj) \u03b2 t i >t j (ti \u2212 tj + c) \u2212(1+\u03b8) (mj) log (T + c \u2212 ti) + 1) (T + c \u2212 ti) \u2212\u03b8 \u2212 (\u03b8 log (c) + 1) c \u2212\u03b8[ 21 ]",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF1": {
+            "text": "Summary of notations. Top: Quantities for estimating popularity using point processes. Bottom: Parameters of the marked Hawkes process.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "(left hand side) Mean Average Relative Error (ARE) \u00b1 standard deviation obtained using Hawkes and Seismic on the Tweet-1Mo and News datasets. (right hand side) Number of cascades for which prediction failed.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF4": {
+            "text": ".1, Hawkes surpasses Seismic",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF5": {
+            "text": "Accuracy \u00b1 standard deviation when predicting whether a cascade will double its size or not.for all considered setups. Note that these results are numerically different from those in Sec 6.1, because the underlying test dataset consist only the subset from second half (16-31) of July 2015. Surprisingly, even the Feature-Driven model outperforms Seismic for all time prefixes, by at least 40%. In both cases, the differences are statistically significant (p \u2212 val < 0.001) for 10 minutes and 1 hour. The Hawkes model exhibits similar mean ARE as Feature-Driven and higher standard deviation. However, its boxplot in",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "Acknowledgments This material is based on research sponsored by the Air Force Research Laboratory, under agreement number FA2386-15-1-4018. We thank the National Computational Infrastructure (NCI) for providing computational resources, supported by the Australian Government.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "acknowledgement"
+        },
+        {
+            "text": ". . . [ 14 ] Introducing Eq. [ 2 ] into Eq. [ 14 ] , we obtain:(mi) \u03b2 1 \u03b8c \u03b8 \u2212 (T + c \u2212 ti) \u2212\u03b8 \u03b8 [ 15 ] Hence Equation [ 13 ] can be written as,1. For differentiating L(\u03ba, \u03b2, c, \u03b8) w.r.t \u03b2, c and \u03b8, we first consider the 2 nd second term in the right hand side of Eq. [ 16 ] : [ 18 ] Using the logarithmic derivation rule and Eq. [ 18 ] in Eq [ 16 ] , we obtain the partial derivative w.r.t \u03b2:Similarly, we compute the partial derivatives w.r.t c and \u03b8: \u2202L \u2202c = out the task to evaluate how good our model fits the unseen data. In order to achieve this we first fit a model to all data seen till some time tN for a cascade and then estimate the log-likelihood of the unseen data till it's end time tM . We can get the log-likelihood of the unseen data by subtracting the log-likelihood of the seen cascade from the loglikelihood of the whole cascade after fitting the parameters on the seen part, it is defined as follows,For Hawkes we can easily calculate the value in Equation 22 by using Equation 16 for both seen and full cascade. But for Seismic the evaluation is not possible, as they do not derive the log-likelihood of their model explicitly. For Seismic the derivation of log-likelihood of unseen data can be written as follows,Now we can calculate the part A of Equation 23 by using Equation 1 in [1] and assuming that infectiousness once estimated at tN remains constant, as follows,Now for Part B in Equation 23 by using Equation 1 in [1], we have,Now using the trick used in Equation 14 and keeping in mind the fact that ti has two parts, i\u2208 [1, N ] Using Equation 24 and Equation 26 we can calculate the desired log-likelihood of the unseen data for Seismic.To present results for goodness of fit we use unconstrained optimization of parameters for Hawkes and compare it against Seismic on a sub sample of News dataset with 100 cascades. The results are laid down in Table 5 . As seen from the table, Seismic fits slightly better to the unseen data Hawkes, even though the predictive power of Hawkes is better as demonstrated in main text.",
+            "cite_spans": [
+                {
+                    "start": 6,
+                    "end": 12,
+                    "text": "[ 14 ]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 29,
+                    "end": 34,
+                    "text": "[ 2 ]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 44,
+                    "end": 50,
+                    "text": "[ 14 ]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 97,
+                    "end": 103,
+                    "text": "[ 15 ]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 119,
+                    "end": 125,
+                    "text": "[ 13 ]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 268,
+                    "end": 274,
+                    "text": "[ 16 ]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 277,
+                    "end": 283,
+                    "text": "[ 18 ]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 330,
+                    "end": 336,
+                    "text": "[ 18 ]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 343,
+                    "end": 349,
+                    "text": "[ 16 ]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 970,
+                    "end": 981,
+                    "text": "Equation 22",
+                    "ref_id": null
+                },
+                {
+                    "start": 1000,
+                    "end": 1002,
+                    "text": "16",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1307,
+                    "end": 1310,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1497,
+                    "end": 1499,
+                    "text": "14",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1555,
+                    "end": 1562,
+                    "text": "[1, N ]",
+                    "ref_id": null
+                },
+                {
+                    "start": 1578,
+                    "end": 1580,
+                    "text": "24",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 1594,
+                    "end": 1596,
+                    "text": "26",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1881,
+                    "end": 1888,
+                    "text": "Table 5",
+                    "ref_id": null
+                }
+            ],
+            "section": "annex"
+        },
+        {
+            "text": "In this section we present the analysis on statistical significance of our results presented in Section 6.2 of main text.Results are presented in Table 6 for Seismic, Hawkes, Feature-Driven and Hybrid models for the News dataset, we use a strict cut-off p-value, 0.01, as our sample size is in order of thousands.As seen from Table 6 Hybrid model shows statistical significant improvement over all other approaches almost every time. The results for Hawkes and Feature-Driven are in general better than Seismic, but statistically insignificant among each other. Table 6 : Statistical testing results for Seismic, Hawkes, Feature-Driven and Hybrid models for the News dataset, indicating the algorithm with statistical significant better results. Win is decided when an algorithm has majority of lower error values than the competing algorithm and p-value confirms the results as statistically significant, else we mark it a draw in case of no statistical difference. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 146,
+                    "end": 153,
+                    "text": "Table 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 326,
+                    "end": 333,
+                    "text": "Table 6",
+                    "ref_id": null
+                },
+                {
+                    "start": 562,
+                    "end": 569,
+                    "text": "Table 6",
+                    "ref_id": null
+                }
+            ],
+            "section": "More Results"
+        }
+    ]
+}

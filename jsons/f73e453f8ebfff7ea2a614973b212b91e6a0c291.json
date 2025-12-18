@@ -1,0 +1,989 @@
+{
+    "paper_id": "f73e453f8ebfff7ea2a614973b212b91e6a0c291",
+    "metadata": {
+        "title": "CACRNN: A Context-Aware Attention-Based Convolutional Recurrent Neural Network for Fine-Grained Taxi Demand Prediction A Context-Aware Attention-Based Convolutional Recurrent Neural Network 637",
+        "authors": [
+            {
+                "first": "Wenbin",
+                "middle": [],
+                "last": "Wu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Shanghai University",
+                    "location": {
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": "wenbinw@shu.edu.cn"
+            },
+            {
+                "first": "Tong",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Shanghai University",
+                    "location": {
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": "tongliu@shu.edu.cn"
+            },
+            {
+                "first": "Jiahao",
+                "middle": [],
+                "last": "Yang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Shanghai University",
+                    "location": {
+                        "settlement": "Shanghai",
+                        "country": "China"
+                    }
+                },
+                "email": "jiahaoyang@shu.edu.cn"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "As taxis are primary public transport in metropolises, accurately predicting fine-grained taxi demands of passengers in real time is important for guiding drivers to plan their routes and reducing the waiting time of passengers. Many efforts have been paid to provide accurate taxi demand prediction, and deep neural networks are leveraged recently. However, existing works are limited in properly incorporating multi-view taxi demand predictions together, by simply assigning fixed weights learned by training to the predictions of each region. To solve this problem, we apply the attention mechanism for leveraging contextual information to assist prediction, and a context-aware attentionbased convolutional recurrent neural network (CACRNN) is proposed. Specially, we forecast fine-grained taxi demands with considering multiview features, including spatial correlations among adjacent regions, short-term periodicity, long-term periodicity, and impacts of external factors. Local convolutional (LC) layers and gated recurrent units (GRUs) are utilized to extract the features from historical records. Moreover, a context-aware attention module is employed to incorporate the predictions of each region with considering different features, which is our novel attempt. This module assigns different weights to the predictions of a region according to its contextual information such as weather, index of time slots, and region function. We conduct comprehensive experiments based on a large-scale real-world dataset from New York City, and the results show that our method outperforms state-of-the-art baselines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Taxis play an important role in public transportation systems, providing comfortable and convenient services to a larger amount of passengers every day, especially in metropolises like New York City. According to a survey conducted in 2016, the number of taxis is over 13,000 in New York City, and about 420,000 orders on average are completed per day. However, a major problem exists in taxi service is that the spatial-temporal imbalance between supply of drivers and demand of passengers. For example, some drivers steer empty taxis on some streets, while some passengers cannot take taxis even after a long wait on other streets. This problem leads to the increase of waiting time of passengers and the decrease of incomes of drivers.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Predicting fine-grained taxi demands in future is of great significance to solve the problem. Extracting spatial-temporal patterns from historical taxi trip records can help prediction. However, there exist several challenges to make accurate prediction. Firstly, taxi demands are highly dynamic, i.e., varying rapidly and randomly over time, which are determined by passengers. On the other hand, certain periodic patterns exist objectively, like high taxi demands in rush hours on weekdays. Secondly, the variations of taxi demands in different functional regions of a city are unlike, e.g., central business districts and residential areas. In addition, the taxi demand of a region has high correlations with other regions, especially its adjacent regions, due to the flows of passengers. Thirdly, taxi demands are greatly influenced by some external factors, such as weather condition, holidays and weekends. For example, many people take taxis in the early morning on the New Year's Day because of celebratory activity, which does not occur in ordinary days.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There has been a long line of studies in taxi demand prediction. Model-based methods are widely developed in the earlier works. For instance, autoregressive integrated moving average (ARIMA) and its improvements are used [6, 8] , via modeling taxi demand prediction problem as a time series prediction problem. Recently, deep neural networks (DNN) are introduced to predict taxi demands, in which complicated spatial-temporal correlations are extracted and external factors are used to assist prediction. For example, Xu et al. [11] propose a sequential learning framework based on long short-term memory (LSTM) network, in which instant temporal dependencies are leveraged. Convolution operation is integrated with LSTM by Yao et al. [12] , and spatial correlations and temporal dependencies are both extracted. External factors are further leveraged in [2] to improve the prediction accuracy. However, these works are limited in properly incorporating multi-view features of taxi demands and external factors together, by simply assigning them fixed weights learned by training.",
+            "cite_spans": [
+                {
+                    "start": 221,
+                    "end": 224,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 225,
+                    "end": 227,
+                    "text": "8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 528,
+                    "end": 532,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 735,
+                    "end": 739,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 855,
+                    "end": 858,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we propose a convolutional recurrent network model for taxi demand prediction. We first divide time into time slots and partition an urban area into regions, based on which fine-grained taxi demands are defined. Then, multi-view spatial-temporal features of taxi demands are used to perform prediction. Specially, for each region, three predictions are obtained, considering the spatial correlations and temporal dependencies among adjacent regions in successive time slots, and the short-term and long-term periodicity with the impacts of external factors respectively. Local convolutional layers and gated recurrent units are employed in our network model. Finally, we develop a novel context-aware attention mechanism to incorporate the predictions of each region. Contextual factors are input into fully-connected layers to learn the weight assigned to each prediction, and the final prediction is calculated as the weighted sum.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The main contributions of this paper can be summarized as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We propose a convolutional recurrent network model for fine-grained taxi demand prediction. Multi-view features of taxi demands, including the spatial correlations among adjacent regions, short-term and long-term periodicity, and the impacts of external factors, are considered to perform prediction. -We also develop a context-aware attention mechanism to incorporate the predictions of each region, by assigning them different notice. Contextual information, such as weather condition, index of time slots, and region function, are taken into account in our attention network. -We conduct comprehensive experiments based on real-world datasets from New York City. The results show that our proposed network outperforms state-of-the-art methods.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The rest of this paper is organized as follows. Section 2 describes some key definitions and our problem formulation. The details of our designed neural network is illustrated in Sect. 3. Section 4 presents the experimental results of our model and several baselines. We review related work and conclude our paper in Sect. 5 and Sect. 6, respectively.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this section, we first present some key definitions, and then formally formulate the taxi demand prediction problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Formulation"
+        },
+        {
+            "text": "A road network of an urban area is composed of a set of road segments. Each road segment is associated with two terminal points (i.e., intersections of crossroads), and connects with other road segments by sharing the same terminals. All road segments compose the road network in the format of a graph.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 1 (Road Network)."
+        },
+        {
+            "text": "To formally describe fine-grained taxi demands in spatial and temporal dimensions, we discretize time into a set of equal-interval time slots, denoted by T = {t 1 , t 2 , \u00b7 \u00b7 \u00b7 , t \u03c4 , \u00b7 \u00b7 \u00b7 }, where t \u03c4 represents the current time slot. We also divide the whole urban area into disjoint regions based on its road network, by leveraging the map segmentation method in [14] . Each region is an irregular polygon, encompassed by several road segments. The set of regions is represented by R = {r 1 , r 2 , \u00b7 \u00b7 \u00b7 , r N }, where N represents the number of regions. Based on the definitions of time slots and regions, we further present the formal definition of fine-grained taxi demands as follows.",
+            "cite_spans": [
+                {
+                    "start": 368,
+                    "end": 372,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Definition 1 (Road Network)."
+        },
+        {
+            "text": "We use X n,\u03c4 to represent the number of passengers with the demand of taking a taxi in region r n \u2208 R at time slot t \u03c4 \u2208 T . Then, the taxi demands at time slot t \u03c4 are defined as X \u03c4 = [X 1,\u03c4 , X 2,\u03c4 , \u00b7 \u00b7 \u00b7 , X N,\u03c4 ].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 2 (Taxi Demands)."
+        },
+        {
+            "text": "We denote {tr} is a set of historical taxi tripping records. Each record tr contains locations and timestamps of picking up and dropping off a passenger, which can be denoted by a tuple tr = (tr.pl, tr.pt, tr.dl, tr.dt). Here, pick-up location tr.pl and drop-off location tr.dl are given by their latitudes and longitudes, while pick-up timestamp tr.pt and drop-off timestamp tr.dt are given by their dates, hours and minutes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3 (Taxi Tripping Records)."
+        },
+        {
+            "text": "To predict taxi demands in future, we first dig fine-grained taxi demands in past time slots from historical taxi tripping records as defined in Definition 3. Given a dataset of taxi tripping records in an urban area, historical taxi demands in region r n at time slot t \u03c4 can be approximated by the number of passengers have taken a taxi, which is derived as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3 (Taxi Tripping Records)."
+        },
+        {
+            "text": "where tr.pl \u2208 r n and tr.pt \u2208 t \u03c4 mean that the pick-up location of record tr is in region r n , and the pick-up timestamp is within time slot t \u03c4 , respectively. Function | \u00b7 | denotes the cardinality of a set.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 3 (Taxi Tripping Records)."
+        },
+        {
+            "text": "Information contained in POIs indicates the function of regions (e.g., central business districts) as well as the flows of passengers. We define a function vector for each region, denoted by r n .f unc, in which each element is the number of POIs of a specific category. In addition, we also define a set of neighbours for each region composed of its adjacent regions, denoted by r n .neig. We now formulate the problem of predicting fine-grained taxi demands in the next time slot as follows.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Definition 4 (POI). A point of interest (POI) is a venue in an urban area like a shopping mall. Each POI is associated with a location and a category."
+        },
+        {
+            "text": "Consider an urban area is divided into disjoint regions R by the road network. Given fine-grained taxi demands in the past time slots {X t |t = 1, 2, \u00b7 \u00b7 \u00b7 , \u03c4} extracted from historical taxi tripping records, we try to predict fine-grained taxi demands at the next time slot. The prediction is denoted asX \u03c4 +1 = [X 1,\u03c4 +1 ,X 2,\u03c4 +1 , \u00b7 \u00b7 \u00b7 ,X N,\u03c4 +1 ]. Figure 1 provides an overview of our proposed deep neural network model, which comprises of four modules.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 355,
+                    "end": 363,
+                    "text": "Figure 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Definition 5 (Taxi Demand Prediction Problem)."
+        },
+        {
+            "text": "Instant Spatial-Temporal Module. This module is composed of a series of local convolutional (LC) layers and a gated recurrent unit (GRU), which are employed to extract spatial and temporal dependencies of taxi demands in a close period. Specially, it takes the taxi demands in o successive time slots as its input, denoted by Short-Term Periodic Module. This module considers the existence of shortterm (e.g., a few days) periodicity in taxi demands to perform the prediction. We employ a GRU to learn the short-term periodicity, which takes a sequence of taxi demands in p periodic time slots with interval \u0394 s as the input, i.e.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview of CACRNN Model"
+        },
+        {
+            "text": "Besides, the influence of some external factors (like weather and holidays) to the periodicity is also considered in this module. We represent the features of external factors in t \u03c4 as a vector u \u03c4 \u2208 R 1\u00d7\u03c9 , and concatenate it with taxi demands as the input of the GRU. Then, a prediction of taxi demands f s \u2208 R 1\u00d7N is obtained.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Overview of CACRNN Model"
+        },
+        {
+            "text": "This module draws the long-term (e.g., a few weeks) periodic pattern of taxi demands. Similar with the last module, a sequence of taxi demands Y l = [X \u03c4 +1\u2212q\u0394 l , X \u03c4 +1\u2212(q\u22121)\u0394 l , \u00b7 \u00b7 \u00b7 , X \u03c4 +1\u2212\u0394 l ] \u2208 R q\u00d7N combined with features of external factors is fed to a GRU, and a prediction of taxi demands at time slot t \u03c4 +1 is output, denoted by f l \u2208 R 1\u00d7N .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Long-Term Periodic Module."
+        },
+        {
+            "text": "We leverage an attention module to incorporate the outputs of the above modules into the final taxi demand pre-dictionX \u03c4 +1 , which is a novel attempt. Especially, our attention model can be interpreted as assigning different weights to the predictions of each region, according to contextual information like weather condition, index of time slots, and region function.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Context-Aware Attention Module."
+        },
+        {
+            "text": "In the following, we provide details of each module respectively. Main notations and descriptions are summarized in Table 1 , where '#' represents 'number'.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 116,
+                    "end": 123,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Context-Aware Attention Module."
+        },
+        {
+            "text": "The structure of this module is built based on local convolutional layers and a GRU, to extract the latent spatial correlations in adjacent regions and the temporal dependencies in a close period.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Instant Spatial-Temporal Module"
+        },
+        {
+            "text": "A sequence of taxi demands Y i is first fed to the LC layers. In each layer, local convolutional operation is conducted, and k convolution kernels are used to extract high-dimensional spatial features. Specially, we take the l-th (2 \u2264 l \u2264 L) LC layer as an example to illustrate the details. We denote the input of this layer as Y i l \u2208 R k\u00d7o\u00d7N , which also is the output of the (l \u2212 1)-th LC layer. Firstly, for each region r n , we construct a sub-matrix Y i l,n by rearranging some columns of Y i l . Specially, we define M = max \u2200n {|r n .neig|} and thus define Y i l,n \u2208 R k\u00d7o\u00d7(M +1) . For region r n , the columns in Y i l corresponding to its neighbouring regions are chosen to be a part of Y i l,n , as shown in Fig. 2 . Besides, we pad the left vacant columns by duplicating the column in Y i l corresponding to r n (M + 1 \u2212 |r n .neig|) times. Secondly, we conduct a convolutional operation on each Y i l,n , respectively. Convolution kernels with size equal to 1 \u00d7 (M + 1) are used to scan each row of Y i l,n , and a o \u00d7 1 vector is output by each kernel for r n . We also add batch normalization (BN) after each LC layer to accelerate the training speed. By concatenating the outputs of k kernels for all regions, we get the output of the l-th LC layer, Y i l+1 \u2208 R k\u00d7o\u00d7N , which is also the input of the (l + 1)-th LC layer. After L LC layers, a 1 \u00d7 1 convolutional operation is applied to compress high-dimensional spatial features, and a high-level representation is obtained, denoted by S i \u2208 R o\u00d7N . Next, the high-level representation is fed to a GRU proposed by [3] . Specially, each row of S i (denoted by S i t ), containing high-level spatial features at time slot t \u2208 [t \u03c4 +1\u2212o , t \u03c4 ], is fed to the GRU in order. The computations of this component can be represented as",
+            "cite_spans": [
+                {
+                    "start": 1582,
+                    "end": 1585,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 720,
+                    "end": 726,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Instant Spatial-Temporal Module"
+        },
+        {
+            "text": "where h i \u03c4 \u2208 R 1\u00d7\u03ba is a high-level representation containing temporal dependencies of taxi demands among o successive time slots. Here, \u03ba is a tunable parameter in the GRU, representing how many hidden nodes are used. Finally, a prediction of taxi demands at next time slot t \u03c4 +1 , denoted by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Instant Spatial-Temporal Module"
+        },
+        {
+            "text": ", is output by a fully-connected (FC) layer with input h i \u03c4 . Overall, the prediction is obtained based on recent taxi demands, considering spatial correlations among adjacent regions and temporal dependencies among successive time slots.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Instant Spatial-Temporal Module"
+        },
+        {
+            "text": "Short-term and long-term periodicity of taxi demands are considered to perform prediction in these two modules, respectively. As shown in Fig. 1 , they share the same GRU-based structure, which takes a combination of taxi demands and external factor features as its input. External factors in temporal dimension, like weather condition and holidays/weekends, have great impact on the periodicity of taxi demands. For example, we find that the hourly variation of taxi demands in weekends or holidays is significantly different from weekdays. Besides, the peak durations of taxi demands in a rainy day and a sunny day are also different. To capture the features of external factors, we employ an embedding method [5] to transform the values of these factors at each time slot to an external feature vector, denoted by u t . This embedding method is widely used to map categorical values into a low-dimensional vector.",
+            "cite_spans": [
+                {
+                    "start": 712,
+                    "end": 715,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 138,
+                    "end": 144,
+                    "text": "Fig. 1",
+                    "ref_id": null
+                }
+            ],
+            "section": "Short/Long-Term Periodic Module"
+        },
+        {
+            "text": "Then, we concatenate the sequences of taxi demands with the external feature vectors in the corresponding time slots as the input of a GRU, and the output is transformed to a prediction of taxi demands at the next time slot by a FC layer. The computations of the short-term periodic module are defined as follows,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Short/Long-Term Periodic Module"
+        },
+        {
+            "text": "where \u2295 denotes the concatenation operation, and f s = [f s 1 , f s 2 , \u00b7 \u00b7 \u00b7 , f s N ]. Similarly, the prediction output by the long-term periodic module can be computed as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Short/Long-Term Periodic Module"
+        },
+        {
+            "text": "where f l = [f l 1 , f l 2 , \u00b7 \u00b7 \u00b7 , f l N ].",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Short/Long-Term Periodic Module"
+        },
+        {
+            "text": "Three predictions (i.e., f i , f s , and f l ) have been output by the previous modules.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Context-Aware Attention Module"
+        },
+        {
+            "text": "In this subsection, we leverage attention mechanism to incorporate the three predictions by considering context information which is our first attempt. In what follows, we first introduce how to extract context features, and then explain our context-aware attention network structure. As shown in Fig. 3 , we construct a context feature vector for each region r n at time slot t \u03c4 +1 , denoted by g n . Here, we consider three main context factors, including weather condition at t \u03c4 +1 , index of time slots t \u03c4 +1 , and function of region r n , which make a difference to taxi demands. Specially, we use the same method in feature extraction of external factors, to embed the index of time slots into a low-dimensional vector, and concatenate it with the vectors of weather condition and region function.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 297,
+                    "end": 303,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Context-Aware Attention Module"
+        },
+        {
+            "text": "Next, we construct a perceptron to learn the attention should be paid to the three predictions of each region. Figure 3 presents the detailed structure of the perceptron, which is composed of two FC layers and a softmax operation. It takes the context feature vector and taxi demand predictions of region r n at t \u03c4 +1 and outputs a 1 \u00d7 3 vector, denoted by w n = [w i n , w s n , w l n ]. The three elements of the vector can be interpreted as the weights assigned to the predictions of r n . Thus, we can obtain the final taxi demand prediction of r n at t \u03c4 +1 by computing the weighted sum of its three predictions, i.e.,",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 111,
+                    "end": 119,
+                    "text": "Figure 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Context-Aware Attention Module"
+        },
+        {
+            "text": "Note that the weights indicate that to what extent the predictions should be noticed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Context-Aware Attention Module"
+        },
+        {
+            "text": "Since the taxi demand prediction is a regression problem, we adopt mean square error as our loss function, and train our network model by minimizing the error between predictionX \u03c4 +1 and ground truth X \u03c4 +1 , i.e.,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning"
+        },
+        {
+            "text": "where \u03a9 is the set of all learnable parameters in our network model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning"
+        },
+        {
+            "text": "We first introduce the real-world datasets from New York City (NYC) used in our experiments. Road Network Data. The road network of NYC consists of 87,898 intersections and 91,649 road segments. In this paper, we partition NYC into 972 regions by road segments, as shown in Fig. 4 is also used in our work, containing weather condition (e.g., sunny and rainy), temperature, wind speed, and humidity information recorded every six hours. We also consider 10 statutory holidays in the United States.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 274,
+                    "end": 280,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "We compare our proposed model with the following baselines. integrates graph convolution into gated recurrent units to predict traffic flows on the road network. In this model, bidirectional graph random walk operation is employed, to extract the spatial dynamics of the traffic flows, and the temporal dynamics are captured by RNN. -Spatial-Temporal Graph Convolutional Networks (STGCN) [13] :",
+            "cite_spans": [
+                {
+                    "start": 388,
+                    "end": 392,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "consists of several ST-Conv blocks, which are built with entirely convolutional layers, to tackle traffic prediction tasks. Specifically, each block is composed of graph convolution and gated temporal convolution, which jointly process graph-structured time series.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "We also analyze the performance achieved by different modules of our model, to study their effectiveness in taxi demand prediction. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Compared Methods"
+        },
+        {
+            "text": "The default values of parameters in our experiments are set up as follows. We set a time slot as 15 min. In the instant spatial-temporal module, six successive time slots are used, i.e., o = 6. In addition, we set k = 16, M = 14, and L = 3 in the default setting. In the short-term and long-term periodic modules, 4 and 2 periodic time slots are employed respectively, with intervals \u0394 s = 96 (a day) and \u0394 l = 96 \u00d7 7 (a week). We embed weather condition, holiday condition, and weekend into a 1 \u00d7 3 vector, respectively. The numbers of hidden nodes in GRUs in the three modules are all set as 512. In the context-aware attention module, we embed index of time slots into a 1 \u00d7 5 vector. We use the historical records during Jun. 2016 as testing data, and the rest records as training data. The performance achieved by each method is evaluated by root mean square error (RMSE) and mean absolute error (MAE). Besides, we adopt Adam optimization algorithm for training parameters. The learning rate of Adam is set as 10 \u22124 , and the batch size during training is 64. We also employ early stop in our experiments, in which the number of rounds and the maximal epoch are set as 6 and 100, respectively. All experiments are conducted on a NVIDIA RTX2070 graphics card, and experimental results are the average of five runs under the same setting with different random seeds.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Default Setting"
+        },
+        {
+            "text": "Comparison with Baselines. Table 2 shows the performance achieved by our proposed model and the baselines under the default setting. We can easily find that our model achieves the lowest RMSE (3.209) and MAE (1.119), compared with all the baselines. Specifically, HA and ARIMA perform the poorest, which achieves 81.8% (46.1%) and 196.9% (145.0%) higher RMSE (MAE) than our proposed model, respectively. It demonstrates that deep neural networks (e.g., LSTM) can work effectively in urban data prediction. Furthermore, LSTM achieves worse performance than our model, as it only models the temporal dependencies in taxi demands. In the baselines, STGCN and DCRNN achieve good performance, which capture both spatial and temporal correlations. Compared with STGCN and DCRNN, our model achieves 8.4% (10.8%) and 9.0% (11.8%) lower RMSE (MAE), respectively.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 27,
+                    "end": 34,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "We also evaluate the effectiveness of different modules in our model, which is shown in Table 3 . It can be easily found that each module in our model works in terms of achieving better prediction performance. Specially, by comparing the results of ISTM and ISTM+PM, we confirm that the periodic modules work. As PM+CAAC achieves worse performance than our model, we can know that the instant spatial-temporal module is useful. The effectiveness of LC layers, which extract spatial correlations of taxi demands in different regions, is verified by comparing the results of IM+PM+CAAM and our model. Moreover, our model achieves better performance than ISTM+PM, which confirms the usefulness of the context-aware attention module.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 88,
+                    "end": 95,
+                    "text": "Table 3",
+                    "ref_id": "TABREF3"
+                }
+            ],
+            "section": "Evaluation of Modules."
+        },
+        {
+            "text": "Model-Based Methods. Some model-based prediction methods are provided in the earlier works [6, 8, 9, 15] , to capture the intrinsic patterns of historical taxi demands. For example, Li et al. [6] model taxi demand prediction as a time series prediction problem, and an improved ARIMA method is developed to predict taxi demands by leveraging the temporal dependencies. Tong et al. [9] propose a unified linear regression model with high-dimensional features to predict taxi demands for each region. Due to a lack of nonlinear modeling capabilities, these methods usually have low prediction accuracy. ",
+            "cite_spans": [
+                {
+                    "start": 91,
+                    "end": 94,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 95,
+                    "end": 97,
+                    "text": "8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 98,
+                    "end": 100,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 101,
+                    "end": 104,
+                    "text": "15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 192,
+                    "end": 195,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 381,
+                    "end": 384,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently, deep neural networks, such as convolutional neural networks (CNN) and recurrent neural networks (RNN), are widely used in taxi demand prediction, to capture spatial and temporal features. Fullyconnected layers and residual networks are employed in [10] to automatically learn features to assist taxi demand prediction. Xu et al. [11] propose a LSTMbased sequential learning framework to model temporal dependencies of taxi demand in recent moments. Furthermore, Yao et al. [12] adopt CNN and LSTM to extract the spatial correlations among adjacent regions and temporal dependencies in a close period, respectively. External factors are further leveraged in [2] to improve the prediction accuracy. Chu et al. [4] try to incorporate the spatialtemporal dependencies and external factors by using fixed parameter matrixes learned during model training. However, all the above existing works are limited in incorporating different spatial-temporal features and external factors together, since fixed notice is paid to them without considering the impacts of contextual information.",
+            "cite_spans": [
+                {
+                    "start": 258,
+                    "end": 262,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 339,
+                    "end": 343,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 483,
+                    "end": 487,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 667,
+                    "end": 670,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 718,
+                    "end": 721,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "DNN-Based Methods."
+        },
+        {
+            "text": "In this paper, we propose a context-aware attention-based convolutional recurrent neural network to predict fine-grained taxi demands. We capture multi-view features, i.e., spatial correlations among adjacent regions, short-term periodicity, long-term periodicity, and impacts of external factors, by adopting the LC layers and GRUs. More important, we develop a context-aware attention network to incorporate the predictions of each region, by assigning them different weights according to contextual information. The weights indicate that to what extent the predictions should be noticed. Finally, comprehensive experiments are conducted based on real-world multi-source datasets. The results show that our method achieves 8.4% (10.8%) and 9.0% (11.8%) improvement in RMSE (MAE) over two state-of-the-art methods, STGCN and DCRNN.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "New York taxi dataset",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Passenger demand forecasting with multi-task convolutional recurrent neural networks",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bai",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Kanhere",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "PAKDD 2019",
+            "volume": "11440",
+            "issn": "",
+            "pages": "29--42",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-16145-3_3"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Learning phrase representations using RNN encoder-decoder for statistical machine translation",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP)",
+            "volume": "",
+            "issn": "",
+            "pages": "1724--1734",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Passenger demand prediction with cellular footprints",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "15th Annual IEEE International Conference on Sensing, Communication, and Networking (SECON)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--9",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "A theoretically grounded application of dropout in recurrent neural networks",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gal",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1019--1027",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Prediction of urban human mobility using large-scale taxi traces and its applications",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Frontiers Comput. Sci",
+            "volume": "6",
+            "issn": "1",
+            "pages": "111--121",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Diffusion convolutional recurrent neural network: data-driven traffic forecasting",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Shahabi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "A predictive model for the passenger demand on a taxi network",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Moreira-Matias",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gama",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ferreira",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Damas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "2012 15th International IEEE Conference on Intelligent Transportation Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1014--1019",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "The simpler the better: a unified approach to predicting original taxi demands based on large-scale online platforms",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "1653--1662",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "DeepSD: supply-demand prediction for online car-hailing services using deep neural networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ye",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "2017 IEEE 33rd International Conference on Data Engineering (ICDE)",
+            "volume": "",
+            "issn": "",
+            "pages": "243--254",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Real-time prediction of taxi demand using recurrent neural networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Rahmatizadeh",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "B\u00f6l\u00f6ni",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Turgut",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Intell. Transp. Syst",
+            "volume": "19",
+            "issn": "8",
+            "pages": "2572--2581",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Deep multi-view spatial-temporal network for taxi demand prediction",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Thirty-Second AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Spatio-temporal graph convolutional networks: a deep learning framework for traffic forecasting",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Yin",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 27th International Joint Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "3634--3640",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Segmentation of urban areas using road networks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Exploiting taxi demand hotspots based on vehicular big data analytics",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Guan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE 84th Vehicular Technology Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "1--5",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "and outputs a prediction of taxi demands in the next time slot f i \u2208 R 1\u00d7N .",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Structure of a LC layerFig. 3. Structure of attention network",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Historical Average (HA): predicts taxi demands at the next time slot in each region by averaging the historical taxi demands at the same time slot. -Autoregressive Integrated Moving Average (ARIMA): is a widelyused method for time-series prediction problems, which model the temporal dependencies by combining moving averages and autoregressive components. -Long Short Term Memory (LSTM): is a variant of recurrent neural networks, which can effectively learn underlying dependencies in long and short term from a sequence data. -Diffusion Convolution Recurrent Neural Network (DCRNN) [7]:",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Instant Spatial-Temporal Module (ISTM): we only use the instant spatial-temporal module, which includes LC layers and a GRU. -Short/Long-Term Periodic Module and Context-Aware Attention Module(PM+CAAM): we only use two periodic modules with considering short-term and long-term periods. The outputs of the two modules are fused by the context-aware attention module. -Instant Module w/o LC, Short/Long-Term Periodic Module, and Context-Aware Attention Module (IM+PM+CAAM): we use the instant spatial-temporal module without LC layers and the periodic modules to predict taxi demands respectively. The outputs of the three modules are fused by the context-aware attention module. -Instant Spatial-Temporal Module and Short/Long-Term Periodic Module (ISTM+PM): we only use the instant spatial-temporal module and the periodic modules, and their outputs are fused by a weight tensor which is learned during network training.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Regions",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Main notations",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Performance comparison",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Evaluation of different components",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

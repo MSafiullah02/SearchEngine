@@ -1,0 +1,1110 @@
+{
+    "paper_id": "df9dc855c36290fc5d870b33831423bf66346df9",
+    "metadata": {
+        "title": "Domain Adaptation via Context Prediction for Engineering Diagram Search",
+        "authors": [
+            {
+                "first": "Harsh",
+                "middle": [],
+                "last": "Jhamtani",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Carnegie Mellon University",
+                    "location": {
+                        "settlement": "Pittsburgh",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "(",
+                "middle": [
+                    "B"
+                ],
+                "last": "",
+                "suffix": "",
+                "affiliation": {},
+                "email": ""
+            },
+            {
+                "first": "Taylor",
+                "middle": [],
+                "last": "Berg-Kirkpatrick",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "UC San Diego",
+                    "location": {
+                        "settlement": "San Diego",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Effective search for engineering diagram images in larger collections is challenging because most existing feature extraction models are pre-trained on natural image data rather than diagrams. Surprisingly, we observe through experiments that even in-domain training with standard unsupervised representation learning techniques leads to poor results. We argue that, because of their structured nature, diagram images require more specially-tailored learning objectives. We propose a new method for unsupervised adaptation of out-of-domain feature extractors that asks the model to reason about spatial context. Specifically, we fine-tune a pre-trained image encoder by requiring it to correctly predict the relative orientation between pairs of nearby image regions. Experiments on the recently released Ikea Diagram Dataset show that our proposed method leads to substantial improvements on a downstream search task, more than doubling recall for certain query categories in the dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Many engineering enterprises maintain technical know-how about the design and working of various parts of their products via engineering diagrams. Such engineering diagrams typically show different parts used for a product or a portion of a product, and how these parts fit together in assemblies. In Fig. 1 , the image on the left is a sample from an Ikea drawings dataset [1] . A common way of distributing such diagrams is in the form of images rather than detailed 3D models due to privacy issues and ease of use [1] .",
+            "cite_spans": [
+                {
+                    "start": 374,
+                    "end": 377,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 517,
+                    "end": 520,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 301,
+                    "end": 307,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Introduction"
+        },
+        {
+            "text": "An important use case for such enterprises is the ability to automatically search for similar parts in diagram images based on a drawing or diagram image of a query part. A typical goal is to search a collection of engineering diagram images to find diagrams that contain the query part or a similar part as a component in the larger diagram, possibly at a different scales and rotations relative to the query. The matching diagram will likely contain many other parts that are irrelevant to the query, which makes this task different from more standard image search scenarios where matched images will have the query as their central focus. In many ways, the most analogous task is that of matching a keyword query to a full-text document: matched keywords are usually surrounded by irrelevant text.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "There have been only a few efforts directed towards search in engineering diagrams [1, 6] . Dai et al. [1] recently released a new Ikea dataset, which consists of 13,464 diagrams from Ikea manuals and 16,940 query images, and proposed a neural search engine for performing diagram search. The image features used by Dai et al. [1] are produced by a VGGNET model [16] , pre-trained to predict object classes on ImageNet data [3] . Since ImageNet consists of natural images, rather than data like engineering diagrams, it is reasonable to expect that learning representations for diagrams using in-domain engineering data might lead to better results. Somewhat surprisingly, we show in experiments that tuning image representations using standard unsupervised techniques (e.g. using autoencoding objectives) leads to worse performance than the out-of-domain pretrained model. This is probably a result of structured nature of engineering diagrams that makes them visually distinct from natural images, on which the baseline unsupervised techniques were developed and validated [8] .",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 86,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 87,
+                    "end": 89,
+                    "text": "6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 103,
+                    "end": 106,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 327,
+                    "end": 330,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 362,
+                    "end": 366,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 424,
+                    "end": 427,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1075,
+                    "end": 1078,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper we propose new unsupervised methods for tuning the pretrained model for engineering diagram data using spatial context as a learning signal. Specifically, a classifier trained to predict relative direction of two randomly sampled image patches provides the spatial signal. Use of spatial context alone to learn image representations from scratch has been explored in prior work [5] , though not in the context of image search. However, we report that such an approach leads to poor results for engineering diagram search. We instead build on prior work to propose unsupervised fine-tuning of pre-trained neural image encoder models using the spatial context. Such use of spatial context to finetune the image encoder model has not been explored earlier.",
+            "cite_spans": [
+                {
+                    "start": 392,
+                    "end": 395,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In experiments, we find that the proposed approach leads to substantial gains in retrieval performance relative to past work as well as compared to a variety of unsupervised baselines, yielding state-of-the-art results on the Ikea dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our work is related to Dai et al. [1] who introduce Ikea dataset and propose neural search methods for the task. However, they use pre-trained VGGNET model to extract image features and do not attempt learn or fine tune image feature extractors. Many earlier image retrieval methods are based on SIFT features and bag-of-word models [2, 9, 17] . Recently, convolutional and other neural models have been used more extensively as feature extractors for image retrieval [15, 20] . Use of region based image features has been found useful in some prior image retrieval work [14] . Our proposed method is also related to recent success on learning contextualized word representations [4, 10, 13] and image representations from scratch [5, 11] through self-supervised training by using context prediction as a training signal. Most prior work on fine-tuning and domain adaptation for image representations requires in-domain supervised data, and either uses parameter finetuning [18, 19] or feature selection [7, 19] for domain adaptation. In contrast, our approach is a fully unsupervised method for domain adaptation of pre-trained models. Certain prior works on domain adaptation for image feature extractors require both the source and target domain data during training [19] , which our approach does not require. Some prior works have explored using unsupervised methods like auto-encoders for domain adaptation [12] .",
+            "cite_spans": [
+                {
+                    "start": 34,
+                    "end": 37,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 333,
+                    "end": 336,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 337,
+                    "end": 339,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 340,
+                    "end": 343,
+                    "text": "17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 468,
+                    "end": 472,
+                    "text": "[15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 473,
+                    "end": 476,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 571,
+                    "end": 575,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 680,
+                    "end": 683,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 684,
+                    "end": 687,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 688,
+                    "end": 691,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 731,
+                    "end": 734,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 735,
+                    "end": 738,
+                    "text": "11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 974,
+                    "end": 978,
+                    "text": "[18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 979,
+                    "end": 982,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1004,
+                    "end": 1007,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1008,
+                    "end": 1011,
+                    "text": "19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1270,
+                    "end": 1274,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1413,
+                    "end": 1417,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "We propose an unsupervised method that uses spatial context prediction as a learning signal to tune a pre-trained image feature extractor, which we refer to as an image encoder, for use in a neural engineering diagram search. Our approach extends prior work on context-based training objective [5] to perform domain adaptation and applies the method to a new domain and task. Specifically, our goal is to bias image encoders to capture more informative features of engineering diagrams by requiring them to predict spatial relationships between neighboring image regions. We shall refer to our fine-tuning method as SPACES (SPAtial Context for Engineering diagram Search).",
+            "cite_spans": [
+                {
+                    "start": 294,
+                    "end": 297,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fine-Tuning by Context Prediction"
+        },
+        {
+            "text": "Let D denote the set of images in the dataset. For an image I \u2208 D, we randomly pick a rectangular region in the image of size M * M -an image patch (Fig. 1 ). Let us denote the identified patch by a. Thereafter, we choose one of the 8 cardinal directions (North, South, East, West, North-East, North-West, South-East, South-West), which we denote as d, uniformly at random. Then, a second rectangular patch b is identified close to the first patch in the sampled direction d such that b and a do not intersect. However, following [5] , we identify candidates for b a minimum fixed distance x from patch a, and introduce random jitters in horizontal and vertical directions. We observed M = 24 and x = 4 to be a reasonable choice. We denote the distribution from which a, b, and d are sampled as the generator, G.",
+            "cite_spans": [
+                {
+                    "start": 530,
+                    "end": 533,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 148,
+                    "end": 155,
+                    "text": "(Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Fine-Tuning by Context Prediction"
+        },
+        {
+            "text": "We extract the features of the patches using the image encoder model, denoted by f \u03c6 , where \u03c6 are the model parameters. f \u03c6 is typically a deep convolutional neural network. Given a pre-trained image encoder model with parameter weights \u03c6 0 , our task is to finetune the model using context prediction signal from a classifier defined as follows. A classifier with learnable parameters \u03b8 takes as input the extracted features of the two patches and makes a prediction about the relative direction of the patches. Specifically, we consider a two layer feedforward neural network with a softmax function at the end to make a 8-way classification prediction (for 8 cardinal directions). Classification loss for a given patch pair a, b in relative direction d can be written as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fine-Tuning by Context Prediction"
+        },
+        {
+            "text": "Computing this exact loss is impractical due to an extremely large number of possible patch pairs. So we instead draw K random samples of pairs of patches for every image in the train set. Additionally, we regularize the image encoder model towards the pretrained model weights \u03c6 0 by adding a L1 regularizer. This is done to encourage the model to retain many features from the pretrained model since abstract features like curves and shapes from have been shown to generalize well across tasks. We learn the image encoder and classifier jointly by optimizing for \u03b8 and \u03c6 to minimize the following loss function:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fine-Tuning by Context Prediction"
+        },
+        {
+            "text": "The regularization term biases the image encoder parameters to remain closer to the original pre-trained model values. In early experiments, we observe that using L1 for this term performs better than using a L2 version. The classification loss term is based on the work of Doersch et al. [5] . However, we use the spatial context loss to fine-tune a pre-trained image feature extractor for the target engineering diagrams domain. In contrast, Doersch et al. [5] learn image representations from scratch using a large dataset of natural images and focus on a different task. We demonstrate in experiments that the proposed tuning method substantially outperforms the training from scratch for our domain and task.",
+            "cite_spans": [
+                {
+                    "start": 289,
+                    "end": 292,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 459,
+                    "end": 462,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Fine-Tuning by Context Prediction"
+        },
+        {
+            "text": "We use the Ikea dataset [1] which consists of 13,464 furniture assembly diagrams. Each assembly diagram is a black-and-white image, and resembles a line drawing. Query images are generated automatically from a subset of documents using an iterative procedure proposed in past work [1] . The procedure begins with identifying a localized region of high density black pixels, and keeps on expanding it until the black pixel density is lower than a threshold. The Ikea dataset consists of 5 query types: psr, Psr, pSr, psR, PSR: Lowercase letters p, s, r signify that position, scale and rotation, respectively, are unchanged in the generated query relative to the original image from which the query was extracted. Capital letters denote the corresponding altered attribute. Thus, for psr queries set, the identified region is placed onto a white background image of size same as original image, and at same position as the identified region was in the original image. psR queries are constructed by rotating psr queries, pSr queries are constructed by scale transformations, and so on. ",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 27,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 281,
+                    "end": 284,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Dataset"
+        },
+        {
+            "text": "We use our proposed method to fine-tune VGGNET [16] (a deep convolutional image encoder, pre-trained on ImageNet [3] data). We report recall and mean reciprocal rank in downstream search, using the DISHCONV [1], a neural retrieval method which utilizes pairwise training over features extracted from convolutional kernels over image representations. We perform early stopping during training based on recall@1 for queries in the validation split. We consider following baselines: (1) VGG represents a fixed pre-trained VGGNET model, trained on ImageNet data, as used in prior work [1] . (2) VGG-AE finetunes a pre-trained VGGNET using an autoencoder (with a deconvolutional network as decoder) with reconstruction objective. (3) CTXT involves training image representations from scratch just using context prediction [5] . We consider VGGNET architecture (initialized randomly) to encode images, and trained to predict relative direction of pairs of image patches. Table 1 summarizes the results when evaluating downstream search performance. Overall, SPACES performs much better than the baselines VGG, VGG-AE and CTXT across different query types. Recall that psr are the most basic query types, psR are queries created by rotating basic psr queries by varying degrees, and so on. The largest improvement over baselines is observed for pSr and psR query types. SPACES performs better than VGG-AE model probably because it has a more suitable training signal given the structured nature of the engineering diagrams. The baseline CTXT model has to learn the image encoder model entirely from a relatively small number of images. In contrast, SPACES leverages the pre-trained model and is able to fine-tune on the Ikea dataset using only a few thousand images. This demonstrates the utility of SPACES in adapting large pre-trained image encoder models for engineering diagrams. We report MRR for a range scale factor and rotations degrees (Fig. 2) . SPACES performs better than the baseline almost all throughout different scale and rotation changes. We also report the results with SPACES-L which uses total loss on the validation split for early stopping instead of recall@1 scores. MRR and recall scores from these variants are observed to be very similar (Table 1) demonstrating that the proposed approach is robust to such changes in early stopping criteria.",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 51,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 113,
+                    "end": 116,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 581,
+                    "end": 584,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 817,
+                    "end": 820,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 965,
+                    "end": 972,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1938,
+                    "end": 1946,
+                    "text": "(Fig. 2)",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 2258,
+                    "end": 2267,
+                    "text": "(Table 1)",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experiment Setup"
+        },
+        {
+            "text": "A relative direction prediction classifier trained on the Ikea dataset images with features from pretrained VGGNET model, and then evaluated on 1000 patch pair samples achieves only 14.2% accuracy, which is close to performance of a random prediction classifier for a 8-way classification problem. The trained classifier within SPACES achieved 43% accuracy in the 8-way classification task, which demonstrates that features from our trained model encode more information about neighboring context.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Results"
+        },
+        {
+            "text": "In this paper we have proposed an unsupervised method to adapt a pre-trained neural image encoder on an engineering diagram dataset using spatial context prediction. We demonstrate that standard unsupervised representation learning methods such as autoencoder are not amenable to engineering diagrams, probably due to their structured nature. Our proposed method outperforms the original pre-trained feature extractor as well as other unsupervised baselines to achieve state-of-the-art results on Ikea dataset.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusions"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Local matching networks for engineering diagram search",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Rahman",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "2019",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Image retrieval: ideas, influences, and trends of the new age",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Datta",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "ACM Comput. Surv. (CSUR)",
+            "volume": "40",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "ImageNet: a large-scale hierarchical image database",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Socher",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fei-Fei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "2009 IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "248--255",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1810.04805"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Unsupervised visual representation learning by context prediction",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Doersch",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Efros",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE International Conference on Computer Vision",
+            "volume": "",
+            "issn": "",
+            "pages": "1422--1430",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Sketch-based image retrieval: benchmark and bag-of-features descriptors",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Eitz",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hildebrand",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Boubekeur",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Alexa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "IEEE Trans. Vis. Comput. Graph",
+            "volume": "17",
+            "issn": "11",
+            "pages": "1624--1636",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Fine-grained recognition without part annotations",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Krause",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Jin",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Fei-Fei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "5546--5555",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Using very deep autoencoders for content-based image retrieval",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Hinton",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Object recognition from local scale-invariant features",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Lowe",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "ICCV 1999",
+            "volume": "",
+            "issn": "",
+            "pages": "1150--1157",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Distributed representations of words and phrases and their compositionality",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3111--3119",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Unsupervised learning of visual representations by solving Jigsaw puzzles",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Noroozi",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Favaro",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Leibe",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Matas",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Sebe",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ECCV 2016",
+            "volume": "9910",
+            "issn": "",
+            "pages": "69--84",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-46466-4_5"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Using deep autoencoders to learn robust domain-invariant representations for still-to-video face recognition",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Parchami",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bashbaghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Granger",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sayed",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "14th IEEE International Conference on Advanced Video and Signal Based Surveillance (AVSS)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Deep contextualized word representations",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Peters",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2227--2237",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Latent semantic fusion model for image retrieval and annotation",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Pham",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Maillot",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Lim",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Chevallet",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the Sixteenth ACM Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "439--444",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Visual instance retrieval with deep convolutional networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Razavian",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sullivan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Carlsson",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Maki",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ITE Trans. Media Technol. Appl",
+            "volume": "4",
+            "issn": "3",
+            "pages": "251--258",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Very deep convolutional networks for large-scale image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1409.1556"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Video Google: a text retrieval approach to object matching in videos",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sivic",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the Ninth IEEE International Conference on Computer Vision, ICCV 2003",
+            "volume": "2",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Convolutional neural networks for medical image analysis: full training or fine tuning?",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Tajbakhsh",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Trans. Med. Imaging",
+            "volume": "35",
+            "issn": "5",
+            "pages": "1299--1312",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Deep visual domain adaptation: a survey",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Deng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Neurocomputing",
+            "volume": "312",
+            "issn": "",
+            "pages": "135--153",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Recent advance in content-based image retrieval: a literature survey",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1706.06064"
+                ]
+            }
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Overview of the proposed method. For an image patch a, another patch b is sampled from one of the eight possible directions (shown with dotted borders). A classifier with parameters \u03b8 is trained to predict the relative direction d. The image encoder, with parameters \u03c6, is biased to stay close to the original pre-trained parameters \u03c60 via a L1-regularization term to encourage the model to retain useful features from the pre-trained model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "MRR (Mean Reciprocal rank) plotted against (a) the scale transformation value of queries in pSr test set (b) rotation degrees in psR test set.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Retrieval results on different query types in Ikea dataset.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

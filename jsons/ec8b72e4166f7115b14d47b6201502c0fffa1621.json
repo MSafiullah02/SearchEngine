@@ -1,0 +1,1963 @@
+{
+    "paper_id": "ec8b72e4166f7115b14d47b6201502c0fffa1621",
+    "metadata": {
+        "title": "SLGAT: Soft Labels Guided Graph Attention Networks",
+        "authors": [
+            {
+                "first": "Yubin",
+                "middle": [],
+                "last": "Wang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chinese Academy of Sciences",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "wangyubin@iie.ac.cn"
+            },
+            {
+                "first": "Zhenyu",
+                "middle": [],
+                "last": "Zhang",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chinese Academy of Sciences",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "zhangzhenyu1996@iie.ac.cn"
+            },
+            {
+                "first": "Tingwen",
+                "middle": [],
+                "last": "Liu",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chinese Academy of Sciences",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "liutingwen@iie.ac.cn"
+            },
+            {
+                "first": "Li",
+                "middle": [],
+                "last": "Guo",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Chinese Academy of Sciences",
+                    "location": {
+                        "settlement": "Beijing",
+                        "country": "China"
+                    }
+                },
+                "email": "guoli@iie.ac.cn"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Graph convolutional neural networks have been widely studied for semi-supervised classification on graph-structured data in recent years. They usually learn node representations by transforming, propagating, aggregating node features and minimizing the prediction loss on labeled nodes. However, the pseudo labels generated on unlabeled nodes are usually overlooked during the learning process. In this paper, we propose a soft labels guided graph attention network (SLGAT) to improve the performance of node representation learning by leveraging generated pseudo labels. Unlike the prior graph attention networks, our SLGAT uses soft labels as guidance to learn different weights for neighboring nodes, which allows SLGAT to pay more attention to the features closely related to the central node labels during the feature aggregation process. We further propose a self-training based optimization method to train SLGAT on both labeled and pseudo labeled nodes. Specifically, we first pre-train SLGAT on labeled nodes and generate pseudo labels for unlabeled nodes. Next, for each iteration, we train SLGAT on the combination of labeled and pseudo labeled nodes, and then generate new pseudo labels for further training. Experimental results on semi-supervised node classification show that SLGAT achieves state-of-the-art performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "In recent years, graph convolutional neural networks (GCNs) [26] , which can learn from graph-structured data, have attracted much attention. The general approach with GCNs is to learn node representations by passing, transforming, and aggregating node features across the graph. The generated node representations can then be used as input to a prediction layer for various downstream tasks, such as node classification [12] , graph classification [30] , link prediction [17] and social recommendation [19] .",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 64,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 421,
+                    "end": 425,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 449,
+                    "end": 453,
+                    "text": "[30]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 472,
+                    "end": 476,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 503,
+                    "end": 507,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Graph attention networks (GAT) [23] , which is one of the most representative GCNs, learns the weights for neighborhood aggregation via self-attention mechanism [22] and achieves promising performance on semi-supervised node classification problem. The model is expected to learn to pay more attention to the important neighbors. It calculates important scores between connected nodes based solely on the node representations. However, the label information of nodes is usually overlooked. Besides, the cluster assumption [3] for semisupervised learning states that the decision boundary should lie in regions of low density. It means aggregating the features from the nodes with different classes could reduce the generalization performance of the model. This motivates us to introduce label information to improve the performance of node classification in the following two aspects: (1) We introduce soft labels to guide the feature aggregation for generating discriminative node embeddings for classification. (2) We use SLGAT to predict pseudo labels for unlabeled nodes and further train SLGAT on the composition of labeled and pseudo labeled nodes. In this way, SLGAT can benefit from unlabeled data.",
+            "cite_spans": [
+                {
+                    "start": 31,
+                    "end": 35,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 161,
+                    "end": 165,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 522,
+                    "end": 525,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 885,
+                    "end": 888,
+                    "text": "(1)",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1013,
+                    "end": 1016,
+                    "text": "(2)",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this paper, we propose soft labels guided attention networks (SLGAT) for semi-supervised node representation learning. The learning process consists of two main steps. First, SLGAT aggregates the features of neighbors using convolutional networks and predicts soft labels for each node based on the learned embeddings. And then, it uses soft labels to guide the feature aggregation via attention mechanism. Unlike the prior graph attention networks, SLGAT allows paying more attention to the features closely related to the central node labels. The weights for neighborhood aggregation learned by a feedforward neural network based on both label information of central nodes and features of neighboring nodes, which can lead to learning more discriminative node representations for classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We further propose a self-training based optimization method to improve the generalization performance of SLGAT using unlabeled data. Specifically, we first pre-train SLGAT on labeled nodes using standard cross-entropy loss. Then we generate pseudo labels for unlabeled nodes using SLGAT. Next, for each iteration, we train SLGAT using a combined cross-entropy loss on both labeled nodes and pseudo labeled nodes, and then generate new pseudo labels for further training. In this way, SLGAT can benefit from unlabeled data by minimizing the entropy of predictions on unlabeled nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We conduct extensive experiments on semi-supervised node classification to evaluate our proposed model. And experimental results on several datasets show that SLGAT achieves state-of-the-art performance. The source code of this paper can be obtained from https://github.com/jadbin/SLGAT.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Graph-Based Semi-supervised Learning. A large number of methods for semi-supervised learning using graph representations have been proposed in recent years, most of which can be divided into two categories: graph regularization-based methods and graph embedding-based methods. Different graph regularization-based approaches can have different variants of the regularization term. And graph Laplacian regularizer is most commonly used in previous studies including label propagation [32] , local and global consistency regularization [31] , manifold regularization [1] and deep semi-supervised embedding [25] . Recently, graph embedding-based methods inspired by the skip-gram model [14] has attracted much attention. DeepWalk [16] samples node sequences via uniform random walks on the network, and then learns embeddings via the prediction of the local neighborhood of nodes. Afterward, a large number of works including LINE [21] and node2vec [8] extend DeepWalk with more sophisticated random walk schemes. For such embedding based methods, a two-step pipeline including embedding learning and semi-supervised training is required where each step has to be optimized separately. Planetoid [29] alleviates this by incorporating label information into the process of learning embeddings.",
+            "cite_spans": [
+                {
+                    "start": 483,
+                    "end": 487,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 534,
+                    "end": 538,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 565,
+                    "end": 568,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 604,
+                    "end": 608,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 683,
+                    "end": 687,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 727,
+                    "end": 731,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 928,
+                    "end": 932,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 946,
+                    "end": 949,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1193,
+                    "end": 1197,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Graph Convolutional Neural Networks. Recently, graph convolutional neural networks (GCNs) [26] have been successfully applied in many applications. Existing GCNs are often categorized as spectral methods and non-spectral methods. Spectral methods define graph convolution based on the spectral graph theory. The early studies [2, 10] developed convolution operation based graph Fourier transformation. Defferrard et al. [4] used polynomial spectral filters to reduce the computational cost. Kipf & Welling [12] then simplified the previous method by using a linear filter to operate one-hop neighboring nodes. Wu et al. [27] used graph wavelet to implement localized convolution. Xu et al. [27] used a heat kernel to enhance low-frequency filters and enforce smoothness in the signal variation on the graph. Along with spectral graph convolution, define the graph convolution in the spatial domain was also investigated by many researchers. GraphSAGE [9] performs various aggregators such as meanpooling over a fixed-size neighborhood of each node. Monti et al. [15] provided a unified framework that generalized various GCNs. GraphsGAN [5] generates fake samples and trains generator-classifier networks in the adversarial learning setting. Instead of fixed weight for aggregation, graph attention networks (GAT) [23] adopts attention mechanisms to learn the relative weights between two connected nodes. Wang et al. [24] generalized GAT to learn representations of heterogeneous networks using meta-paths. Shortest Path Graph Attention Network (SPAGAN) to explore high-order path-based attentions.",
+            "cite_spans": [
+                {
+                    "start": 90,
+                    "end": 94,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 326,
+                    "end": 329,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 330,
+                    "end": 333,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 420,
+                    "end": 423,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 506,
+                    "end": 510,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 620,
+                    "end": 624,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 690,
+                    "end": 694,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 951,
+                    "end": 954,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1062,
+                    "end": 1066,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 1137,
+                    "end": 1140,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 1314,
+                    "end": 1318,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 1418,
+                    "end": 1422,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our method is based on spatial graph convolution. Unlike the existing graph attention networks, we introduce soft labels to guide the feature aggregation of neighboring nodes. And experiments show that this can further improve the semi-supervised classification performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In this paper, we focus on the problem of semi-supervised node classification. Many other applications can be reformulated into this fundamental problem. Let G = (V, E) be a graph, in which V is a set of nodes, E is a set of edges. Each node u \u2208 V has a attribute vector x u . Given a few labeled nodes V L \u2208 V , where each node u \u2208 V L is associated with a label y u \u2208 Y , the goal is to predict the labels for the remaining unlabeled nodes ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Problem Definition"
+        },
+        {
+            "text": "In this section, we will give more details of SLGAT. The overall structure of SLGAT is shown in Fig. 1 . The learning process of our method consists of two main steps. We first use a multi-layer graph convolution network to generate soft labels for each node based on nodes features. We then leverage the soft labels to guide the feature aggregation via attention mechanism to learn better representations of nodes. Furthermore, we develop a self-training based optimization method to train SLGAT on the combination of labeled nodes and pseudo labeled nodes. This enforces SLGAT can further benefit from the unlabeled data under the semi-supervised learning setting.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 96,
+                    "end": 102,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Proposed Model: SLGAT"
+        },
+        {
+            "text": "In the initial phase, we need to first predict the pseudo labels for each node based on node features x. The pseudo labels can be soft (a continuous distribution) or hard (a one-hot distribution). In practice, we observe that soft labels are usually more stable than hard labels, especially when the model has low prediction accuracy. Since the labels predicted by the model are not absolutely correct, the error from hard labels may propagate to the inference on other labels and hurt the performance. While using soft labels can alleviate this problem.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "We use a multi-layer graph convolutional network [12] to aggregate the features of neighboring nodes. The layer-wise propagation rule of feature convolution is as follows:",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 53,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "Here, A = A + I is the adjacency matrix with added self-connections. I is the identity matrix,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "is a layer-specific trainable transformation matrix. \u03c3 (\u00b7) denotes an activation function such as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "denotes the hidden representations of nodes in the l th layer. The representations of nodes f (l+1) are obtained by aggregating information from the features of their neighborhoods f (l) . Initially, f (0) = x.",
+            "cite_spans": [
+                {
+                    "start": 183,
+                    "end": 186,
+                    "text": "(l)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "After going through L layers of feature convolution, we predict the soft labels for each node u based on the output embeddings of nodes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Generation"
+        },
+        {
+            "text": "Now we will present how to leverage the previous generated soft labels for each node to guide the feature aggregation via attention mechanism. The attention network consists of several stacked layers. In each layer, we first aggregate the label information of neighboring nodes. Then we learn the weights for neighborhood aggregation based on both aggregated label information of central nodes and feature embeddings of neighboring nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "We use a label convolution unit to aggregate the label information of neighboring nodes, and the layer-wise propagation rule is as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "where W",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "g is a layer-specific trainable transformation matrix, and g (l) \u2208 R |V |\u00d7d (l) g denotes the hidden representations the label information of nodes. The label information g (l+1) are obtained by aggregating from the label information g (l) of neighboring nodes. Initially, g (0) = softmax f (L) according to Eq. 2.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "Then we use the aggregated label information to guide the feature aggregation via attention mechanism. Unlike the prior graph attention networks [23, 28] , we use label information as guidance to learn the weights of neighboring nodes for feature aggregation. We enforce the model to pay more attention to the features closely related to the labels of the central nodes.",
+            "cite_spans": [
+                {
+                    "start": 145,
+                    "end": 149,
+                    "text": "[23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "A single-layer feedforward neural network is applied to calculate the attention scores between connected nodes based on the central node label information g (l+1) and the neighboring node features h (l) :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "are layer-specific trainable transformation matrices, h (l) \u2208 R |V |\u00d7d (l) h denotes the hidden representations of node features. \u00b7 represents transposition and || is the concatenation operation. Then we obtain the attention weights by normalizing the attention scores with the softmax function:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "where N i is the neighborhood of node i in the graph. Then, the embedding of node i can be aggregated by the projected features of neighbors with the corresponding coefficients as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "Finally, we can achieve better predictions for the labels of each node u by replacing the Eq. 2 as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "where \u2295 is the mean-pooling aggregator.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Soft Labels Guided Attention"
+        },
+        {
+            "text": "Grandvalet & Bengio [7] argued that adding an extra loss to minimize the entropy of predictions on unlabeled data can further improve the generalization performance for semi-supervised learning. Thus we estimate pseudo labels for unlabeled nodes based on the learned node representations, and develop a self-training based optimization method to train SLGAT on both labeled and pseudo labeled nodes. Int this way, SLGAT can further benefit from the unlabeled data. For semi-supervised node classification, we can minimize the cross-entropy loss over all labeled nodes between the ground-truth and the prediction:",
+            "cite_spans": [
+                {
+                    "start": 20,
+                    "end": 23,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Self-training Based Optimization"
+        },
+        {
+            "text": "where C is the number of classes. To achieve training on the composition of labeled and unlabeled nodes, we first estimate the labels of unlabeled nodes using the learned node embeddings as follows:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Self-training Based Optimization"
+        },
+        {
+            "text": "where \u03c4 is an annealing parameter. We can set \u03c4 to a small value (e.g. 0.1) to further reduce the entropy of pseudo labels. Then the loss for minimizing the entropy of predictions on unlabeled data can be defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Self-training Based Optimization"
+        },
+        {
+            "text": "The joint objective function is defined as a weighted linear combination of the loss on labeled nodes and unlabeled nodes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Self-training Based Optimization"
+        },
+        {
+            "text": "where \u03bb is a weight balance factor. We give a self-training based method to train SLGAT which is listed in Algorithm. 1. The inputs to the algorithm are both labeled and unlabeled nodes. We first use labeled nodes to pre-train the model using cross-entropy loss. Then we use the model to generate pseudo labels on unlabeled nodes. Afterward, we train the model by minimizing the combined cross-entropy loss on both labeled and unlabeled nodes. Finally, we iteratively generate new pseudo labels and further train the model.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Self-training Based Optimization"
+        },
+        {
+            "text": "In this section, we evaluate our proposed SLGAT on semi-supervised node classification task using several standard benchmarks. We also conduct an ablation study on SLGAT to investigate the contribution of various components to performance improvements.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We follow existing studies [12, 23, 29] and use three standard citation network benchmark datasets for evaluation, including Cora, Citeseer and Pubmed. In all these datasets, the nodes represent documents and edges are citation links. Node features correspond to elements of a bag-of-words representation of a document. Class labels correspond to research areas and each node has a class label. In each dataset, 20 nodes from each class are treated as labeled data. The statistics of datasets are summarized in Table 1 .",
+            "cite_spans": [
+                {
+                    "start": 27,
+                    "end": 31,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 32,
+                    "end": 35,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 36,
+                    "end": 39,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 511,
+                    "end": 518,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Datasets"
+        },
+        {
+            "text": "We compare against several traditional graph-based semi-supervised classification methods, including manifold regularization (ManiReg) [1] , semi-supervised embedding (SemiEmb) [25] , label propagation (LP) [32] , graph embeddings (DeepWalk) [16] , iterative classification algorithm (ICA) [13] and Planetoid [29] . Training Validation Test   Cora  2,708 5,429 1,433  7  140  500  1,000   Citeseer 3,327 4,732 3,703  6  120  500  1,000   Pubmed 19,717 44,338  500  3  60  500  1,000 Furthermore, since graph neural networks are proved to be effective for semisupervised classification, we also compare with several state-of-arts graph neural networks including ChebyNet [4] , MoNet [15] , graph convolutional networks (GCN) [12] , graph attention networks (GAT) [23] , graph wavelet neural network (GWNN) [27] , shortest path graph attention network (SPAGAN) [28] and graph convolutional networks using heat kernel (GraphHeat) [27] .",
+            "cite_spans": [
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 177,
+                    "end": 181,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 207,
+                    "end": 211,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 242,
+                    "end": 246,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 670,
+                    "end": 673,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 682,
+                    "end": 686,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 724,
+                    "end": 728,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 762,
+                    "end": 766,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 805,
+                    "end": 809,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 859,
+                    "end": 863,
+                    "text": "[28]",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 927,
+                    "end": 931,
+                    "text": "[27]",
+                    "ref_id": "BIBREF26"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 316,
+                    "end": 482,
+                    "text": "Training Validation Test   Cora  2,708 5,429 1,433  7  140  500  1,000   Citeseer 3,327 4,732 3,703  6  120  500  1,000   Pubmed 19,717 44,338  500  3  60  500  1,000",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Baselines"
+        },
+        {
+            "text": "We train a two-layer SLGAT model for semi-supervised node classification and evaluate the performance using prediction accuracy. The partition of datasets is the same as the previous studies [12, 23, 29] with an additional validation set of 500 labeled samples to determine hyper-parameters.",
+            "cite_spans": [
+                {
+                    "start": 191,
+                    "end": 195,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 200,
+                    "end": 203,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Settings"
+        },
+        {
+            "text": "Weights are initialized following Glorot and Bengio [6] . We adopt the Adam optimizer [11] for parameter optimization with initial learning rate as 0.05 and weight decay as 0.0005. We set the hidden layer size of features as 32 for Cora and Citeseer and 16 for Pubmed. We set the hidden layer size of soft labels as 16 for Cora and Citeseer and 8 for Pubmed. We apply dropout [20] with p = 0.5 to both layers inputs, as well as to the normalized attention coefficients. The proper setting of \u03bb in Eq. 11 affects the semi-supervised classification performance. If \u03bb is too large, it disturbs training for labeled nodes. Whereas if \u03bb is too small, we cannot benefit from unlabeled data. In our experiments, we set \u03bb = 1. We anticipate the results can be further improved by using sophisticated scheduling strategies such as deterministic annealing [7] , and we leave it as future work. Furthermore, inspired by dropout [20] , we ignore the loss in Eq. 10 with p = 0.5 during training to prevent overfitting on pseudo labeled nodes.",
+            "cite_spans": [
+                {
+                    "start": 52,
+                    "end": 55,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 86,
+                    "end": 90,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 376,
+                    "end": 380,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 846,
+                    "end": 849,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 917,
+                    "end": 921,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Settings"
+        },
+        {
+            "text": "We now validate the effectiveness of SLGAT on semi-supervised node classification task. Following the previous studies [12, 23, 29] , we use the classification accuracy metric for quantitative evaluation. Experimental results are summarized in Table 2 . We present the mean classification accuracy (with standard deviation) of our method over 100 runs. And we reuse the results already reported in [5, 12, 23, 27, 28] for baselines.",
+            "cite_spans": [
+                {
+                    "start": 119,
+                    "end": 123,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 124,
+                    "end": 127,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 128,
+                    "end": 131,
+                    "text": "29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 398,
+                    "end": 401,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 402,
+                    "end": 405,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 406,
+                    "end": 409,
+                    "text": "23,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 410,
+                    "end": 413,
+                    "text": "27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 414,
+                    "end": 417,
+                    "text": "28]",
+                    "ref_id": "BIBREF27"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 244,
+                    "end": 251,
+                    "text": "Table 2",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Semi-supervised Node Classification"
+        },
+        {
+            "text": "We can observe that our SLGAT achieves consistently better performance than all baselines. When directly compared to GAT, SLGAT gains 1.0%, 2.3% and 3.2% improvements for Cora, Citeseer and Pubmed respectively. The performance gain is from two folds. First, SLGAT uses soft labels to guide the feature aggregation of neighboring nodes. This indeed leads to more discriminative node representations. Second, SLGAT is trained on both labeled and pseudo labeled nodes using our proposed self-training based optimization method. SLGAT benefits from unlabeled data by minimizing the entropy of predictions on unlabeled nodes.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Semi-supervised Node Classification"
+        },
+        {
+            "text": "Following Shchur et al. [18] , we also further validate the effectiveness and robustness of SLGAT on random data splits. We created 10 random splits of the Cora, Citeseer, Pubmed with the same size of training, validation, test sets as the standard split from Yang et al. [29] . We compare SLGAT with other most related competitive baselines including GCN [12] and GAT [23] on those random data splits. 1 We run each method with 10 random seeds on each data split and report the overall mean accuracy in Table 3 . We can observe that SLGAT consistently outperforms GCN and GAT on all datasets. This proves the effectiveness and robustness of SLGAT. ",
+            "cite_spans": [
+                {
+                    "start": 24,
+                    "end": 28,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 272,
+                    "end": 276,
+                    "text": "[29]",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 356,
+                    "end": 360,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 369,
+                    "end": 373,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 403,
+                    "end": 404,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 504,
+                    "end": 511,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Classification Results on Random Data Splits"
+        },
+        {
+            "text": "In this section, we conduct an ablation study to investigate the effectiveness of our proposed soft label guided attention mechanism and the self-training based optimization method for SLGAT. We compare several variants of SLGAT on node classification, and the results are reported in Table 4 . We observe that SLGAT has better performance than the methods without soft labels guided attention in most cases. This demonstrates that using soft labels to guide the neighboring nodes aggregation is effective for generating better node embeddings. Note that attention mechanism seems has little contribution to performance on Pubmed when using self-training. The reason behind such phenomenon is still under investigation, we presume that it is due to the label sparsity of Pubmed. 2 The similar phenomenon is reported in [23] that GAT has little improvement on Pubmed compared to GCN.",
+            "cite_spans": [
+                {
+                    "start": 779,
+                    "end": 780,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 819,
+                    "end": 823,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 285,
+                    "end": 292,
+                    "text": "Table 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Ablation Study"
+        },
+        {
+            "text": "We also observe that SLGAT significantly outperforms all the methods without self-training. This indicates that our proposed self-training based optimization method is much effective to improve the generalization performance of the model for semi-supervised classification.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Ablation Study"
+        },
+        {
+            "text": "In this work, we propose SLGAT for semi-supervised node representation learning. SLGAT uses soft labels to guide the feature aggregation of neighboring nodes for generating discriminative node representations. A self-training based optimization method is proposed to train SLGAT on both labeled data and pseudo labeled data, which is effective to improve the generalization performance of SLGAT. Experimental results demonstrate that our SLGAT achieves state-ofthe-art performance on several semi-supervised node classification benchmarks. One direction of the future work is to make SLGAT going deeper to capture the features of long-range neighbors. This perhaps helps to improve performance on the dataset with sparse labels.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Manifold regularization: a geometric framework for learning from labeled and unlabeled examples",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Belkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Niyogi",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sindhwani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "7",
+            "issn": "",
+            "pages": "2399--2434",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Spectral networks and locally connected networks on graphs",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bruna",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zaremba",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Szlam",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Cluster kernels for semi-supervised learning",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Chapelle",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "601--608",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Convolutional neural networks on graphs with fast localized spectral filtering",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Defferrard",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Bresson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Vandergheynst",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 30th International Conference on Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "3844--3852",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Semi-supervised learning on graphs with generative adversarial nets",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ding",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 27th ACM International Conference on Information and Knowledge Management",
+            "volume": "",
+            "issn": "",
+            "pages": "913--922",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Understanding the difficulty of training deep feed for leveraging graph wavelet transform to address the short-comings of previous spectral graphrd neural networks",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Glorot",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "249--256",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Semi-supervised learning by entropy minimization",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Grandvalet",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "529--536",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "node2vec: scalable feature learning for networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Grover",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "855--864",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Inductive representation learning on large graphs",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "1024--1034",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Deep convolutional networks on graph-structured data",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Henaff",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bruna",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lecun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1506.05163"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1412.6980"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Learning Representations (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Link-based classification",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Getoor",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the 20th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "496--503",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Efficient estimation of word representations in vector space",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Corrado",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Dean",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "ICLR Workshop",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Geometric deep learning on graphs and manifolds using mixture model CNNS",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Monti",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Boscaini",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Masci",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Rodola",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Svoboda",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Bronstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+            "volume": "",
+            "issn": "",
+            "pages": "5425--5434",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Deepwalk: online learning of social representations",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Perozzi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Al-Rfou",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Skiena",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of the 20th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+            "volume": "",
+            "issn": "",
+            "pages": "701--710",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Schnet: a continuous-filter convolutional neural network for modeling quantum interactions",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Sch\u00fctt",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Kindermans",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "E S"
+                    ],
+                    "last": "Felix",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chmiela",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Tkatchenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "M\u00fcller",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "991--1001",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Pitfalls of graph neural network evaluation",
+            "authors": [
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Shchur",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Mumme",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bojchevski",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "G\u00fcnnemann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1811.05868"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Deep collaborative filtering with multi-aspect information in heterogeneous networks",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "IEEE Trans. Knowl. Data Eng",
+            "volume": "1",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Dropout: a simple way to prevent neural networks from overfitting",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "15",
+            "issn": "1",
+            "pages": "1929--1958",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Line: large-scale information network embedding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Tang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Qu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Mei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 24th International Conference on World Wide Web",
+            "volume": "",
+            "issn": "",
+            "pages": "1067--1077",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "5998--6008",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Graph attention networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Velikovi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cucurull",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Casanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Li\u00f3",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Heterogeneous graph attention network",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "2022--2032",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Deep learning via semi-supervised embedding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Ratle",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Mobahi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Collobert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Neural Networks: Tricks of the Trade",
+            "volume": "7700",
+            "issn": "",
+            "pages": "639--655",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-35289-8_34"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A comprehensive survey on graph neural networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pan",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Long",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.00596"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Graph wavelet neural network. In: International Conference on Learning Representations (ICLR",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Shen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Qiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "SPAGAN: shortest path graph attention network",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Yuan",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Tao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 28th International Joint Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "4099--4105",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Revisiting semi-supervised learning with graph embeddings",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 33rd International Conference on International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "40--48",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "An end-to-end deep learning architecture for graph classification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cui",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Neumann",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Thirty-Second AAAI Conference on Artificial Intelligence",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Learning with local and global consistency",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Bousquet",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Lal",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Sch\u00f6lkopf",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "",
+            "issn": "",
+            "pages": "321--328",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Semi-supervised learning using Gaussian fields and harmonic functions",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Ghahramani",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Proceedings of the 20th International Conference on International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "912--919",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "The overall architecture of SLGAT.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Optimization AlgorithmInput: A graph G, the features of each node {xu : u \u2208 V } and the labels {y u : u \u2208 VL} of some nodes Output: Labels { y u : u \u2208 VU } for unlabeld nodes Pre-train the model with {xu : u \u2208 V } and {y u : u \u2208 VL} according to Eq. 8. while not converge do Generate pseudo labels { y u : u \u2208 VU } on unlabeled nodes based on Eq. 9. Predict { y u : u \u2208 V } based on Eq. 7 Update parameters with {y u : u \u2208 VL}, { y u : u \u2208 VU } and { y u : u \u2208 V } based on Eq. 8, Eq. 10 and Eq. 11. end Predict { y u : u \u2208 VU } based on Eq. 7",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "The Statistics of Datasets.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Semi-supervised node classification accuracies (%).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF3": {
+            "text": "Classification results on random data splits (%). Ablation study results of node classification (%).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

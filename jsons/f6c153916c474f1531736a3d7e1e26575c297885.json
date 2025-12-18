@@ -1,0 +1,1386 @@
+{
+    "paper_id": "f6c153916c474f1531736a3d7e1e26575c297885",
+    "metadata": {
+        "title": "Biconditional Generative Adversarial Networks for Multiview Learning with Missing Views",
+        "authors": [
+            {
+                "first": "Anastasiia",
+                "middle": [],
+                "last": "Doinychko",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Laboratoire D'Informatique de Grenoble",
+                    "institution": "Universit\u00e9 Grenoble Alpes",
+                    "location": {
+                        "settlement": "Saint-Martin-d'h\u00e0res",
+                        "country": "France"
+                    }
+                },
+                "email": "anastasiia.doinychko@univ-grenoble-alpes.fr"
+            },
+            {
+                "first": "Massih-Reza",
+                "middle": [],
+                "last": "Amini",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Laboratoire D'Informatique de Grenoble",
+                    "institution": "Universit\u00e9 Grenoble Alpes",
+                    "location": {
+                        "settlement": "Saint-Martin-d'h\u00e0res",
+                        "country": "France"
+                    }
+                },
+                "email": "massih-reza.amini@univ-grenoble-alpes.fr"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In this paper, we present a conditional GAN with two generators and a common discriminator for multiview learning problems where observations have two views, but one of them may be missing for some of the training samples. This is for example the case for multilingual collections where documents are not available in all languages. Some studies tackled this problem by assuming the existence of view generation functions to approximately complete the missing views; for example Machine Translation to translate documents into the missing languages. These functions generally require an external resource to be set and their quality has a direct impact on the performance of the learned multiview classifier over the completed training set. Our proposed approach addresses this problem by jointly learning the missing views and the multiview classifier using a tripartite game with two generators and a discriminator. Each of the generators is associated to one of the views and tries to fool the discriminator by generating the other missing view conditionally on the corresponding observed view. The discriminator then tries to identify if for an observation, one of its views is completed by one of the generators or if both views are completed along with its class. Our results on a subset of Reuters RCV1/RCV2 collections show that the discriminator achieves significant classification performance; and that the generators learn the missing views with high quality without the need of any consequent external resource.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "We address the problem of multiview learning with Generative Adversarial Networks (GANs) in the case where some observations may have missing views without there being an external resource to complete them. This is a typical situation in many applications where different sources generate different views of samples unevenly; like text information present in all Wikipedia pages while images are more scarce. Another example is multilingual text classification where documents are available in two languages and share the same set of classes while some are just written in one language. Previous works supposed the existence of view generating functions to complete the missing views before deploying a learning strategy [2] . However, the performance of the global multiview approach is biased by the quality of the generating functions which generally require external resources to be set. The challenge is hence to learn an efficient model from the multiple views of training data without relying on an extrinsic approach to generate altered views for samples that have missing ones.",
+            "cite_spans": [
+                {
+                    "start": 721,
+                    "end": 724,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this direction, GANs provide a propitious and broad approach with a high ability to seize the underlying distribution of the data and create new samples [11] . These models have been mostly applied to image analysis and major advances have been made on generating realistic images with low variability [7, 15, 16] . GANs take their origin from the game theory and are formulated as a two players game formed by a generator G and a discriminator D. The generator takes a noise z and produces a sample G(z) in the input space, on the other hand the discriminator determines whenever a sample comes from the true distribution of the data or if it is generated by G. Other works included an inverse mapping from the input to the latent representation, mostly referred to as BiGANs, and showed the usefulness of the learned feature representation for auxiliary discriminant problems [8, 9] . This idea paved the way for the design of efficient approaches for generating coherent synthetic views of an input image [6, 14, 21] .",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 305,
+                    "end": 308,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 309,
+                    "end": 312,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 313,
+                    "end": 316,
+                    "text": "16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 881,
+                    "end": 884,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 885,
+                    "end": 887,
+                    "text": "9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1011,
+                    "end": 1014,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 1015,
+                    "end": 1018,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1019,
+                    "end": 1022,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In this work, we propose a GAN based model for bilingual text classification, called Cond 2 GANs, where some training documents are just written in one language. The model learns the representation of missing versions of bilingual documents jointly with the association to their respective classes, and is composed of a discriminator D and two generators G 1 and G 2 formulated as a tripartite game. For a given document with a missing version in one language, the corresponding generator induces the latter conditionally on the observed one. The training of the generators is carried out by minimizing a regularized version of the cross-entropy measure proposed for multi-class classification with GANs [19] in a way to force the models to generate views such that the completed bilingual documents will have high class assignments. At the same time, the discriminator learns the association between documents and their classes and distinguishes between observations that have their both views and those that got a completed view by one of the generators. This is achieved by minimizing an aggregated cross-entropy measure in a way to force the discriminator to be certain of the class of observations with their complete views and uncertain of the class of documents for which one of the versions was completed. The regularization term in the objectives of generators is derived from an adapted feature matching technique [17] which is an effective way for preventing from situations where the models become unstable; and which leads to fast convergence.",
+            "cite_spans": [
+                {
+                    "start": 704,
+                    "end": 708,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 1424,
+                    "end": 1428,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We demonstrate that generated views allow to achieve state-of-the-art results on a subset of Reuters RCV1/RCV2 collections compared to multiview approaches that rely on Machine Translation (MT) for translating documents into languages in which their versions do not exist; before training the models. Importantly, we exhibit qualitatively that generated documents have meaningful translated words bearing similar ideas compared to the original ones; and that, without employing any large external parallel corpora to learn the translations as it would be the case if MT were used. More precisely, this work is the first to:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-Propose a new tripartite GAN model that makes class prediction along with the generation of high quality document representations in different input spaces in the case where the corresponding versions are not observed (Sect. 3.2); -Achieve state-of-the art performance compared to multiview approaches that rely on external view generating functions on multilingual document classification; and which is another challenging application than image analysis which is the domain of choice for the design of new GAN models (Sect. 4.2); -Demonstrate the value of the generated views within our approach compared to when they are generated using MT (Sect. 4.2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Multiview learning has been an active domain of research these past few years. Many advances have been made on both theoretic and algorithmic sides [5, 12] . The three main families of techniques for (semi-)supervised learning are (kernel) Canonical Correlation Analysis (CCA), Multiple kernel learning (MKL) and co-regularization. CCA finds pairs of highly correlated subspaces between the views that is used for mapping the data before training, or integrated in the learning objective [3, 10] . MKL considers one kernel per view and different approaches have been proposed for their learning. In one of the earliest work, [4] proposed an efficient algorithm based on sequential minimization techniques for learning a corresponding support vector machine defined over a convex nonsmooth optimization problem. Co-regularization techniques tend to minimize the disagreement between the single-view classifiers over their outputs on unlabeled examples by adding a regularization term to the objective function [18] . Some approaches have also tackled the tedious question of combining the predictions of the view specific classifiers [20] . However all these techniques assume that views of a sample are complete and available during training and testing.",
+            "cite_spans": [
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 152,
+                    "end": 155,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 492,
+                    "end": 495,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 625,
+                    "end": 628,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1009,
+                    "end": 1013,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1133,
+                    "end": 1137,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Recently, many other studies have considered the generation of multiple views from a single input image using GANs [14, 21, 23] and have demonstrated the intriguing capacity of these models to generate coherent unseen views. The former approaches rely mostly on an encoder-encoder network to first map images into a latent space and then generate their views using an inverse mapping. This is a very exciting problem, however, our learning objective differs from these approaches as we are mostly interested in the classification of muti-view samples with missing views. The most similar work to ours that uses GANs for multiview classification is probably [6] . This approach generates missing views of images in the same latent space than the input image, while Cond 2 GANs learns the representations of the missing views in their respective input spaces conditionally on the observed ones which in general are from other feature spaces. Furthermore, Cond 2 GANs benefits from low complexity and stable convergence which has been shown to be lacking in the previous approach.",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 119,
+                    "text": "[14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 124,
+                    "end": 127,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 657,
+                    "end": 660,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Another work which has considered multiview learning with incomplete views, also for document classification, is [2] . The authors proposed a Rademacher complexity bounds for a multiview Gibbs classifier trained on multilingual collections where the missing versions of documents have been generated by Machine Translation systems. Their bounds exhibit a term corresponding to the quality of the MT system generating the views. The bottleneck is that MT systems depend on external resources, and they require a huge amount of parallel collections containing documents and their translations in all languages of interest for their tuning. For rare languages, this can ultimately affect the performance of the learning models. Regarding these aspects our proposed approach differs from all the previous studies, as we do not suppose the existence of parallel training sets nor MT systems to generate the missing versions of the training observations.",
+            "cite_spans": [
+                {
+                    "start": 113,
+                    "end": 116,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In the following sections, we first present the basic definitions which will serve to our problem setting, and then the proposed model for multiview classification with missing views.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cond 2 GANs"
+        },
+        {
+            "text": "We consider multiclass classification problems, where a bilingual document is defined as a sequence x = (x 1 , x 2 ) \u2208 X that belongs to one and only one class y \u2208 Y = {0, 1} K . The class membership indicator vector y = (y k ) 1\u2264k\u2264K , of each bilingual document, has all its components equal to 0 except the one that indicates the class associated with the example which is equal to one. Here we suppose that X = (",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Framework and Problem Setting"
+        },
+        {
+            "text": "Following the conclusions of the co-training study [5] , our framework is based on the following main assumption:",
+            "cite_spans": [
+                {
+                    "start": 51,
+                    "end": 54,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Framework and Problem Setting"
+        },
+        {
+            "text": "Observed views are not completely correlated, and are equally informative.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 1 ([5])."
+        },
+        {
+            "text": "Furthermore, we assume that each example (x, y) is identically and independently distributed (i.i.d.) according to a fixed yet unknown distribution D over X \u00d7Y, and that at least one of its views is observed. Additionally, we suppose to have access to a training set",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 1 ([5])."
+        },
+        {
+            "text": "denotes the subset of training samples with their both complete views and",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 1 ([5])."
+        },
+        {
+            "text": "is the subset of training samples with their second (respectively first) view that is not observed (i.e. m = m F + m 1 + m 2 ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 1 ([5])."
+        },
+        {
+            "text": "It is possible to address this problem using existing techniques; for example, by learning singleview classifiers independently on the examples of S S 1 (respectively S S 2 ) for the first (respectively second) view. To make predictions, one can then combine the outputs of the classifiers [20] if both views of a test example are observed; or otherwise, use one of the outputs corresponding to the observed view. Another solution is to apply multiview approaches over the training samples of S F ; or over the whole training set S by completing the views of examples in S 1 and S 2 before using external view generation functions.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Assumption 1 ([5])."
+        },
+        {
+            "text": "As an alternative, the learning objective of our proposed approach is to generate the missing views of examples in S 1 and S 2 , jointly with the learning of the association between the multiview samples (with all their views complete or completed) and their classes. The proposed model consists of three neural networks that are trained using an objective implementing a three players game between a discriminator, D, and two generators, G 1 and G 2 . The game that these models play is depicted in Fig. 1 and it can be summarized as follows. At each step, if an observation is chosen with a missing view, the corresponding generator -G 1 (respectively G 2 ) if the first (respectively second) view is missingproduces the view from random noise conditionally on the observed view in a way to fool the discriminator. On the other hand, the discriminator takes as input an observation with both of its views complete or completed and, classifies it if the views are initially observed or tells if a view was produced by one of the generators. Formally, both generators G 1 and G 2 take as input; samples from the training subsets S 2 and S 1 respectively; as well as random noise drawn from a uniform distribution defined over the input space of the missing view and produce the corresponding pseudo-view, which is missing; i.e. G 1 (z 1 , x 2 ) =x 1 and G 2 (x 1 , z 2 ) =x 2 . These models are learned in a way to replicate the conditional distributions p(x 1 |x 2 , z 1 ) and p(x 2 |x 1 , z 2 ); and inherently define two probability distributions, denoted respectively by p G1 and p G2 , as the distribution of samples if both views where observed i.e. (x 1 ,",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 500,
+                    "end": 506,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "The Tripartite Game"
+        },
+        {
+            "text": ". On the other hand, the discriminator takes as input a training sample; either from the set S F , or from one of the training subsets S 1 or S 2 where the missing view of the example is generated by one of the generators accordingly. The task of D is then to recognize observations from S 1 and S 2 that have completed views by G 1 and G 2 and to classify examples from S to their true classes. To achieve this goal we add a fake class, K + 1, to the set of classes, Y, corresponding to samples that have one of their views generated by G 1 or G 2 . The dimension of the discriminator's output is hence set to K + 1 which by applying softmax is supposed to estimate the posterior probability of classes for each multiview observation (with complete or completed views) given in input. For an observation x \u2208 X , we use D K+1 (x) = p D (y = K + 1|x) to estimate the probability that one of its views is generated by G 1 or G 2 . As the task of the generators is to produce good quality views such that the observation with the completed view will be assigned to its true class with high probability, we follow [17] by supplying the discriminator to not get fooled easily as stated in the following assumption:",
+            "cite_spans": [
+                {
+                    "start": 1110,
+                    "end": 1114,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "The Tripartite Game"
+        },
+        {
+            "text": "An observation x has one of its views generated by",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 2 ([17])."
+        },
+        {
+            "text": "In the case where; D K+1 (x) \u2264 K k=1 D k (x) the observation x is supposed to have its both views observed and it is affected to one of the classes following the rule; max k={1,...,K} D k (x). The overall learning objective of Cond 2 GANs is to train the generators to produce realistic views indistinguishable with the real ones, while the discriminator is trained to classify multiview observations having their complete views and to identify view generated samples. If we denote by p real the marginal distribution of multiview observations with their both views observed (i.e. (x 1 , x 2 ) = p real (x 1 , x 2 )); the above procedure resumes to the following discriminator objective function V D (D, G 1 , G 2 ):",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 2 ([17])."
+        },
+        {
+            "text": "In this way, we stated minmax game over K + 1 component of discriminator. In addition to this objective, we made generators also learn from labels of completed samples. Therefore, the following equation defines objective for the generators z) ) .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 240,
+                    "end": 242,
+                    "text": "z)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Assumption 2 ([17])."
+        },
+        {
+            "text": "Note that, following Assumption 1, we impose the generators to produce equally informative views by assigning the same weight to their corresponding terms in the objective functions (Eqs. 1, 2).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Assumption 2 ([17])."
+        },
+        {
+            "text": "From the outputs of the discriminator for all x \u2208 X we build an auxiliary function D(x) = K k=1 p D (y = k | x) equal to the sum of the first K outputs associated to the true classes. In this following, we provide a theoretical analysis of Cond 2 GANs involving the auxiliary function D under nonparametric hypotheses.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Analyses and Convergence"
+        },
+        {
+            "text": "For fixed generators G 1 and G 2 , the objective defined in (Eq. 1) leads to the following optimal discriminator D * G1,G2 :",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "where p G1,2 (x 1 , x 2 ) = 1 2 (p G1 (x 1 , x 2 ) + p G2 (x 1 , x 2 )).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "Proof. The proof follows from [11] . Let",
+            "cite_spans": [
+                {
+                    "start": 30,
+                    "end": 34,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "From Assumption 2, and the fact that for any observation x the outputs of the discriminator sum to one i.e. K+1 k=1 D k (x) = 1, the value function V D writes:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "For any (\u03b1, \u03b2, \u03b3) \u2208 R 3 \\{0, 0, 0}; the function z \u2192 \u03b1 log z + \u03b2 2 log(1 \u2212 z) + \u03b3 2 log(1 \u2212 z) reaches its maximum at z = \u03b1 \u03b1+ 1 2 (\u03b2+\u03b3) , which ends the proof as the discrimintaor does not need to be defined outside the supports of p data , p G1 and p G2 .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "By plugging back D * G1,G2 (Eq. 3) into the value function V D we have the following necessary and sufficient condition for attaining the global minimum of this function:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Proposition 1."
+        },
+        {
+            "text": "At this point, the minimum is equal to \u2212 log 4.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "Proof. By plugging back the expression of D * (Eq. 3), into the value function",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "Which from the definition of the Kullback Leibler (KL) and the Jensen Shannon divergence (JSD) can be rewritten as",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "The JSD is always positive and JSD p real pG 1,2 = 0 if and only if p real = pG 1,2 which ends the proof.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "From Eq. 4, it is straightforward to verify that p real (x 1 ,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "is a global Nash equilibrium but it may not be unique. In order to ensure the uniqueness, we add the Jensen-Shannon divergence between the distribution p G1 and p real and p G2 and p real the value function V D (Eq. 1) as stated in the corollary below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Theorem 1. The global minimum of the function V D (G 1 , G 2 ) is attained if and only if"
+        },
+        {
+            "text": "is reached if and only if",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. The unique global Nash equilibrium of the augmented value function:"
+        },
+        {
+            "text": "where V D (D, G 1 , G 2 ) is the value function defined in Eq. (1) and JSD(p G1 ||p real ) is the Jensen-Shannon divergence between the distribution p G1 and p real .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 10,
+                    "end": 25,
+                    "text": "(D, G 1 , G 2 )",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Corollary 1. The unique global Nash equilibrium of the augmented value function:"
+        },
+        {
+            "text": "Proof. The proof follows from the positivness of JSD and the necessary and sufficient condition for it to be equal to 0. Hence,V D (D,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. The unique global Nash equilibrium of the augmented value function:"
+        },
+        {
+            "text": "This result suggests that at equilibrium, both generators produce views such that observations with their completed view follow the same real distribution than those which have their both views observed.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Corollary 1. The unique global Nash equilibrium of the augmented value function:"
+        },
+        {
+            "text": "In order to avoid the collapse of the generators [17] , we perform minibatch discrimination by allowing the discriminator to have access to multiple samples in combination. From this perspective, the minmax game (Eqs. 1, 2) is equivalent to the maximization of a cross-entropy loss, and we use minibatch training to learn the parameters of the three models. The corresponding empirical errors estimated over a minibatch B that contains m b samples from each of the sets S F , S 1 and S 2 are:",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 53,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Algorithm and Implementation"
+        },
+        {
+            "text": "LG",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Algorithm and Implementation"
+        },
+        {
+            "text": "Input: A training set S = S F S 1 S 2 Initialization: Size of minibatches, m b Use Xavier initializer to initialize discriminator and generators parameters, respectively \u03b8",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Minibatch stochastic training of Cond 2 GANs"
+        },
+        {
+            "text": "Sample randomly a minibatch B i of size 3m b from S 1 , S 2 and S F ; create minibatches of noise vector z 1 , z 2 from U (\u22121, 1)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Minibatch stochastic training of Cond 2 GANs"
+        },
+        {
+            "text": "In order to be inline with the premises of Corollary 1; we empirically tested different solutions and the most effective one that we found was the feature matching technique proposed in [17] , which addressed the problem of instability for the learning of generators by adding a penalty term",
+            "cite_spans": [
+                {
+                    "start": 186,
+                    "end": 190,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minibatch stochastic training of Cond 2 GANs"
+        },
+        {
+            "text": "to their corresponding objectives (Eq. (8)). Where, . is the 2 norm and f is the sigmoid activation function on an intermediate layer of the discriminator. The overall algorithm of Cond 2 GANs is shown above. The parameters of the three neural networks are first initialized using Xavier. For a given number of iterations T , minibatches of size 3m b are randomly sampled from the sets S F , S 1 and S 2 . Minibatches of noise vectors are randomly drawn from the uniform distribution. Models parameters of the discriminator and both generators are then sequentially updated using Adam optimization algorithm [13] . We implemented our method by having two layers neural networks for each of the components of Cond 2 GANs. These neural nets are composed of 200 nodes in hidden layers with a sigmoid activation function. Since the values of the generated samples are supposed to approximate any possible real value, we do not use the activation function in the outputs of both generators. 1",
+            "cite_spans": [
+                {
+                    "start": 608,
+                    "end": 612,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Minibatch stochastic training of Cond 2 GANs"
+        },
+        {
+            "text": "In this Section, we present experimental results aimed at evaluating how the generation of views by Cond 2 GANs can help to take advantage of existing training examples, with many having an incomplete view, in order to learn an efficient classification function. We perform experiments on a publicly available collection, extracted from Reuters RCV1/RCV2, that is proposed for multilingual multiclass text categorization 2 ( Table 1 ). The dataset contains numerical feature vectors of documents originally presented in five languages (EN, FR, GR, IT, SP). In our experiments, we consider four pairs of languages with always English as one of the views ((EN,FR),(EN,SP),(EN,IT), (EN,GR) ). Documents in different languages belong to one and only one class within the same set of classes (K = 6); and they also have translations into all the other languages. These translations are obtained from a state-of-the-art Statistical Machine Translation system [22] trained over the Europal parallel collection using about 8.10 6 sentences for the 4 considered pairs of languages. 3 ",
+            "cite_spans": [
+                {
+                    "start": 953,
+                    "end": 957,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 425,
+                    "end": 432,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 679,
+                    "end": 686,
+                    "text": "(EN,GR)",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experiments"
+        },
+        {
+            "text": "In our experiments, we consider the case where the number of training documents having their two versions is much smaller than those with only one of their available versions (i.e. m F m 1 + m 2 ). This corresponds to the case where the effort of gathering documents in different languages is much less than translating them from one language to another. To this end, we randomly select m F = 300 samples having their both views, m 1 = m 2 = 6000 samples with one of their views missing and the remaining samples without their translations for test. In order to evaluate the quality of generated views by Cond 2 GANs we considered two scenarios. In the first one (denoted by TEN\u1e7d), we test on English documents by considering the generation of these documents with respect to the other view (v \u2208 {FR, GR, IT, SP}) using the corresponding generator. In the second scenario (denoted by T\u1ebc Nv ), we test on documents that are written in another language than English by considering their generation on English provided by the other generator. For evaluation, we test the following four classification approaches along with Cond 2 GANs; one singleview approach and four multiview approaches. In the singleview approach (denoted by c v ) classifiers are the same as the discriminator and they are trained on the part of the training set with examples having their corresponding view observed. The multiview approaches are MKL [4] , coclassification (co-classif) [1] , unanimous vote ( mv b ) [2] . Results are evaluated over the test set using the accuracy and the F 1 measure which is the harmonic average of precision and recall. The reported performance are averaged over 20 random (train/test) sets, and the parameters of Adam optimization algorithm are set to \u03b1 = 10 \u22124 , \u03b2 = 0.5.",
+            "cite_spans": [
+                {
+                    "start": 1421,
+                    "end": 1424,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 1457,
+                    "end": 1460,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1487,
+                    "end": 1490,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "On the value of the generated views. We start our evaluation by comparing the F 1 scores over the test set, obtained with Cond 2 GANs and a neural network having the same architecture than the discriminator D of Cond 2 GANs trained over the concatenated views of documents in the training set where the missing views are generated by Machine Translation. Figure 2 shows these results. Each point represents a class, where its abscissa (resp. ordinate) represents the test F 1 score of the Neural Network trained using MT (resp. one of the generators of Cond 2 GANs) to complete the missing views. All of the classes, in the different language pair scenarios, are above the line of equality, suggesting that the generated views by Cond 2 GANs provide higher value information than translations provided by MT for learning the Neural Network. This is an impressive finding, as the resources necessary for the training of MT is large (8.10 6 pairs of sentences and their translations); while Cond 2 GANs does both view completion and discrimination using only the available training data. This is mainly because both generators induce missing views with the same distribution than real pairs of views as stated in Corollary 1.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 355,
+                    "end": 363,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Comparison between multiview approaches. We now examine the gains, in terms of accuracy, of learning the different multiview approaches on a collection where for other approaches than Cond 2 GANs the missing views are completed by one of the generators of our model. Table 2 summarizes these results obtained by Cond 2 GANs, MKL, co-classif, and mv b for both test scenarios. In all cases Cond 2 GANs, provides significantly better results than other approaches. This provides empirical evidence of the effectiveness of the joint view generation and class prediction of Cond 2 GANs. Furthermore, MKL, co-classif and Cond 2 GANs are binary classification models and tackle the multiclass classification case with one vs all strategy making them to suffer from class imbalance problem. Results obtained using the F 1 measure are in line with those of Table 2 and they are not reported for the sake of space. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 267,
+                    "end": 274,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 849,
+                    "end": 856,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "In this paper we presented Cond 2 GANs for multiview multiclass classification where observations may have missing views. The model consists of three neuralnetworks implementing a three players game between a discriminator and two generators. For an observation with a missing view, the corresponding generator produces the view conditionally on the other observed one. The discriminator is trained to recognize observations with a generated view from others having their views complete and to classify the latter into one of the existing classes. We evaluate the effectiveness of our approach on another challenging application than image analysis which is the domain of choice for the design of new GAN models. Our experiments on a subset of Reuters RCV1/RCV2 show the effectiveness of Cond 2 GANs to generate high quality views allowing to achieve significantly better results, compared to the case where the missing views are generated by Machine Translation which requires a large collection of sentences and their translations to be tuned. As future study, we will be working on the generalization of the proposed model to more than 2 views. One possible direction is the use of an aggregation function of available views as a condition to the generators.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A co-classification approach to learning from multilingual corpora",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Amini",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Goutte",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Mach. Learn. J",
+            "volume": "79",
+            "issn": "1-2",
+            "pages": "105--121",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Learning from multiple partially observed views -an application to multilingual text categorization",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Amini",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Goutte",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "22",
+            "issn": "",
+            "pages": "28--36",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Kernel independent component analysis",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bach",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Jordan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "3",
+            "issn": "",
+            "pages": "1--48",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Multiple kernel learning, conic duality, and the SMO algorithm",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Bach",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "R G"
+                    ],
+                    "last": "Lanckriet",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Jordan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Proceedings of the 21 st International Conference on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Combining labeled and unlabeled data with co-training",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Blum",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mitchell",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of the Eleventh Annual Conference on Computational Learning Theory (COLT)",
+            "volume": "",
+            "issn": "",
+            "pages": "92--100",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Multi-view generative adversarial networks",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Denoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ceci",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hollm\u00e9n",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Todorovski",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Vens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "ECML PKDD 2017",
+            "volume": "10535",
+            "issn": "",
+            "pages": "175--188",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-71246-8_11"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Deep generative image models using a laplacian pyramid of adversarial networks",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Denton",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chintala",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Szlam",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Fergus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "28",
+            "issn": "",
+            "pages": "1486--1494",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Adversarial feature learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Donahue",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Kr\u00e4henb\u00fchl",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Darrell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Representation Learning (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Adversarially learned inference",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Dumoulin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "International Conference on Representation Learning (ICLR",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Two view learning: SVM-2K, theory and practice",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Farquhar",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Hardoon",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Meng",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Shawe-Taylor",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Szedm\u00e1k",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "18",
+            "issn": "",
+            "pages": "355--362",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Generative adversarial nets",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Goodfellow",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "27",
+            "issn": "",
+            "pages": "2672--2680",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "PAC-Bayesian Analysis for a two-step Hierarchical Multiview Learning Approach",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Morvant",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Germain",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Amini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Joint European Conference on Machine Learning and Knowledge Discovery in Databases",
+            "volume": "",
+            "issn": "",
+            "pages": "205--221",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "International Conference on Representation Learning (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Pose guided person image generation",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Jia",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Schiele",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Tuytelaars",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Gool",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "30",
+            "issn": "",
+            "pages": "406--416",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Conditional image synthesis with auxiliary classifier GANs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Odena",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Olah",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Shlens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 34th International Conference on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "2642--2651",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Unsupervised representation learning with deep convolutional generative adversarial networks",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Radford",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Metz",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chintala",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on Representation Learning (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Improved techniques for training GANs",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Salimans",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Advances in Neural Information Processing Systems",
+            "volume": "29",
+            "issn": "",
+            "pages": "2234--2242",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "An RKHS for multi-view learning and manifold co-regularization",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Sindhwani",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Rosenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 25 th International Conference on Machine Learning (ICML)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Unsupervised and semi-supervised learning with categorical generative adversarial networks",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Springenberg",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "International Conference on Representation Learning (ICLR)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "A unified weight learning paradigm for multi-view learning",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of Machine Learning Research",
+            "volume": "",
+            "issn": "",
+            "pages": "2790--2800",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "CR-GAN: learning complete representations for multi-view generation",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Tian",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Metaxas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence (IJCAI)",
+            "volume": "",
+            "issn": "",
+            "pages": "942--948",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "NRC's portage system for WMT",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ueffing",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Simard",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Larkin",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the Second Workshop on Statistical Machine Translation",
+            "volume": "",
+            "issn": "",
+            "pages": "185--188",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Multi-view image generation from a single-view",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Zhao",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Feng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 26th ACM International Conference on Multimedia (MM)",
+            "volume": "",
+            "issn": "",
+            "pages": "383--391",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "A visual representation of the proposed GAN model composed of three neural networks; a discriminator D and two generators G1 and G2. The missing view of an observation is completed by the corresponding generator conditionally on its observed view. The discriminator is trained to recognize between observations having their views completed and those with complete initial views as well as their classes.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "F1-score per class measured for test predictions made by a Neural-Network, with the same architecture than the discriminator of Cond 2 GANs, and trained over documents where their missing views are generated by MT, or by G1 or G2.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "The statistics of RCV1/RCV2 Reuters data collection used in our experiments.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Test classification accuracy averaged over 20 random training/test sets. For each of the pairs of languages, the best result is in bold, and a \u2193 indicates a result that is statistically significantly worse than the best, according to a Wilcoxon rank sum test with p < .01.Approaches (EN,v = FR) (EN,v = GR) (EN,v = IT) (EN,v = SP) MKL 75.6 \u2193 77.3 \u2193 79.4 \u2193 79.6 \u2193 78.4 \u2193 79.8 \u2193 81.2 \u2193 83.5 \u2193 co-classif 81.4 \u2193 83.2 \u2193 84.3 \u2193 81.6 \u2193 82.7 \u2193 82.5 \u2193 85.1 \u2193 86.2 \u2193 mv b 83.1 \u2193 84.5 \u2193 85.2 \u2193 79.9 \u2193 84.3 \u2193 82.1 \u2193 84.4 \u2193 86.2 \u2193Fig. 3. F1 measure of Cond 2 GANs and a singleview classifier (cv) for an increasing number of training samples with the corresponding view that is observed. The number of training examples corresponding to the other view (m v \\ = 6000); and the number of training examples with their both views observed is mF = 300. of the Increasing Number of Observed Views. In Fig. 3, we compare F 1 measures between Cond 2 GANs and one of the single-view classifiers with an increasing number of training samples, having the view corresponding to the singleview classifier observed; while the number of training examples with the other observed view is fixed. With an increasing number of training samples, the corresponding singleview classifier gains in performance. On the other hand, Cond 2 GANs can leverage the lack of information from training examples having their other view observed, making that the difference of performance between these models for small number of training samples is higher.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

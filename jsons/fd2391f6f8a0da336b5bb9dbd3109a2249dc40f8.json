@@ -1,0 +1,1343 @@
+{
+    "paper_id": "fd2391f6f8a0da336b5bb9dbd3109a2249dc40f8",
+    "metadata": {
+        "title": "Optimal Topology Search for Fast Model Averaging in Decentralized Parallel SGD",
+        "authors": [
+            {
+                "first": "Mohsan",
+                "middle": [],
+                "last": "Jameel",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Hildesheim",
+                    "location": {
+                        "addrLine": "Universit\u00e4tsplatz 1",
+                        "postCode": "31141",
+                        "settlement": "Hildesheim",
+                        "country": "Germany"
+                    }
+                },
+                "email": "mohsan.jameel@ismll.uni-hildesheim.de"
+            },
+            {
+                "first": "Shayan",
+                "middle": [],
+                "last": "Jawed",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Hildesheim",
+                    "location": {
+                        "addrLine": "Universit\u00e4tsplatz 1",
+                        "postCode": "31141",
+                        "settlement": "Hildesheim",
+                        "country": "Germany"
+                    }
+                },
+                "email": "shayan@ismll.uni-hildesheim.de"
+            },
+            {
+                "first": "Lars",
+                "middle": [],
+                "last": "Schmidt-Thieme",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Hildesheim",
+                    "location": {
+                        "addrLine": "Universit\u00e4tsplatz 1",
+                        "postCode": "31141",
+                        "settlement": "Hildesheim",
+                        "country": "Germany"
+                    }
+                },
+                "email": "schmidt-thieme@ismll.uni-hildesheim.de"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Distributed training of deep learning models on high-latency systems necessitates decentralized parallel SGD solutions. However, existing solutions suffer from slow convergence because of hand-crafted topologies. The question arises, \"for decentralized parallel SGD, is it possible to learn a topology that provides faster model averaging compared to the hand-crafted counterparts? \".",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        },
+        {
+            "text": "By leveraging spectral properties of the graph, we formulate the objective function for finding the topology that provides fast model averaging. Since direct optimization of the objective function is infeasible, we employ a local search algorithm guided by the objective function. We show through extensive empirical evaluation on image classification tasks that the model averaging based on learned topologies leads to fast convergence. An equally important aspect of the decentralized parallel SGD is the link weights for sparse model averaging. In contrast to setting weights via Metropolis-Hastings, we propose to use Laplacian link weights on the learned topologies, which provide a significant lift in performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The current trend in learning distributed models on edge devices (factory controllers etc) is gaining traction as it eases the burden of transferring data to a central location, which in a real-world scenario, is limited by slow transfer rates or legal restrictions [13] . The decentralized nature of these devices coupled with high latency networks renders the centralized parallel SGD [8, 21] approaches infeasible due to high aggregation cost at the central node. Hence, it is imperative to design distributed algorithms that are well suited for these high latency systems. Decentralized learning algorithms [9, 10] operate on local hosts using only the local data partitions but to reduce communication cost, each worker shares information with a small subset of neighbors. As a result, the central bottleneck is effectively eliminated. An example is the hand-crafted virtual ring topology, where each worker only communicates with its two adjacent neighbors.",
+            "cite_spans": [
+                {
+                    "start": 266,
+                    "end": 270,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 387,
+                    "end": 390,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 391,
+                    "end": 394,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 611,
+                    "end": 614,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 615,
+                    "end": 618,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "However, these hand-crafted solutions exhibit slow model averaging properties, which lead to high variance among the individual models learned by workers [16, 20] . For training highly non-linear models with non-convex optimization objectives, this could be problematic as high variance degrades convergence behavior and leads to suboptimal solutions. The fundamental question arises, \"for decentralized parallel SGD, is it possible to learn a topology that provides faster model averaging compared to the hand-crafted counterparts? \". It is well known that the spectral properties of the graph provide a good metrics to measure the connectivity structure of the topology [14] . Based on this, we propose an objective function, optimization of which leads to the topology that provides fast model averaging under constraints such as the number of connections. The direct optimization of the objective function leads to a combinatorial explosion of the search space, thus finding an optimal solution under constraints is intractable. The solution [12] that exists is limited to prime and prime power of the number of direct connections, which hinders its real-world applicability. In this paper, we propose a local search algorithm guided by the objective function to find a topology that leads to fast model averaging.",
+            "cite_spans": [
+                {
+                    "start": 154,
+                    "end": 158,
+                    "text": "[16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 159,
+                    "end": 162,
+                    "text": "20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 672,
+                    "end": 676,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1046,
+                    "end": 1050,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The topology itself is an incomplete solution for fast model averaging without giving due importance to optimal averaging link weights. The common practice to set weights so far has been based on the Metropolis-Hastings algorithm [14] . However, as we shall show these are not generalizable across learned topologies. We propose to exploit spectral properties of the graph to assign link weights for model averaging, which have been proven to be the optimal choice for constant edge weights [18] .",
+            "cite_spans": [
+                {
+                    "start": 230,
+                    "end": 234,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 491,
+                    "end": 495,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "To recap, our contributions are:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "\u2022 We propose a principled method to find a topology that enables fast model averaging under communication constraints. \u2022 We demonstrate improved convergence behavior with Laplacian link weights in contrast to weights set by the Metropolis-Hastings algorithm. \u2022 We evaluate on a set of image classification tasks that model averaging solutions based on our method converges faster than hand-crafted counterparts.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Training machine learning models in a distributed setting is a widely studied topic, and becoming more challenging with the increase in data and model complexity. Literature [3, 8, 21] on centralized approaches relies on a central node for aggregating the updates from distributed workers. Lian et al. [9] have shown that in high latency systems, the central node becomes a bottleneck due to high communication cost. To eliminate this central bottleneck, they proposed a decentralized model averaging scheme, where each worker performs model averaging by communicating with their adjacent neighbors. Their solutions [9, 10] use variants of a structured topology based on a Regular Ring Lattice (RRL) graph and link weights are set using the Metropolis-Hastings algorithm [14] . However, these handcrafted topologies exhibit poor spectral properties of the graph, which lead to slow model averaging and degradation in the convergence behavior. Wang et al. [16] through a unified analysis of centralized and decentralized approaches, show that the averaging delay and sparse connectivity can adversely affect the convergence behavior. The main reason for slow convergence of the decentralized model averaging is the consequence of a poor choice of topologies and link weights. The choice of setting link weights for a fixed graph topology are extensively studied in [2, 11, 18] . The convergence is guaranteed, if the averaging matrix is a doubly stochastic transition matrix and has an eigenvalue of 1 and all other eigenvalues are within a unit circle. Furthermore, convergence is inversely proportional to the magnitude of the second largest eigenvalue [1] . Xiao and Boyd [18] showed for an unweighted graph, the best constant link weights are set based on the spectral properties of the graph. Taking it further, they defined an optimization procedure for finding optimal link weights for fast model averaging.",
+            "cite_spans": [
+                {
+                    "start": 174,
+                    "end": 177,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 178,
+                    "end": 180,
+                    "text": "8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 181,
+                    "end": 184,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 302,
+                    "end": 305,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 616,
+                    "end": 619,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 620,
+                    "end": 623,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 771,
+                    "end": 775,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 955,
+                    "end": 959,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 1364,
+                    "end": 1367,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 1368,
+                    "end": 1371,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 1372,
+                    "end": 1375,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1654,
+                    "end": 1657,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1674,
+                    "end": 1678,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The literature for finding optimal link weights assumes that the graph topology is already defined, but does not explore the possibility of finding it. In this direction, Kar et al. [7] proposed methods for finding 'the regular Ramanujan Graphs', which are known to exhibit better spectral properties but are limited to prime or prime power values of the number of direct connections. To overcome this limitation they provided the R3L method to find a random regular like Ramanujan Graphs by random rewiring of the edges. Their solution has similar principles to a random rewiring approach of Watts and Strogatz's model (WS) [17] to construct small-world graphs, but with better spectral properties. Despite providing solutions superior to RRL approaches, both methods are not studied in the context of decentralized parallel SGD. R3L and WS are based on random edge rewiring heuristics and are not guided by the objective function.",
+            "cite_spans": [
+                {
+                    "start": 182,
+                    "end": 185,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 625,
+                    "end": 629,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In this paper, we define an optimization objective function, which can be used to find a topology for fast model averaging in a decentralized parallel SGD. Furthermore, we employed R3L and WS based averaging solutions and compare them with RRL approach currently used in the literature. We also analyze the link weights derived from the graph Laplacian and compare it with the usual choice of Metropolis Hastings.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "In supervised machine learning, the training dataset D consists of M training instances each represented by a tuple (x, y), where x is a feature vector and y the corresponding label. A model\u0177(x; \u03b8), with model parameters \u03b8 \u2208 R K can be learned by minimizing the objective function,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "where L(y,\u0177(x; \u03b8)) is a loss function. Typical loss functions include the cross entropy loss, squared loss, hinge loss etc. Stochastic Gradient Descent based algorithms are most widely used to optimize the objective function in Eq. (1).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "In a decentralized SGD, distributed workers V = {1, \u00b7 \u00b7 \u00b7 , N} represent computing resources that hold local partitions of data D. Each worker holds a local copy \u03b8 u and calculates the gradient in Eq. (2) by sampling a mini-batch B u \u2282 D u from the local data partition D u .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "The connectivity between workers is defined by an undirected graph topology G = (V, E) with an edge set of the unordered pairs {u, v} \u2208 E. An edge means that a pair of workers u and v can exchange information. The neighborhood of each worker u is a set N u = {v : {u, v} \u2208 E, v \u2208 V} and its degree, deg(u) is the total number of its neighbors i.e. deg(u) = |N u |. To update the local model, each worker first averages the local models of the neighborhood and applies the local gradients in Eq. (3).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "where W \u2208 R N \u00d7N is called averaging/weighting 1 matrix. Equation (3) is known as an average consensus problem, and the weight matrix W encodes the averaging scheme for a sparse connectivity. Convergence of Eq. (3) is possible if W exhibits the property lim",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "for t steps averaging with W approaches to a global average [18] . This limit only holds if,",
+            "cite_spans": [
+                {
+                    "start": 60,
+                    "end": 64,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "where W is a doubly stochastic transition matrix, 1 denotes vectors of all ones and \u03c1(\u00b7) is the spectral radius 2 of a matrix. The term \u03c1(W \u2212 (1/n)11 T ) is called the asymptotic convergence factor and Eq. (5) defines its convergence speed. Convergence of Eq. (4) is possible if W has eigenvalue \u03bb 1 (W) = 1 and \u03bb 2 (W) \u2265 \u03bb 3 (W) \u2265 \u00b7 \u00b7 \u00b7 \u2265 \u03bb N (W) lies in a unit circle. The asymptotic convergence is faster for smaller values of the second largest eigenvalue modulus",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Decentralized Stochastic Gradient Descent as Average Consensus Problem"
+        },
+        {
+            "text": "The convergence of Eq. (3) highly depends on the link weights encoded in W and the structure of the connectivity of workers defined by graph G. The eigenstructure of the graph Laplacian provides an important tool for studying numerous graph invariant properties including connectivity, expandability, diameter, mean distance and so on [14] . For a given graph G, its Laplacian L \u2208 R N \u00d7N is defined as,",
+            "cite_spans": [
+                {
+                    "start": 335,
+                    "end": 339,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "For a connected graph the eigenvalues are enumerated as 0 = \u03bb 1 (L) < \u03bb 2 (L) \u2264 \u00b7 \u00b7 \u00b7 \u2264 \u03bb N (L), where the second smallest eigenvalue \u03bb 2 (L) is known as the algebraic connectivity of the graph [14] .",
+            "cite_spans": [
+                {
+                    "start": 194,
+                    "end": 198,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "Existing approaches for decentralized parallel SGD set link weights using a simple approach based on Metropolis-Hastings algorithm. Hastings approach [2] utilizes the local degree information of two incident nodes of an edge to assign link weights as,",
+            "cite_spans": [
+                {
+                    "start": 150,
+                    "end": 153,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "The graph Laplacian captures global information about the connectivity, and can be used to set the constant edge weights for matrix W as,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "The eigenstructure of W can be expressed as \u03bb i (W) = 1 \u2212 \u03b1\u03bb i (L). The convergence in Eq. (4) is possible for \u03b1 values in the interval (0, 2/\u03bb 2 (L)) and the best constant value [18] is obtained as,",
+            "cite_spans": [
+                {
+                    "start": 179,
+                    "end": 183,
+                    "text": "[18]",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "The Eq. (8) explicitly relates link weights assignment with the spectral properties of the graph i.e. to \u03bb 2 (L) and \u03bb N (L). Kar et al. [7] have shown that maximizing the ratio \u03bb2(L) \u03bbN (L) is equivalent to minimizing \u03bb slem (W).",
+            "cite_spans": [
+                {
+                    "start": 137,
+                    "end": 140,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "Now using the fact that the convergence factor in Eq. (4) depends on \u03bb slem (W), therefore Eq. (9) becomes,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Relationship Between Network Topology and Averaging Matrix"
+        },
+        {
+            "text": "Let e be the edge set defining the connectivity between workers and using relationship in Eq. (10), we can define the objective function with connectivity constraints as: ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization Problem"
+        },
+        {
+            "text": "with u e u,v \u2264 C, C \u2208 R +",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimization Problem"
+        },
+        {
+            "text": "where e is the optimization variable, C is the communication budget. Equation (12) defines the communication constraint that limits the total amount of information exchange at a given averaging step. For a homogeneous network, also focus of this paper, C could imply the total number of connections allowed in a network, whereas, in a heterogeneous case, each communication link has an associated latency and we can bound the total latency in the system. The direct optimization of Eq. (11) under constraints is infeasible as it leads to a combinatorial explosion of the search space.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 82,
+                    "text": "(12)",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Optimization Problem"
+        },
+        {
+            "text": "As we discussed in the previous section, direct optimization of Eq. (11) is infeasible, therefore, in this section we will provide a local search algorithm guided by the objective function to find a topology that provides fast model averaging.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Optimal Network Topology Through Local Search"
+        },
+        {
+            "text": "We initialize the edge set as a regular ring lattice (RRL) topology, which is constructed by taking a cycle and connecting each vertex with its hops = 1, . . . , C/2 neighbors on the right and left. The resulting graph is connected and satisfies the constraint in Eq. LS-R2L method is a simple method that performs a local search in the immediate neighborhood to find a better solution among them. It is to be noted that there are methods like Monte Carlo Random Walk, which perform a more aggressive search. However, the LS-R2L method demonstrates the importance of optimal topology search for fast model averaging and serve the purpose of this paper.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Constructing Optimal Network Topology Using Local Search (LS-R2L)"
+        },
+        {
+            "text": "We also like to discuss two more approaches based on random rewiring heuristics that provide better model averaging behavior than RRL, but are interestingly not employed in decentralized SGD. The first solution is proposed by Watts and Strogatz [17] to construct a small-world graph. They proposed a mechanism of converting an RRL to a small-world graph, by rewiring edges based on a given probability p r \u2208 (0, 1]. Their objective is to maintain the high clustering of an RRL, while introducing random long links to decreases the shortest path. If the rewiring probability is low, the resulting topology is closer to an RRL and for higher values it becomes a random graph.",
+            "cite_spans": [
+                {
+                    "start": 245,
+                    "end": 249,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Constructing Network Topology Using Random Heuristics"
+        },
+        {
+            "text": "The second method is proposed by Kar et al. [7] , which is also based on random rewiring heuristics that converts RRL to a Random Regular Ramanujan Like graph. The algorithm runs for a sufficiently large numbers of steps to obtain the solution.",
+            "cite_spans": [
+                {
+                    "start": 44,
+                    "end": 47,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Constructing Network Topology Using Random Heuristics"
+        },
+        {
+            "text": "In this paper, we refer to Watts and Strogatz's model [17] as WS and Kar et al. [7] method as R3L. Both methods, R3L and WS, show an order of magnitude better convergence properties than RRL, however, none of these methods are employed for distributed SGD so far.",
+            "cite_spans": [
+                {
+                    "start": 54,
+                    "end": 58,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 80,
+                    "end": 83,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Constructing Network Topology Using Random Heuristics"
+        },
+        {
+            "text": "In this section we address the following research questions to evaluate the proposed techniques.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "(RQ1) Do learned topologies exhibit better spectral properties than the existing approaches? (RQ2) How does the model averaging solutions provided by learned topologies impact the decentralized training of deep learning models? (RQ3) Do Laplacian based link weights improve upon Metropolis-Hastings set weights?",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "We assess the quality of topologies obtained form LS-R2L, R3L, WS and RRL on three properties, i.e convergence factor, convergence time and the objective value. Results in Fig.(1(a) ) and Fig.(1(b) ) are obtained by varying the number of nodes N = {32, 48, . . . , 256} and the node degree C = {4, 6, . . . , 14}.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 172,
+                    "end": 181,
+                    "text": "Fig.(1(a)",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 188,
+                    "end": 197,
+                    "text": "Fig.(1(b)",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Convergence Properties (RQ1)"
+        },
+        {
+            "text": "LS-R2L performs best among the four methods on three properties, followed closely by R3L. On the other hand RRL shows an order of magnitude slower convergence properties than the other three methods. We observed that for a constant node degree C, convergence degrades as the number of nodes increases and for a fixed number of nodes N , the convergence factor improves with the increase in the node degree. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Convergence Properties (RQ1)"
+        },
+        {
+            "text": "In this section, we empirically investigate the effect of learning an optimal topology on the decentralized parallel SGD. For this purpose, we choose image classification tasks and perform our evaluation on well-known CIFAR10 and CIFAR100, which consists of 32 \u00d7 32 color images with 10 and 100 classes respectively and split into 50 K train-set and 10 K test-set. The deep learning models and hyperparameters for our experiments are summarized in Table 1 . Implementation is based on PyTorch and mpi4py. The experimental setup consists of \"n1standard-32\" instances on the Google Cloud Platform, where each instance has 32 vCPUs, 120 GB of memory, 250 GB SSD storage, and 4 Nvidia P100 GPUs. The nodes are connected through a 10 Gbit/s Ethernet interconnect. ",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 448,
+                    "end": 455,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Performance Comparison (RQ2)"
+        },
+        {
+            "text": "We compare solutions for decentralized SGD based on the following methods:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methods:"
+        },
+        {
+            "text": "\u2022 Complete is a reference topology for the global averaging (1/n)11 T , which has worse communication cost (grows in O(N )). \u2022 RRL: Baseline method based on a ring topology [9] .",
+            "cite_spans": [
+                {
+                    "start": 173,
+                    "end": 176,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods:"
+        },
+        {
+            "text": "\u2022 RingRandom: Baseline method proposed in [10] , where workers communicate with a random neighbor within a ring. \u2022 WS: Our proposed method based on Watts and Strogatz model [17] .",
+            "cite_spans": [
+                {
+                    "start": 42,
+                    "end": 46,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 173,
+                    "end": 177,
+                    "text": "[17]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Methods:"
+        },
+        {
+            "text": "\u2022 R3L: Our proposed method based on Kar et al. model [7] . Figures 2(a-b) summarize the results on the CIFAR10 datasets for Resnet20 and VGG16 respectively. Figures 2(c-d) summarize the results on the CIFAR100 datasets for DensNet-40-12 and WideResnet-28-10 respectively. The LS-R2L and R3L based solution consistently show faster epoch-wise convergence for training deep learning models. The WS based solution provides slightly degraded convergence behavior. Structured topologies, such as RRL and RingRandom, perform worse among all the methods and the differences become more pronounced when increasing the number of workers from 32 to 64. This shows that the averaging matrix generated by topologies exhibiting better spectral properties, provides faster convergence on training deep learning models. The final test accuracies achieved in the minimum number of iterations are listed in Table 2 , which shows superior performance of LS-R2L and R3L compared to other methods. LS-R2L and R3L in most cases, reached best final accuracy values in the minimum number of iterations. The communication requirements for all the topologies are same, as the latency 3 ",
+            "cite_spans": [
+                {
+                    "start": 53,
+                    "end": 56,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1159,
+                    "end": 1160,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 59,
+                    "end": 73,
+                    "text": "Figures 2(a-b)",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 157,
+                    "end": 171,
+                    "text": "Figures 2(c-d)",
+                    "ref_id": "FIGREF4"
+                },
+                {
+                    "start": 890,
+                    "end": 897,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Methods:"
+        },
+        {
+            "text": "In this section, we empirically evaluate the impact of setting link weights based on the Laplacian approach in Eq. (7) and compare the results with Metropolis-Hastings approach in Eq. (6). Figure ( 3) provides a relative comparison between Hastings and Laplacian edge weights. We trained deep learning models on 64 workers using Hastings and Laplacian link weights. The figures show relative performance in the form of relative gain, which is the ratio of training loss for Hastings over the training loss for Laplacian weights. The values less than 1 means Laplacian weights are better than Hastings weights and vise versa for values greater than 1. The Laplacian edge weights provide faster convergence than Hastings edge weights for LS-R2L and R3L graphs, whereas WS and RRL Hastings edge weights provide faster convergence. Overall LS-R2L and R3L with Laplacian edge weights show faster convergence than WS and RRL with Hastings edge weights, as shown in the previous section.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 189,
+                    "end": 197,
+                    "text": "Figure (",
+                    "ref_id": null
+                }
+            ],
+            "section": "Edge Weights (RQ3)"
+        },
+        {
+            "text": "In this paper, we addressed the shortcomings in the choice of topology for model averaging in a decentralized parallel SGD. The existing literature on decentralized parallel SGD employs hand-crafted structured topologies. We show through experiments that these solutions exhibit worse convergence properties that lead to a suboptimal model averaging solution. We defined an objective function based on the spectral properties of the graph Laplacian for finding an optimal averaging scheme under constraints. As the objective function is intractable, we provided a local search based solution (LS-R2L) for finding a good solution.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "The averaging matrix obtained through LS-R2L provides the best convergence behavior on image classification benchmark datasets. As a future direction, it would be interesting to apply these methods in heterogeneous systems, where each link between a pair of workers has a different communication cost.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Data-dependent convergence for consensus stochastic optimization",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Bijral",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sarwate",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srebro",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "IEEE Trans. Autom. Control",
+            "volume": "62",
+            "issn": "9",
+            "pages": "4483--4498",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Fastest mixing Markov chain on a graph",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Boyd",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Diaconis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "SIAM Rev",
+            "volume": "46",
+            "issn": "4",
+            "pages": "667--689",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Distributed optimization and statistical learning via the alternating direction method of multipliers",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Boyd",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Parikh",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Chu",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Peleato",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Eckstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Found. Trends Mach. Learn",
+            "volume": "3",
+            "issn": "1",
+            "pages": "1--122",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Accurate, large minibatch SGD: training ImageNet in 1 hour",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Goyal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "CVPR 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "770--778",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Densely connected convolutional networks",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Van Der Maaten",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [
+                        "Q"
+                    ],
+                    "last": "Weinberger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "2261--2269",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Topology for distributed inference on graphs",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kar",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Aldosari",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M F"
+                    ],
+                    "last": "Moura",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "IEEE Trans. Signal Process",
+            "volume": "56",
+            "issn": "6",
+            "pages": "2609--2613",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Communication efficient distributed machine learning with the parameter server",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Andersen",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smola",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "NIPS 2014",
+            "volume": "",
+            "issn": "",
+            "pages": "19--27",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Can decentralized algorithms outperform centralized algorithms? A case study for decentralized parallel stochastic gradient descent",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Lian",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Hsieh",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "5330--5340",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Asynchronous decentralized parallel stochastic gradient descent",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Lian",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "3049--3058",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Accelerated linear iterations for distributed averaging",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Morse",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Annu. Rev. Control",
+            "volume": "35",
+            "issn": "2",
+            "pages": "160--165",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Ramanujan graphs",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lubotzky",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Phillips",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sarnak",
+                    "suffix": ""
+                }
+            ],
+            "year": 1988,
+            "venue": "Combinatorica",
+            "volume": "8",
+            "issn": "3",
+            "pages": "261--277",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "European commission: general data protection regulation (GDPR)",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lubotzky",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Phillips",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sarnak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "The Laplacian spectrum of graphs",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mohar",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Graph Theory, Combinatorics, and Applications",
+            "volume": "",
+            "issn": "",
+            "pages": "871--898",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Very deep convolutional networks for large-scale image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Simonyan",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Zisserman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Cooperative SGD: a unified framework for the design and analysis of communication-efficient SGD algorithms",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Joshi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Collective dynamics of 'small-world' networks",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Watts",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Strogatz",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Nature",
+            "volume": "393",
+            "issn": "6684",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Fast linear iterations for distributed averaging",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Boyd",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Syst. Control Lett",
+            "volume": "53",
+            "issn": "",
+            "pages": "65--78",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Wide residual networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Zagoruyko",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Komodakis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the British Machine Vision Conference (BMVC)",
+            "volume": "12",
+            "issn": "",
+            "pages": "87--88",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Parallel SGD: When does averaging help",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Sa",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Mitliagkas",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "R\u00e9",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Optimization in Machine Learning Workshop ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Parallelized stochastic gradient descent",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zinkevich",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Weimer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Smola",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "NIPS 2010",
+            "volume": "",
+            "issn": "",
+            "pages": "2595--2603",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF1": {
+            "text": "(12). We propose local-search-R2L (LS-R2L) method that uses the local search for rewiring of edges guided by the objective function Eq.(11). At each step, we search the local neighborhood for a set of possible solutions that improve the objective value, and move to that solution. The local search is performed at lines 5-8 by rewiring a subset of edges and the effect of each change is calculated. Then at line 12, a solution is picked with probability proportional to the improvement in objective values. These steps are repeated until a local minimum is reached or the maximum number of steps T is reached.local-search-R2L(LS-R2L)(V, C, T, S, 0): 1 e := construct-RRL(V, C) 2 for t := {1, ..., T } 3 t = exp( 0 \u00d7 t) 4 fe = f\u03c1(e) using Eq.(11) 5 for s := {1, ..., S} 6 e , (u, u , v, v ) := rewire-edges(V, e) 7 \u0394f u,u ,v,v := fe \u2212 f\u03c1(e ) 8 p u,u ,v,v := max(0, t + \u0394f u,u ,v,v ) 9 if all p u,u ,v,v = 0 10 return e, local minimum 11 p := normalize-to-sum-1(p) 12 e u,u , e v,v \u223c cat(e \u00d7 e, p) 13 e u,u := 0, e v,v := 0 14 eu,v := 1, e u ,v := 1 15 fe := fe + \u0394f u,u ,v,v 16 return e, not converged rewire-edges(V, e): 1 {u, u } \u223c unif({u, u }|e u,u = 1) 2 {v, v } \u223c unif({v, v }|e v,v = 1 \u2227 e \\ {eu,\u00b7, e u ,\u00b7 }) 3 e u,u := 0, e v,v := 0 4 eu,v := 1, e u ,v := 1 5 return e,(u, u , v, v )",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "LS-R2L show better convergence factor, convergence time and the objective values than other methods. We omit the RRL plots for the convergence time \u03c4 as values are an order of magnitude worse than others.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "\u2022 LS-R2L: Our proposed method based on the local search guided by Eq.(11).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Epoch-wise convergence behavior of different topologies on the CIFAR10 (a-b) and CIFAR100 (c-d) training using 32 and 64 workers.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF5": {
+            "text": "Comparison of Laplacian edge weights vs hastings edge weights for LS-R2L, R3L and WS methods.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Hyperparameters for Experiments the \"warmup learning rate scaling\" technique as described in[4] is employed for stabilizing the learning process for large batch sizes i.e B global = N \u00d7 B.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Comparison of test accuracy for the CIFAR10/100 experiments, where the numbers in () show the minimum iterations required to reach this accuracy. The best accuracy reached in the minimum number of iterations is highlighted with \u2020.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}
