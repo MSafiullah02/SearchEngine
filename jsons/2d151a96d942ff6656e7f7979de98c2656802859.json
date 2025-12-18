@@ -1,0 +1,2618 @@
+{
+    "paper_id": "2d151a96d942ff6656e7f7979de98c2656802859",
+    "metadata": {
+        "title": "You Can Teach an Old Dog New Tricks: Rank Fusion applied to Coordination Level Matching for Ranking in Systematic Reviews",
+        "authors": [
+            {
+                "first": "Harrisen",
+                "middle": [],
+                "last": "Scells",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Queensland",
+                    "location": {
+                        "settlement": "St Lucia",
+                        "country": "Australia"
+                    }
+                },
+                "email": "h.scells@uq.net.au"
+            },
+            {
+                "first": "Guido",
+                "middle": [],
+                "last": "Zuccon",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "The University of Queensland",
+                    "location": {
+                        "settlement": "St Lucia",
+                        "country": "Australia"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Bevan",
+                "middle": [],
+                "last": "Koopman",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "CSIRO",
+                    "location": {
+                        "settlement": "Brisbane",
+                        "country": "Australia"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Coordination level matching is a ranking method originally proposed to rank documents given Boolean queries that is now several decades old. Rank fusion is a relatively recent method for combining runs from multiple systems into a single ranking, and has been shown to significantly improve the ranking. This paper presents a novel extension to coordination level matching, by applying rank fusion to each sub-clause of a Boolean query. We show that, for the tasks of systematic review screening prioritisation and stopping estimation, our method significantly outperforms the state-of-the-art learning to rank and bag-ofwords-based systems for this domain. Our fully automatic, unsupervised method has (i) the potential for significant real-world cost savings (ii) does not rely on any intervention from the user, and (iii) is significantly better at ranking documents given only a Boolean query in the context of systematic reviews when compared to other approaches.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "The goal of medical systematic review literature search is to retrieve all research publications relevant to a highly focused research question that satisfies an inclusion criteria. This is so that all literature relevant to the review's research question can be synthesised in the systematic review [23] . Search takes place using a Boolean query that is formulated by highly trained information specialists using their own intuition and domain knowledge, in order to capture the information need of the systematic review [8] . Afterwards, every study retrieved by the Boolean query is screened (assessed) for inclusion using the titles and abstracts of studies (abstract level assessment). Identified relevant abstracts are further processed by acquiring the full-text for additional assessment, information extraction and synthesis [23] .",
+            "cite_spans": [
+                {
+                    "start": 300,
+                    "end": 304,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 523,
+                    "end": 526,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 835,
+                    "end": 839,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The process of creating a medical systematic review typically involves large monetary and temporal costs; the average Cochrane review costs $350K to create [35] and it takes up to two years to publish -thus often rendering the result of the systematic review already out-of-date at the time of publication. The process that incurs the most cost when creating a systematic review is the screening of studies retrieved by the Boolean query; often a large set of studies is retrieved, but only a handful are relevant.",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 160,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A number of solutions have arisen to address the amount of time spent screening documents, including: screening prioritisation (which seeks to re-rank the set of retrieved documents to show more relevant documents first, thus starting the full-text screening earlier), and stopping estimation (which seeks to predict at what point continuing to screen will no longer contribute gain) [25, 26, 40] . In this paper, we propose and evaluate a Boolean query ranking function aimed at tackling these two tasks. The proposed method incorporates intuitions from both coordination level matching of Boolean queries and search engine rank fusion.",
+            "cite_spans": [
+                {
+                    "start": 384,
+                    "end": 388,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 389,
+                    "end": 392,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 393,
+                    "end": 396,
+                    "text": "40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "This paper proposes an extension to coordination level matching (CLM) by exploiting the query-document relationship with rank fusion. CLM is a ranking function originally proposed for Boolean queries that scores documents using the occurrences of documents retrieved by different clauses of the query. The proposed extension, coordination level fusion (CLF), has many advantages over CLM that enable it to use multiple weighting schemes (rankers) and different fusion methods dependent on the Boolean clauses. We use CLF to rank studies in the screening prioritisation task of systematic reviews. We further plan to study the use of a cut-off threshold tuned on training data to control when the screening of studies should be stopped based on the CLF retrieval score. The empirical results obtained on the CLEF Technology Assisted Review datasets [25, 26] show that CLF significantly outperforms existing state-of-the-art methods that consider similar settings, including the ranking method currently used in PubMed (a popular database to search for literature for systematic reviews).",
+            "cite_spans": [
+                {
+                    "start": 848,
+                    "end": 852,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 853,
+                    "end": 856,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Systematic reviews are costly and often out-of-date by the time they are published due to the amount of time involved in their creation. A wide range of systematic review creation processes have been considered for automation or improvement using semi-automatic techniques [40] , including: query formulation [27, 46, 48] , screening prioritisation [1] [2] [3] 7, 28, 29, 37, 47, 54, 56] , stopping prediction [7, 16, 24] , assessment of bias [33, 43] , among others. This paper proposes a technique for screening prioritisation, thus the remainder of this section focuses on this specific task.",
+            "cite_spans": [
+                {
+                    "start": 273,
+                    "end": 277,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[27,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 314,
+                    "end": 317,
+                    "text": "46,",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 349,
+                    "end": 352,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 357,
+                    "end": 360,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 361,
+                    "end": 363,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 364,
+                    "end": 367,
+                    "text": "28,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 368,
+                    "end": 371,
+                    "text": "29,",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 372,
+                    "end": 375,
+                    "text": "37,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 376,
+                    "end": 379,
+                    "text": "47,",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "54,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 384,
+                    "end": 387,
+                    "text": "56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 410,
+                    "end": 413,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 414,
+                    "end": 417,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 418,
+                    "end": 421,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 443,
+                    "end": 447,
+                    "text": "[33,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 448,
+                    "end": 451,
+                    "text": "43]",
+                    "ref_id": "BIBREF42"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Active learning has been explored extensively for screening prioritisation and automatic assessment [1, 10, 37, 56] . However, the main drawbacks of active learning are that a poor initial ranking will slow down the rate of learning, and that explicit human effort is required to update the ranking. While current practice prescribes all documents must be screened (therefore explicit assessments could be used for active learning), an initially poor ranking would require many assessments before the system is able to identify relevant documents. Thus the analysis of the full-text of eligible documents may be delayed. Automatic assessment has been suggested to be used in place of a second researcher performing screening [40] . Fully automatic methods of screening prioritisation allow for other processes of systematic reviews to begin earlier and do not require the effort of humans, saving more time (and costs). In this paper, we do not consider screening prioritisation methods based on active learning. However, we note that CLF could be used as the first pass ranking in the context of an active learning method. Then, active learning could be used to augment CLF to performing re-ranking in the presence of continuous, iterative relevance feedback. We leave the study of CLF in an active learning setting for future work.",
+            "cite_spans": [
+                {
+                    "start": 100,
+                    "end": 103,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 104,
+                    "end": 107,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 108,
+                    "end": 111,
+                    "text": "37,",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 112,
+                    "end": 115,
+                    "text": "56]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 725,
+                    "end": 729,
+                    "text": "[40]",
+                    "ref_id": "BIBREF39"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The CLEF Technology Assisted Reviews (TAR) track [25, 26] considers both screening prioritisation and stopping prediction tasks. The screening prioritisation task has gained substantial interest from CLEF participants, with submitted methods including active learning [12, 13] , relevance feedback [4, 18, 21, 36, 38, 39, 52, 55] , automatic supervised [9, 17, 30, 47, 51] , and automatic unsupervised methods (which do not rely on any relevance feedback or human intervention) [2, 3, 7, 54] . Meanwhile, the stopping prediction task has seen little participation and na\u00efve techniques like static score-based cut-offs [24] , as well as techniques based on continuous relevance feedback [16] are used. Many of the participants also do not use the Boolean queries directly, instead resorting only to the title of the review (a sentence), which is contrived and unrealistic in the context of systematic review literature search. This work overcomes these shortcomings by only using the Boolean query to rank documents, with no additional effort required by the information specialist.",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 53,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 54,
+                    "end": 57,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 268,
+                    "end": 272,
+                    "text": "[12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 273,
+                    "end": 276,
+                    "text": "13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 298,
+                    "end": 301,
+                    "text": "[4,",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 302,
+                    "end": 305,
+                    "text": "18,",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 306,
+                    "end": 309,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 310,
+                    "end": 313,
+                    "text": "36,",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 314,
+                    "end": 317,
+                    "text": "38,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "39,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 322,
+                    "end": 325,
+                    "text": "52,",
+                    "ref_id": "BIBREF51"
+                },
+                {
+                    "start": 326,
+                    "end": 329,
+                    "text": "55]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 353,
+                    "end": 356,
+                    "text": "[9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 357,
+                    "end": 360,
+                    "text": "17,",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 361,
+                    "end": 364,
+                    "text": "30,",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 365,
+                    "end": 368,
+                    "text": "47,",
+                    "ref_id": "BIBREF46"
+                },
+                {
+                    "start": 369,
+                    "end": 372,
+                    "text": "51]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 478,
+                    "end": 481,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 482,
+                    "end": 484,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 485,
+                    "end": 487,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 488,
+                    "end": 491,
+                    "text": "54]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 618,
+                    "end": 622,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 686,
+                    "end": 690,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "Several approaches to ranking documents retrieved by Boolean queries were proposed in the '80s and '90s outside of the context of systematic review creation. Most of these approaches rely on users explicitly weighting terms in the query [42] , probabilistic retrieval using fuzzy set theory [6, 41] and term dependencies [15] . A drawback of these methods is their heavy reliance on the users to impose a ranking over retrieved documents (e.g., the requirement that users must specify individual term weightings). Users often are unable to provide such weights, or it creates an additional hindrance in using the retrieval system.",
+            "cite_spans": [
+                {
+                    "start": 237,
+                    "end": 241,
+                    "text": "[42]",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 291,
+                    "end": 294,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 295,
+                    "end": 298,
+                    "text": "41]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 321,
+                    "end": 325,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "A ranking function for Boolean queries which relies solely on the structure of the Boolean query, without further user intervention, is Coordination Level Matching (CLM) [31] . The intuition behind CLM is that nested sub-clauses of a Boolean query could be considered as separate but related queries, and therefore documents that appear in multiple clauses should be ranked higher. For example, a very common way information specialists formulate Boolean queries for systematic review literature search is to break a search down into three of four categories based on the Population, Intervention, Controls, Outcomes (PICO) framework [8] . Query terms from each category become a clause in the Boolean query, grouped together by a single AND operator [8] . Formally, in CLM the score of a document d is the number of Boolean clauses of the query Q that are satisfied by it. A clause can be considered as both a single atomic keyword, and the grouping of several keywords or other nested groupings by a single Boolean operator (Boolean clause). Figure 1 visualises the differences between atomic clauses and Boolean clauses.",
+            "cite_spans": [
+                {
+                    "start": 170,
+                    "end": 174,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 634,
+                    "end": 637,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 751,
+                    "end": 754,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1044,
+                    "end": 1052,
+                    "text": "Figure 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "Rankings produced by CLM typically perform poorly (as supported by our empirical findings in Sect. 5.1). This is because the amount of information about the query being exploited to produce a document ranking is low. CLM has been noted to be more effective when weighting occurrences of documents by, for example, IDF or TF-IDF [14] . Which weighting scheme to use for CLM is then unclear, and some documents may be ranked higher than others using different weighting schemes. Moreover, when computing scores, CLM does not account for the different Boolean operators present in the query, i.e., scores are summed in the same manner irrespective of the operator used, e.g., AND, OR.",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "The CLF method proposed in this paper exploits rank fusion [49] , i.e., the combination of multiple document rankings, typically returned by different systems or weighting schemes for the same query (although recent work has applied fusion to different query variations [5] ). There are many methods for fusion of rankings, and they can be classified into two main categories [22] : score-based [49] and rank-based [32] . Score-based methods fuse rankings using the original scores of documents in different rankings to infer the new fused ranking. As systems and weighting schemes will typically assign wildly different scores to documents, scores are often normalised before fusion (e.g., using min-max normalisation). Rank-based methods fuse rankings using only the rank positions of documents (similarly to electoral vote fusion [32] ).",
+            "cite_spans": [
+                {
+                    "start": 59,
+                    "end": 63,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 270,
+                    "end": 273,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 376,
+                    "end": 380,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 395,
+                    "end": 399,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 415,
+                    "end": 419,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                },
+                {
+                    "start": 833,
+                    "end": 837,
+                    "text": "[32]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "The novelty of our contribution is that by combining insights from decadesold research about ranking documents directly with Boolean queries with relatively more recent research about the fusion of ranked lists, significant gains in effectiveness can be obtained. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Atomic Clauses"
+        },
+        {
+            "text": "In this paper, we propose Coordination Level Fusion (CLF), a novel method that extends the traditional Coordination Level Matching (CLM) [31] by integrating rank fusion into the Boolean retrieval model by exploiting the semantic and syntactic aspects of the Boolean query.",
+            "cite_spans": [
+                {
+                    "start": 137,
+                    "end": 141,
+                    "text": "[31]",
+                    "ref_id": "BIBREF30"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Coordination Level Fusion"
+        },
+        {
+            "text": "CLM's intuition is that documents retrieved by many clauses should be considered more likely to be relevant. We note that this intuition is supported by axioms put forward in axiomatic analyses of ranking functions [19] , and, more importantly for our work, it is similar to the intuition of rank fusion, namely, the chorus effect: the fact that \"several retrieval approaches suggest that an item is relevant to a query\" [53] . CLF leverages this intuition to further boost relevant documents higher up the ranking, using the agreement from multiple weighting schemes (rankers) and the agreement afforded by the structure of Boolean queries. Next, we describe the CLF method for ranking documents.",
+            "cite_spans": [
+                {
+                    "start": 215,
+                    "end": 219,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 421,
+                    "end": 425,
+                    "text": "[53]",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Coordination Level Fusion"
+        },
+        {
+            "text": "We assume that a set R of rankings r 1 , r 2 , . . . , r k is available for each atomic Boolean clause (i.e., a term in the Boolean query, see Fig. 1 ) . These rankings could be produced by any weighting scheme available, e.g., IDF, BM25, etc. A ranking is an ordered list of documents:",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 143,
+                    "end": 149,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Producing a Ranking"
+        },
+        {
+            "text": "representing the score of document d i within ranking r j . In CLF, these rankings are recursively fused, first at an atomic clause level, then at the level of (often nested) Boolean operators, until the highest level of the Boolean query is considered (typically represented by an AND operator): at this level, rankings are again fused together to produce a single, final ranking. This is achieved by applying the CLF fusion function to each document d as: Fig. 3 . Example query formatted to be issued to PubMed for re-ranking. Constructing the query like above ensures only the documents specified (e.g., document number 23593613) are retrieved, and therefore re-ranked.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 458,
+                    "end": 464,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Producing a Ranking"
+        },
+        {
+            "text": "where R is the set of rankings associated with the clauses of the Boolean query considered at the current level, and T is the type of Boolean operator applied.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Producing a Ranking"
+        },
+        {
+            "text": "In this work, we consider T as being either identifying an atomic clause, or the AND and OR operators. The queries we consider do not have NOT clauses (therefore we do not have a fusion method for this operator). According to Eq. 1, CLF performs CombSUM fusion [49] if the Boolean clause is AND (T = AND). Likewise, CombMNZ fusion [49] is used when dealing with atomic clauses or the OR operator. Figure 2 visualises how fusion is performed for different Boolean clauses. When scoring exploded MeSH terms, the score provided by a weighting scheme is the summed score of each child in the subsumption (similar for phrases). Both CombSUM and CombMNZ boost the documents which multiple rankers estimate to be highly relevant (i.e., the chorus effect), however CombMNZ at the OR and atomic levels is used to combat less accurate estimates of relevance (i.e., the dark horse effect). That is, documents where only a single ranker estimates them as highly relevant are not boosted.",
+            "cite_spans": [
+                {
+                    "start": 261,
+                    "end": 265,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                },
+                {
+                    "start": 331,
+                    "end": 335,
+                    "text": "[49]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 397,
+                    "end": 405,
+                    "text": "Figure 2",
+                    "ref_id": "FIGREF1"
+                }
+            ],
+            "section": "Producing a Ranking"
+        },
+        {
+            "text": "The task of stopping prediction in systematic review literature search is that: given a ranking of the set of documents retrieved by the Boolean query, at what position should screening stop? We model this task with an equivalent description: given a set of documents retrieved by a Boolean query, what is the subset of documents which does not need to be screened? In this work, stopping prediction is performed by exploiting the scores of documents for each atomic term after fusion. Rather than setting a fixed cut-off on scores similar to participants in the CLEF TAR task [24] , here a gain-based approach is used. Our approach is as follows: Given that researchers will screen documents starting at the first document and continuing to the next document for the entire list, they are accumulating gain from documents (equal to the document score) as they continue down the list of documents. Once enough gain from documents has been accumulated, they can stop screening. To model this, we use a \u03ba parameter to control what percentage of the total gain a researcher can accumulate before stopping. The stopping point therefore becomes the position of the document in the ranked list where the cumulative gain exceeds the total allowable gain. When \u03ba is set to 1, no documents are discarded. In the task of screening prioritisation, where documents are assessed, \u03ba is set to 1.",
+            "cite_spans": [
+                {
+                    "start": 577,
+                    "end": 581,
+                    "text": "[24]",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Stopping Prediction"
+        },
+        {
+            "text": "Empirical evaluation is conducted on the CLEF TAR 2017 and 2018 collections [25, 26] . For the 2018 collection, evaluation is performed on topics from Task 2.",
+            "cite_spans": [
+                {
+                    "start": 76,
+                    "end": 80,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 81,
+                    "end": 84,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "Experiments are compared with respect to two baselines: a ranking obtained by submitting queries directly to PubMed (explained in detail below), and a ranking obtained by using CLM. The results of the CLF rankings are also compared to the rankings produced by the participants of the CLEF TAR task. Note that many of these participants do not rank directly according to the terms and structure of the Boolean query (while we do), and often consider the query as a bag-of-words, and incorporate terms from the title for re-ranking. Also note that many of the participants used feedback from the relevance assessments and created active learning solutions. The comparisons between participants and our results only consider those which reported to not use relevance assessments and do not use human intervention to rank (fully automatic, thus excluding active learning settings). In other words, we experiment considering the first round of retrieval. All experiments are run using the QueryLab domain-specific Information Retrieval framework [45] . To obtain statistics for ranking documents, the documents retrieved by each query are fetched from PubMed and indexed by Query-Lab. No stopwording or stemming is applied. The particular queries in this collection contain terms which are explicitly stemmed. Therefore, we use the PubMed Entrez API [44] to identify the original terms in documents from the explicitly stemmed term (this backward approach to stemming is to allow information specialists fine-grained control over their search). The title, abstract, MeSH headings, and publication date of each PubMed document is stored in four separate fields. When a title was not available for a document, the book title field was used instead; if no book title was available, the field was left empty (this replicates how searching on the title field works in PubMed). All of the experimental code to reproduce the experiments is made available at https:// github.com/ielab/clf.",
+            "cite_spans": [
+                {
+                    "start": 1041,
+                    "end": 1045,
+                    "text": "[45]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 1345,
+                    "end": 1349,
+                    "text": "[44]",
+                    "ref_id": "BIBREF43"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "The following weighting schemes are used in our experiments to produce document rankings for an atomic clause: IDF, TF-IDF, BM25, InL2 of Divergence from Randomness, PubMed, term position, text score, publication date, and document length. The PubMed weighting scheme uses the state-of-the-art learning to rank system of Pubmed [20] . The best match ranking system of PubMed uses a three-stage ranking system: first, documents are retrieved using the Boolean query; then, documents are ranked using BM25; finally, top-ranked documents are re-ranked using LambdaMART trained on click data, using document features such as document length, publication date, and past usage. Note that the PubMed best match ranker can only rank documents given a term or phrase, not a Boolean query. After the first stage, the Boolean query is translated into a bag-of-words type of query, similar to those seen in web search (it is often the case that the query translation results in fewer documents retrieved). Therefore, by embedding the PubMed ranker into CLF, the query translation step may be skipped entirely. The term position weighting scheme is defined as the relative position of a term in a document (0 if the term does not appear in the document). Publication date scores documents higher if the document is newer (accounting for recency, linearly). Document length scores documents higher the longer the document is. Text score weights documents by the fields a term appears in: for example, a document is scored higher if a term appears in the title and the body than if the term appears only in the body. When queries are submitted to PubMed, they are modified to restrict them to only the PMIDs reported in the CLEF topic file (in order to account for minor discrepancies in retrieval after different time periods, see Fig. 3 for an example), and set the retrieval mode in PubMed to 'relevance' in order to obtain a ranked list of documents by relevance (instead of the default ranking by publication date). Prior to fusion for any clause, ranked lists are normalised using min-max normalisation. Z-score and softmax normalisation were also considered, however through early empirical testing, min-max normalisation provided the consistently higher effectiveness compared to z-score and softmax. When there are ties in the ranking, the document which has a more recent publication date is ranked higher. The different modifications made to CLF used in this paper are taxonimised below:",
+            "cite_spans": [
+                {
+                    "start": 328,
+                    "end": 332,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1817,
+                    "end": 1823,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "CLM -The basic form of coordination level matching using the approach described in Sect. 1. CLF+PubMed -CLF, using the PubMed ranker via the PubMed Entrez API. CLF+weighting -CLF, using the weighting schemes described in the paragraph above (excluding the PubMed weighting scheme). CLF+weighting+PubMed -CLF, using all of the weighting schemes from CLF+weighting in addition to the PubMed ranker from CLF+PubMed. CLF+weighting+qe -CLF, using all the weighting schemes from",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "CLF+weighting, but with a na\u00edve query expansion method using terms from the topic titles and terms specific to DTA systematic reviews (obtained from an information specialist). Here, two additional Boolean OR clauses are constructed, each containing terms from the title and DTA specific terms respectively. Terms from the title have stopwording and Porter stemming applied. CLF+weighting+PubMed+qe -CLF, using all of the weighting schemes from CLF+weighting, in addition to the PubMed ranker from CLF+PubMed, and the approach to query expansion from CLF+weighting+qe.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Setup"
+        },
+        {
+            "text": "Evaluation is performed differently depending on the task. For the screening prioritisation task, rank-based measures are used. For comparison between the CLEF TAR participants (of which we acquired the runs), the MAP measure is included. The nDCG measure is included as a more realistic model of user behaviour. Reciprocal rank (RR) is used to demonstrate the effectiveness of systems in an active learning scenario (to show how soon the first relevant document would be shown and an update to the ranking potentially triggered). Precision after R documents (Rprec) is used to show the theoretical best possible precision obtainable in the stopping task, along with last relevant (Last Rel) that reports at what rank position the very last relevant document was shown. Participant runs are chosen for comparison if they are a fully automatic, unsupervised method, which does not use the training data or explicit relevance feedback, and do not set a threshold (as categorised in the TAR overview papers [25, 26] ). Note that the tables in the CLEF TAR overview papers contain errors regarding these aspects, instead each of the participant's papers were considered to individually determine which runs to directly compare our methods to. For the stopping prediction task, several standard set-based measures are used: precision, recall, F \u03b2={0.5,1,3} , total cost, and reliability [11] . Reliability is a loss measure (i.e., where smaller values are better) specifically designed for the TAR task. It has two components: loss r = 1\u2212(recall) 2 and loss e = (n/(R +100) * 100/N ) 2 , where n is the number of documents retrieved, N is the size of the collection, and R is the total number of relevant documents. Therefore, Reliability = loss r + loss e . Participants runs are chosen if they are fully automatic, supervised or unsupervised (thus we consider approaches that used training data), do not use explicit relevance feedback, and do set a threshold. Runs are evaluated using trec eval or the evaluation scripts that are provided by the CLEF TAR organisers, where applicable. When used for predicting when to stop screening, \u03ba is tuned on training queries using a grid search to determine the best value. The parameter space searched in these experiments is {0.05, 0.075, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 0.9, 0.95}. Note that \u03ba can be set at a clause-level, therefore it is possible for it to be adaptive based on the clause. We leave learning an adaptive \u03ba for future work, and here we fix \u03ba to a set value across all clauses.",
+            "cite_spans": [
+                {
+                    "start": 1004,
+                    "end": 1008,
+                    "text": "[25,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 1009,
+                    "end": 1012,
+                    "text": "26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1382,
+                    "end": 1386,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation"
+        },
+        {
+            "text": "Tables 1 and 2 present the results of the screening prioritisation task for the 2017 and 2018 CLEF TAR collections. Comparing CLM to CLF (without query expansion), CLF is statistically significantly better than CLM in all of the evaluation measures presented in both 2017 and 2018 tables (using a two-tails t-test where p < 0.05). Comparing the CLM and CLF methods to the state-of-theart PubMed ranking, CLM is often statistically significantly worse than the PubMed ranker, whereas some CLF-based methods are able to perform statistically significantly better than the PubMed method. Next, the best performing CLF method (CLF+weighting+PubMed+qe) and the best performing CLEF participant method for each year is compared. For 2017 topics, the best performing methods are Sheffield-run-2 (documents ranked with TF-IDF vector space model using terms from topic title and terms extracted from the Boolean query) and Sheffield-run-4 (same as Sheffield-run-2 except a PubMed stopword list is used) [3] . The CLF method does not perform statistically significantly better than these two methods in any evaluation measure considered (however in all measures apart from MAP and last relevant, CLF is better). For 2018 topics, the best performing method is Sheffield-general-terms (same as Sheffield-run-4 from 2017, however terms specifically designed to identify systematic reviews are added to the query) [2] . Comparing this method to CLF, the CLF method performs statistically significantly better in RR (and has gains in all evaluation measures apart from last relevant). Overall, CLF is able to obtain the highest MAP overall for 2018 topics, and the highest overall nDCG, RR, and Rprec for both 2017 topics and 2018 topics, performing statically significantly better than the state-of-the-art PubMed ranker. ",
+            "cite_spans": [
+                {
+                    "start": 994,
+                    "end": 997,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1400,
+                    "end": 1403,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Screening Prioritisation"
+        },
+        {
+            "text": "Tables 3 and 4 present the results of the stopping prediction task using the cutoff parameter \u03ba. A \u03ba value of 0.4 through parameter tuning on training data was found to provide the least loss in Reliability, and was therefore chosen for the test queries for both 2017 and 2018. Results of the parameter tuning process on the training portion of the CLEF 2017 and 2018 topics are presented in Fig. 4 . The CLF method used in this task was CLF+weighting+PubMed+qe as it obtained the highest performance on the screening task. Table 3 , CLF obtains the highest precision, F 1 , F 0 .5, F 3 , and lowest loss in reliability. CLF also obtains the second-lowest total cost, and maintains both a low total cost and reliability for this set of queries. Losses in recall are within a tolerable threshold [11] . Table 4 , reveals similar results to the 2017 topics. Significant improvements over the original queries in terms of precision, F 1 , F 0.5 , F 3 , and total cost, with a tolerable reduction in recall can be observed. However, the Reliability on this set of queries is higher (thus worse). Given that the total cost is low, this indicates that the loss r component of Reliability does not decrease at the same rate as loss e increases for these topics. There were no participants which contributed a comparable run to the 2018 TAR task, therefore no comparisons to other systems can be made for this collection.",
+            "cite_spans": [
+                {
+                    "start": 795,
+                    "end": 799,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 392,
+                    "end": 398,
+                    "text": "Fig. 4",
+                    "ref_id": "FIGREF3"
+                },
+                {
+                    "start": 524,
+                    "end": 531,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 802,
+                    "end": 809,
+                    "text": "Table 4",
+                    "ref_id": "TABREF2"
+                }
+            ],
+            "section": "Stopping Prediction"
+        },
+        {
+            "text": "While there is a drop in recall, there are real monetary savings associated with the increase in precision. Across the 2017 and 2018 topics, the CLF method provides savings between approximately USD$5000 and USD$12,000, according to estimates reported by McGowan et al. [35] when considering double screening.",
+            "cite_spans": [
+                {
+                    "start": 270,
+                    "end": 274,
+                    "text": "[35]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Examining first"
+        },
+        {
+            "text": "In this paper, a novel approach to ranking documents for systematic review literature search using rank fusion applied to coordination level matching was presented. The method, dubbed Coordination Level Fusion (CLF), outperformed the current state of the art for two different tasks. For the screening prioritisation task, CLF significantly outperformed the existing PubMed ranking system, as well as participants that submitted comparable runs to the CLEF TAR tasks. The results of the screening prioritisation task demonstrate the applicability of CLF to systematic review literature search when prioritisation is considered, and suggest it may also be applied to obtain an effective early ranking in settings that consider active learning. For the stopping prediction task, CLF could significantly reduce the cost of screening with tolerable losses in recall. The results of the stopping prediction task demonstrate the applicability of CLF to specific systematic reviews where total recall is not essential, such as in rapid reviews [34] .",
+            "cite_spans": [
+                {
+                    "start": 1037,
+                    "end": 1041,
+                    "text": "[34]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        },
+        {
+            "text": "There are many aspects about CLF that require further investigation. First, we propose to study the effectiveness of CLF within an active learning setting. In this context, CLF can be used as the first ranker, before relevance feedback is collected. Then, feedback could be further weaved into CLF by devising and integrating weighting schemes that account for this. We also plan to investigate the use of CLF as a method for query performance prediction (e.g., as a postretrieval predictor using reference lists [50] , or as a candidate selection function in query transformation chain frameworks [48] ). In terms of extending CLF, the weighting schemes themselves can be weighted (i.e., one weighting scheme may have more importance over others); e.g., using the linear combination fusion method [53] which assigns weights to each ranker being fused. The problem then is learning the weight to assign to each weighting scheme (ranker) used for rank fusion. Rather than using fusion methods like CombMNZ, it is foreseeable to use a different combination of weights for each Boolean clause considered.",
+            "cite_spans": [
+                {
+                    "start": 513,
+                    "end": 517,
+                    "text": "[50]",
+                    "ref_id": "BIBREF49"
+                },
+                {
+                    "start": 598,
+                    "end": 602,
+                    "text": "[48]",
+                    "ref_id": "BIBREF47"
+                },
+                {
+                    "start": 798,
+                    "end": 802,
+                    "text": "[53]",
+                    "ref_id": "BIBREF52"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "A system for efficient high-recall retrieval",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Abualsaud",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Ghelani",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Smucker",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Cormack",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Grossman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "1317--1320",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Retrieving and ranking studies for systematic reviews: University of Sheffield's approach to CLEF eHealth 2018 task 2",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alharbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Briggs",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stevenson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CEUR Workshop Proceedings",
+            "volume": "2125",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Ranking abstracts to identify relevant evidence for systematic reviews: The University of Sheffield's approach to CLEF eHealth 2017 task 2",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Alharbi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Stevenson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Combining interreview learning-to-rank and intra-review incremental training for title and abstract screening in systematic reviews",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Anagnostou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lagopoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tsoumakas",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Vlahavas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Towards efficient and effective query variant generation",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Benham",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Culpepper",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Gallagher",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mackenzie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "DESIRES",
+            "volume": "",
+            "issn": "",
+            "pages": "62--67",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A general model of query processing in information retrieval systems",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Buell",
+                    "suffix": ""
+                }
+            ],
+            "year": 1981,
+            "venue": "Inf. Process. Manag",
+            "volume": "17",
+            "issn": "5",
+            "pages": "249--262",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "ECNU at 2017 eHealth task 2: Technologically assisted reviews in empirical medicine",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Systematic reviewing",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Clark",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Methods of Clinical Epidemiology",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-37131-8_12"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "UIC/OHSU CLEF 2018 task 2 diagnostic test accuracy ranking using publication type cluster similarity measures",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Smalheiser",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CEUR Workshop Proceedings",
+            "volume": "2125",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Reducing workload in systematic review preparation using automated citation classification",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohen",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hersh",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Peterson",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Yen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "JAMIA",
+            "volume": "13",
+            "issn": "2",
+            "pages": "206--219",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Engineering quality and reliability in technologyassisted review",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Cormack",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Grossman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 39th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "75--84",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Technology-assisted review in empirical medicine: Waterloo participation in CLEF eHealth 2017",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Cormack",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Grossman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Technology-assisted review in empirical medicine: Waterloo participation in clef eHealth",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Cormack",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Grossman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF (Working Notes)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Exploiting the similarity of non-matching terms at retrieval time",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Crestani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "Inf. Retrieval",
+            "volume": "2",
+            "issn": "1",
+            "pages": "27--47",
+            "other_ids": {
+                "DOI": [
+                    "10.1023/A:1009973415168"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Boolean queries and term dependencies in probabilistic retrieval models",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 1986,
+            "venue": "J. Am. Soc. Inf. Sci",
+            "volume": "37",
+            "issn": "2",
+            "pages": "71--77",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "A study of an automatic stopping strategy for technologically assisted medical reviews",
+            "authors": [
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Nunzio",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Pasi",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Piwowarski",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ECIR 2018",
+            "volume": "10772",
+            "issn": "",
+            "pages": "672--677",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-76941-7_61"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "An interactive twodimensional approach to query aspects rewriting in systematic reviews. IMS unipd at CLEF eHealth task 2",
+            "authors": [
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Nunzio",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Beghini",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Vezzani",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Henrot",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Interactive sampling for systematic reviews. IMS unipd at CLEF 2018 eHealth task 2",
+            "authors": [
+                {
+                    "first": "Di",
+                    "middle": [],
+                    "last": "Nunzio",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ciuffreda",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Vezzani",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF (Working Notes)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "An exploration of axiomatic approaches to information retrieval",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 28th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "480--487",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Best match: new relevance search for pubmed",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Fiorini",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "PLoS Biol",
+            "volume": "16",
+            "issn": "8",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Ranking and feedback-based stopping for recall-centric document retrieval",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Hollmann",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Eickhoff",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Comparing rank and score combination methods for data fusion in information retrieval",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Hsu",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Taksa",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Inf. Retrieval",
+            "volume": "8",
+            "issn": "3",
+            "pages": "449--480",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10791-005-6994-4"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Cochrane handbook for systematic reviews of interventions version 5.1.0 [updated",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "P T"
+                    ],
+                    "last": "Higgins",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Green",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "SiS at CLEF 2017 eHealth TAR task",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Kalphov",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Georgiadis",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CEUR Workshop Proceedings",
+            "volume": "1866",
+            "issn": "",
+            "pages": "1--5",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "CLEF 2017 technologically assisted reviews in empirical medicine overview",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kanoulas",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Spijker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "CLEF 2018 technology assisted reviews in empirical medicine overview",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kanoulas",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Spijker",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF 2018 Evaluation Labs and Workshop: Online Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Boolean versus ranked querying for biomedical systematic reviews",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Karimi",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Pohl",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Scholer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Cavedon",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zobel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "BMC MIDM",
+            "volume": "10",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Learning-to-rank and relevance feedback for literature appraisal in empirical medicine",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lagopoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Anagnostou",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Minas",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tsoumakas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF 2018",
+            "volume": "11018",
+            "issn": "",
+            "pages": "52--63",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-98932-7_5"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Seed-driven document ranking for systematic reviews in evidence-based medicine",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 41st Annual International ACM SIGIR Conference on Research & Development in Information Retrieval, SIGIR 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "455--464",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "A study of convolutional neural networks for clinical document classification in systematic reviews: SysReview at CLEF eHealth",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lee",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Probabilistic retrieval and coordination level matching",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Losee",
+                    "suffix": ""
+                }
+            ],
+            "year": 1987,
+            "venue": "J. Am. Soc. Inf. Sci",
+            "volume": "38",
+            "issn": "4",
+            "pages": "239--244",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Voting for candidates: adapting data fusion techniques for an expert search task",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Proceedings of the 15th ACM International Conference on Information and Knowledge management",
+            "volume": "",
+            "issn": "",
+            "pages": "387--396",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "RobotReviewer: evaluation of a system for automatically assessing bias in clinical trials",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Marshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kuiper",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wallace",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "J. Am. Med. Inform. Assoc",
+            "volume": "23",
+            "issn": "",
+            "pages": "193--201",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Rapid reviews may produce different results to systematic reviews: a meta-epidemiological study",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Marshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Marshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Wallace",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Brassey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "J. Clin. Epidemiol",
+            "volume": "109",
+            "issn": "",
+            "pages": "30--41",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Systematic reviews need systematic searchers (IRP)",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mcgowan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sampson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "J. Med. Libr. Assoc",
+            "volume": "93",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Aristotle university's approach to the technologically assisted reviews in empirical medicine task of the 2018 CLEF eHealth lab",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Minas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Lagopoulos",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Tsoumakas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF (Working Notes)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Reducing systematic review workload through certainty-based screening",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Miwa",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "O&apos;mara-Eves",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ananiadou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "JBI",
+            "volume": "51",
+            "issn": "",
+            "pages": "242--253",
+            "other_ids": {}
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "LIMSI@CLEF eHealth 2018 task 2: technology assisted reviews by stacking active and static learning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Norman",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leeflang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "N\u00e9v\u00e9ol",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "CLEF (Working Notes)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "LIMSI@CLEF eHealth 2017 task 2: logistic regression for automatic article ranking",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Norman12",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Leeflang",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "N\u00e9v\u00e9ol",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "Using text mining for study identification in systematic reviews: a systematic review of current approaches",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "O&apos;mara-Eves",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Mcnaught",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Miwa",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ananiadou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Syst. Rev",
+            "volume": "4",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "A probabilistic approach to information retrieval in systems with boolean search request formulations",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Radecki",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "J. Am. Soc. Inf. Sci",
+            "volume": "33",
+            "issn": "6",
+            "pages": "365--370",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "Extended Boolean information retrieval",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Salton",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Fox",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 1982,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Beyond medline: reducing bias through extended systematic review search",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Savoie",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Helmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Green",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Kazanjian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Int. J. Technol. Assess. Health Care",
+            "volume": "19",
+            "issn": "1",
+            "pages": "168--178",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "A general introduction to the e-utilities. Entrez Programming Utilities Help",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Sayers",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "National Center for Biotechnology Information",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "An information retrieval experiment framework for domain specific applications",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Scells",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Locke",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "Generating better queries for systematic reviews",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Scells",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 41st Annual International ACM SIGIR Conference on Research & Development in Information Retrieval, SIGIR 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "QUT ielab at CLEF eHealth 2017 technology assisted reviews track: initial experiments with learning to rank",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Scells",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Deacon",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Koopman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CEUR Workshop Proceedings: Working Notes of CLEF 2017: Conference and Labs of the Evaluation Forum",
+            "volume": "1866",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Automatic Boolean query refinement for systematic review literature search",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Scells",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Koopman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "The World Wide Web Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "1646--1656",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Combination of multiple searches",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Shaw",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Fox",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "NIST Special Publication SP",
+            "volume": "",
+            "issn": "",
+            "pages": "105--105",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Query performance prediction using reference lists",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shtok",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Carmel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ACM Trans. Inf. Syst. (TOIS)",
+            "volume": "34",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Identifying diagnostic test accuracy publications using a deep model",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Marshall",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wallace",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CEUR Workshop Proceedings",
+            "volume": "1866",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "IIIT-H at CLEF eHealth 2017 task 2: technologically assisted reviews in empirical medicine",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Singh",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Thomas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Fusion via a linear combination of scores",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Vogt",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Cottrell",
+                    "suffix": ""
+                }
+            ],
+            "year": 1999,
+            "venue": "Inf. Retrieval",
+            "volume": "1",
+            "issn": "3",
+            "pages": "151--173",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "ECNU at 2018 eHealth task 2: technologically assisted reviews in empirical medicine",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Methods",
+            "volume": "4",
+            "issn": "5",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "Data balancing for technologically assisted reviews: undersampling or reweighting",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yu",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Menzies",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "CLEF (Working Notes",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Technology assisted reviews: finding the last few relevant documents by asking yes/no questions to reviewers",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Kanoulas",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "949--952",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Types of clauses in a Boolean query. Dashed lines surround Boolean clauses, dotted lines surround atomic clauses.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Bottom-up visualisation of the fusion of ranked lists using the CLF method. First one or more ranked lists of an atomic clause are fused, then the results of each Boolean clause are fused. Each clause that has fusion applied to is encapsulated in a dashed box. The nested clauses which it encapsulates are included inside it. Each applicable fusion method is labelled within each respective box. Note that all atomic clauses use the same range of weighting schemes: in this figure only one is shown for space reasons.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Tuning the \u03ba parameter on the training portions of the 2017 (left) and 2018 (right) CLEF TAR topics. Lowest value for both plots is 0.4.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Results for CLEF TAR 2017. The first row of results is obtained by issuing queries to PubMed, the next set of rows is are results of the various configurations of CLF, and the last set of rows are the relevant runs from participants for that year. Two-tailed t-test between the PubMed ranker and the other methods with p < 0.05 is indicated by * and p < 0.01 by \u2020.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "* \u2020 0.7836 * \u2020 0.1545 * \u2020 0.1186 * \u2020 0.3286 * \u2020 1324.63 * \u2020 0.1259 * \u2020",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "Results of CLF for stopping prediction for CLEF TAR 2018. The first row are the results from the original queries, the second row is when CLF with \u03ba = 0.4. Significance is indicated the same as inTable 3. * \u2020 0.8582 * \u2020 0.1827 * \u2020 0.1400 * \u2020 0.3794 * \u2020 1140.06 * \u2020 0.4330 * \u2020",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

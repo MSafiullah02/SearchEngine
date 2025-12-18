@@ -1,0 +1,3065 @@
+{
+    "paper_id": "3b0eb15924c86c2189d73c3259ea3c7554f44917",
+    "metadata": {
+        "title": "Learning to Rank Images with Cross-Modal Graph Convolutions",
+        "authors": [
+            {
+                "first": "Thibault",
+                "middle": [],
+                "last": "Formal",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Naver Labs Europe",
+                    "location": {
+                        "settlement": "Meylan",
+                        "country": "France"
+                    }
+                },
+                "email": "thibault.formal@naverlabs.com"
+            },
+            {
+                "first": "St\u00e9phane",
+                "middle": [],
+                "last": "Clinchant",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Naver Labs Europe",
+                    "location": {
+                        "settlement": "Meylan",
+                        "country": "France"
+                    }
+                },
+                "email": "stephane.clinchant@naverlabs.com"
+            },
+            {
+                "first": "Jean-Michel",
+                "middle": [],
+                "last": "Renders",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Naver Labs Europe",
+                    "location": {
+                        "settlement": "Meylan",
+                        "country": "France"
+                    }
+                },
+                "email": "jean-michel.renders@naverlabs.com"
+            },
+            {
+                "first": "Sooyeol",
+                "middle": [],
+                "last": "Lee",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Naver Corporation -Search Intelligence Team -Image & Video",
+                    "institution": "",
+                    "location": {
+                        "settlement": "Seongnam-si",
+                        "country": "South Korea"
+                    }
+                },
+                "email": "sooyeol.lee@navercorp.com"
+            },
+            {
+                "first": "Geun",
+                "middle": [
+                    "Hee"
+                ],
+                "last": "Cho",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "Naver Corporation -Search Intelligence Team -Image & Video",
+                    "institution": "",
+                    "location": {
+                        "settlement": "Seongnam-si",
+                        "country": "South Korea"
+                    }
+                },
+                "email": "geunhee.cho@navercorp.com"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "We are interested in the problem of cross-modal retrieval for web image search, where the goal is to retrieve images relevant to a text query. While most of the current approaches for cross-modal retrieval revolve around learning how to represent text and images in a shared latent space, we take a different direction: we propose to generalize the cross-modal relevance feedback mechanism, a simple yet effective unsupervised method, that relies on standard information retrieval heuristics and the choice of a few hyper-parameters. We show that we can cast it as a supervised representation learning problem on graphs, using graph convolutions operating jointly over text and image features, namely crossmodal graph convolutions. The proposed architecture directly learns how to combine image and text features for the ranking task, while taking into account the context given by all the other elements in the set of images to be (re-)ranked. We validate our approach on two datasets: a public dataset from a MediaEval challenge, and a small sample of proprietary image search query logs, referred as WebQ. Our experiments demonstrate that our model improves over standard baselines.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "This paper considers the typical image search scenario, where a user enters a text query, and the system returns a set of ranked images. More specifically, we are interested in re-ranking a subset of candidate images retrieved from the whole image collection by an efficient base ranker, following standard multi-stage ranking architectures in search engines [36] . Directly including visual features in the ranking process is actually not straightforward due to the semantic gap between text and images: this is why the problem has initially been addressed using standard text-based retrieval, relying for instance on text crawled from the image's webpage (e.g. surrounding text, title of the page etc.). In order to exploit visual information, and therefore improve the quality of the results -especially because this text is generally noisy, and hardly describes the image semantic-, many techniques have been developed since. For instance, some works have focused on building similarity measures by fusing mono-modal similarities, using either simple combination rules, or more complex propagation mechanisms in similarity graphs. More recently, techniques have emerged from the computer vision community, where text and images are embedded in the same latent space (a.k.a. joint embedding), allowing to directly match text queries to images. The latter are currently considered as state-of-the-art techniques for the cross-modal retrieval task. However, they are generally evaluated on artificial retrieval scenarios (e.g. on MSCOCO dataset [34] ), and rarely considered in a re-ranking scenario, where mechanisms like pseudo-relevance feedback (PRF) [31] are highly effective.",
+            "cite_spans": [
+                {
+                    "start": 359,
+                    "end": 363,
+                    "text": "[36]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 1546,
+                    "end": 1550,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 1656,
+                    "end": 1660,
+                    "text": "[31]",
+                    "ref_id": "BIBREF31"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "We propose to revisit the problem of cross-modal retrieval in the context of re-ranking. Our first contribution is to derive a general formulation of a differentiable architecture, drawing inspiration from cross-modal retrieval, learning to rank, neural information retrieval and graph neural networks. Compared to joint embedding approaches, we tackle the problem in a different view: instead of learning new (joint) embeddings, we focus on designing a model that learns to combine information from different modalities. Finally, we validate our approach on two datasets, using simple instances of our general formulation, and show that the approach is not only able to reproduce PRF, but actually outperform it.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Cross-Modal Retrieval. In the literature, two main lines of work can be distinguished regarding cross-modal retrieval: the first one focuses on designing effective cross-modal similarity measures (e.g. [2, 10] ), while the second seeks to learn how to map images and text into a shared latent space (e.g. [15, 18, 19, 54] ).",
+            "cite_spans": [
+                {
+                    "start": 202,
+                    "end": 205,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 206,
+                    "end": 209,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 305,
+                    "end": 309,
+                    "text": "[15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 310,
+                    "end": 313,
+                    "text": "18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 314,
+                    "end": 317,
+                    "text": "19,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 318,
+                    "end": 321,
+                    "text": "54]",
+                    "ref_id": "BIBREF54"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "The first set of approaches simply combines different mono-media similarity signals, relying either on simple aggregation rules, or on unsupervised crossmodal PRF mechanisms, that depend on the choice of a few but critical hyperparameters [2, 10, 11, 45] . As it will be discussed in the next section, the latter can be formulated as a two-step PRF propagation process in a graph, where nodes represent multi-modal objects and edges encode their visual similarities. It has been later extended to more general propagation processes based on random walks [28] .",
+            "cite_spans": [
+                {
+                    "start": 239,
+                    "end": 242,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 243,
+                    "end": 246,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 247,
+                    "end": 250,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 251,
+                    "end": 254,
+                    "text": "45]",
+                    "ref_id": "BIBREF45"
+                },
+                {
+                    "start": 554,
+                    "end": 558,
+                    "text": "[28]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Alternatively, joint embedding techniques aim at learning a mapping between textual and visual representations [15, 18, 19, 23, [52] [53] [54] [55] 61] . Canonical Correlation Analysis (CCA) [17] and its deep variants [5, 27, 58] , as well as bi-directional ranking losses [8, 9, 52, 53, 55, 61] (or triplet losses) ensure that, in the new latent space, an image and its corresponding text are correlated or close enough w.r.t. to the other images and pieces of text in the training collection. Other objective functions utilize metric learning losses [35] , machine translation-based measures [44] or even adversarial losses [51] .",
+            "cite_spans": [
+                {
+                    "start": 111,
+                    "end": 115,
+                    "text": "[15,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 116,
+                    "end": 119,
+                    "text": "18,",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "19,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 124,
+                    "end": 127,
+                    "text": "23,",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 128,
+                    "end": 132,
+                    "text": "[52]",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 133,
+                    "end": 137,
+                    "text": "[53]",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 138,
+                    "end": 142,
+                    "text": "[54]",
+                    "ref_id": "BIBREF54"
+                },
+                {
+                    "start": 143,
+                    "end": 147,
+                    "text": "[55]",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 148,
+                    "end": 151,
+                    "text": "61]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 191,
+                    "end": 195,
+                    "text": "[17]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "[5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 222,
+                    "end": 225,
+                    "text": "27,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 226,
+                    "end": 229,
+                    "text": "58]",
+                    "ref_id": "BIBREF58"
+                },
+                {
+                    "start": 273,
+                    "end": 276,
+                    "text": "[8,",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 277,
+                    "end": 279,
+                    "text": "9,",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 280,
+                    "end": 283,
+                    "text": "52,",
+                    "ref_id": "BIBREF52"
+                },
+                {
+                    "start": 284,
+                    "end": 287,
+                    "text": "53,",
+                    "ref_id": "BIBREF53"
+                },
+                {
+                    "start": 288,
+                    "end": 291,
+                    "text": "55,",
+                    "ref_id": "BIBREF55"
+                },
+                {
+                    "start": 292,
+                    "end": 295,
+                    "text": "61]",
+                    "ref_id": "BIBREF61"
+                },
+                {
+                    "start": 552,
+                    "end": 556,
+                    "text": "[35]",
+                    "ref_id": "BIBREF35"
+                },
+                {
+                    "start": 594,
+                    "end": 598,
+                    "text": "[44]",
+                    "ref_id": "BIBREF44"
+                },
+                {
+                    "start": 626,
+                    "end": 630,
+                    "text": "[51]",
+                    "ref_id": "BIBREF51"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "These approaches suffer from several limitations [61] : they are sensitive to the triplet sampling strategy as well as the choice of appropriate margins in the ranking losses. Moreover, constituting a training set that ensures good learning and generalization is not an easy task: the text associated to an image should describe its visual content (e.g. \"a man speaking in front of a camera in a park\"), and nothing else (e.g. \"the President of the US, the 10th of March\", \"John Doe\", \"joy and happiness\").",
+            "cite_spans": [
+                {
+                    "start": 49,
+                    "end": 53,
+                    "text": "[61]",
+                    "ref_id": "BIBREF61"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Building a universal training collection of paired (image, text) instances, where text describes faithfully the content of the image in terms of elementary objects and their relationships, would be too expensive and time-consuming in practice. Consequently, image search engines rely on such pairs crawled from the Web, where the link between image and text (e.g. image caption, surrounding sentences etc.) is tenuous and noisy.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "To circumvent this problem, query logs could be used but, unfortunately -and this is our second argument regarding the limitations-, real queries are never expressed in the same way as the ones considered when evaluating joint embedding methods (e.g. artificial retrieval setting on MSCOCO [34] or Flickr-30K [43] datasets, where the query is the full canonical textual description of the image). In practice, queries are characterised by very large intent gaps: they do not really describe the content of the image but, most of the time, contain only a few words, and are far from expressing the true visual needs. What does it mean to impose close representations for all images representing \"Paris\" (e.g. \"the Eiffel Tower\", \"Louvre Museum\"), even if they can be associated to the same textual unit? Neural Information Retrieval. Neural networks, such as RankNet and LambdaRank, have been intensively used in IR to address the learning to rank task [7] . More recently, there has been a growing interest in designing effective IR models with neural models [1, 12, 13, 20, 25, 26, 37, 38, 41, 56] , by learning the features useful for the ranking task directly from text.",
+            "cite_spans": [
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 309,
+                    "end": 313,
+                    "text": "[43]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 952,
+                    "end": 955,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 1059,
+                    "end": 1062,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 1063,
+                    "end": 1066,
+                    "text": "12,",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 1067,
+                    "end": 1070,
+                    "text": "13,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1071,
+                    "end": 1074,
+                    "text": "20,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 1075,
+                    "end": 1078,
+                    "text": "25,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 1079,
+                    "end": 1082,
+                    "text": "26,",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1083,
+                    "end": 1086,
+                    "text": "37,",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 1087,
+                    "end": 1090,
+                    "text": "38,",
+                    "ref_id": "BIBREF38"
+                },
+                {
+                    "start": 1091,
+                    "end": 1094,
+                    "text": "41,",
+                    "ref_id": "BIBREF41"
+                },
+                {
+                    "start": 1095,
+                    "end": 1098,
+                    "text": "56]",
+                    "ref_id": "BIBREF56"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "While standard strategies focus on learning a global ranking function that considers each query-document pair in isolation, they tend to ignore the difference in distribution in the feature space for different queries [4] . Hence, some recent works have been focusing on designing models that exploit the context induced by the re-ranking paradigm, either by explicitly designing differentiable PRF models [32, 40] , or by encoding the ranking context -the set of elements to re-rank-, using either RNNs [4] or attention mechanisms [42, 62] . Consequently, the score for a document takes into account all the other documents in the candidate list. Because of their resemblance with structured problems, this type of approaches could benefit from the recent body of work around graph neural networks, which operate on graphs by learning how to propagate information to neighboring nodes.",
+            "cite_spans": [
+                {
+                    "start": 218,
+                    "end": 221,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 406,
+                    "end": 410,
+                    "text": "[32,",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 411,
+                    "end": 414,
+                    "text": "40]",
+                    "ref_id": "BIBREF40"
+                },
+                {
+                    "start": 504,
+                    "end": 507,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 532,
+                    "end": 536,
+                    "text": "[42,",
+                    "ref_id": "BIBREF42"
+                },
+                {
+                    "start": 537,
+                    "end": 540,
+                    "text": "62]",
+                    "ref_id": "BIBREF62"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Graph Neural Networks. Graph Neural Networks (GNNs) are extensions of neural networks that deal with structured data encoded as a graph. Recently, Graph Convolutional Networks (GCNs) [30] have been proposed for semisupervised classification of nodes in a graph. Each layer of a GCN can generally be decomposed as: (i) node features are first transformed (e.g. linear mapping), (ii) node features are convolved, meaning that for each node, a differentiable, permutation-invariant operation (e.g. sum, mean, or max) of its neighbouring node features is computed, before applying some non-linearity, (iii) finally, we obtain a new representation for each node in the graph, which is then fed to the next layer. Many extensions of GCNs have been proposed (e.g. GraphSAGE [21] , Graph Attention Network [50] , Graph Isomorphism Network [57] ), some of them directly tackling the recommendation task (e.g. PinSAGE [59] ). But to the best of our knowledge, there is no prior work on using graph convolutions for the (re-)ranking task.",
+            "cite_spans": [
+                {
+                    "start": 183,
+                    "end": 187,
+                    "text": "[30]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 767,
+                    "end": 771,
+                    "text": "[21]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 798,
+                    "end": 802,
+                    "text": "[50]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 831,
+                    "end": 835,
+                    "text": "[57]",
+                    "ref_id": "BIBREF57"
+                },
+                {
+                    "start": 908,
+                    "end": 912,
+                    "text": "[59]",
+                    "ref_id": "BIBREF59"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Our goal is to extend and generalize simple yet effective unsupervised approaches which have been proposed for the task [2, 3, 10, 11, 45] , that can be seen as an extension of pseudo-relevance feedback methods for multi-modal objects. Let d \u2208 D denote a document to re-rank, composed of text and image. We denote by s V (., .) a normalized similarity measure between two images, and by s T (q, d) the textual relevance score of document d w.r.t. query q. The cross-modal similarity score is given by:",
+            "cite_spans": [
+                {
+                    "start": 120,
+                    "end": 123,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 124,
+                    "end": 126,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 127,
+                    "end": 130,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 131,
+                    "end": 134,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 135,
+                    "end": 138,
+                    "text": "45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cross-Modal Similarity Measure"
+        },
+        {
+            "text": "where NN K T (q) denotes the set of K most relevant documents w.r.t. q, based on text, i.e. on s T (q, .). The model can be understood very simply: similarly to PRF methods in standard information retrieval, the goal is to boost images that are visually similar to top images (from a text point of view), i.e. images that are likely to be relevant to the query but were initially badly ranked (which is likely to happen in the web scenario, where text is crawled from source page and can be very noisy).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Similarity Measure"
+        },
+        {
+            "text": "Despite showing good empirical results, cross-modal similarities are fully unsupervised, and lack some dynamic behaviour, like being able to adapt to different queries. Moreover, they rely on a single relevance score s T (q, .), while it could actually be beneficial to learn how to use a larger set of features such as the ones employed in learning to rank models.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Similarity Measure"
+        },
+        {
+            "text": "In [3] , the authors made a parallel between the cross-modal similarity from Eq. (1) and random walks in graphs: it can be seen as a kind of multimodal label propagation in a graph. This motivates us to tackle the task using graph convolutions. We therefore represent each query q \u2208 Q as a graph G q , as follows:",
+            "cite_spans": [
+                {
+                    "start": 3,
+                    "end": 6,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "-The set of nodes is the set of candidate documents d i to be re-ranked for this query: typically from a few to hundreds of documents, depending on the query. -Each node i is described by a set of n learning to rank features x q,di \u2208 R n .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "v i \u2208 R d denotes the (normalized) visual embedding for document d i .",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "-As we do not have an explicit graph structure, we consider edges given by a k-nearest neighbor graph, based on a similarity between the embeddings v i 1 . -We denote by N i the neighborhood of node i, i.e. the set of nodes j such that there exists an edge from j to i. -We consider edge weights, given by a similarity function between the visual features of its two extremity nodes",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "Our goal is to learn how to propagate features in the above graph. Generalizing convolution operations to graphs can generally be expressed as a message passing scheme [16] :",
+            "cite_spans": [
+                {
+                    "start": 168,
+                    "end": 172,
+                    "text": "[16]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "where \u03b3 and \u03c6 denote differentiable functions, e.g. MLPs (Multi Layer Perceptron). By choosing \u03c6(h",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "This graph convolution can be reduced to the cross-modal similarity in Eq. (1). Indeed, assuming that d) , and N i := N is the whole set of candidates to re-rank, then:",
+            "cite_spans": [
+                {
+                    "start": 102,
+                    "end": 104,
+                    "text": "d)",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "In other words, one layer defined with Eq. (3) includes the standard cross-modal relevance feedback as a special case. Equation (3) is more general, and can easily be used as a building block in a differentiable ranking architecture.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Cross-Modal Graph Convolution"
+        },
+        {
+            "text": "In the following, we derive a simple convolution layer from Eq. (3), and we introduce the complete architecture -called DCMM for Differentiable Cross-Modal",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning to Rank with Cross-Modal Graph Convolutions"
+        },
+        {
+            "text": "Model-, summarized in Fig. 1 . Learning to rank features x q,di are first encoded with an MLP(.;\u03b8) with ReLU activations, in order to obtain node features h 0 i . Then, the network splits into two branches: -The first branch simply projects linearly each h",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 22,
+                    "end": 28,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Learning to Rank with Cross-Modal Graph Convolutions"
+        },
+        {
+            "text": "i , that acts as a pure text-based score 2 . -The second branch is built upon one or several layer(s) of cross-modal convolution, simply defined as:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning to Rank with Cross-Modal Graph Convolutions"
+        },
+        {
+            "text": "For the edge function g, we consider two cases: the cosine similarity g cos",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning to Rank with Cross-Modal Graph Convolutions"
+        },
+        {
+            "text": ", defining the first model (referred as DCMM-cos), and a simple learned similarity measure parametrized by a vector a such that",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Learning to Rank with Cross-Modal Graph Convolutions"
+        },
+        {
+            "text": "After the convolution(s), the final embedding for each node h (L) i is projected to a real-valued score s conv (q, d i ), using either a linear layer (s conv (q, , \u03c9) ). Finally, the two scores are combined to obtain the final ranking score: The model is trained using backpropagation and any standard learning to rank loss: pointwise, pairwise or listwise. It is worth to remark that, by extending PRF mechanisms for cross-modal re-ranking, our model is actually closer to listwise context-based models introduced in Sect. 2 than current state-of-the-art cross-modal retrieval models. It is listwise by design 3 : an example in a batch is not a single image in isolation, but all the candidate images for a given query, encoded as a graph, that we aim to re-rank together in a one shot manner. In our experiments, we used the pairwise BPR loss [46] , from which we obtained the best results 4 . Let's consider a graph (i.e. the set of candidate documents for query q) in the batch, and all the feasible pairs of documents D +,\u2212 q for this query (by feasible, we mean all the pairs that can be made from positive and negative examples in the graph). Then the loss is defined:",
+            "cite_spans": [
+                {
+                    "start": 845,
+                    "end": 849,
+                    "text": "[46]",
+                    "ref_id": "BIBREF46"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 162,
+                    "end": 166,
+                    "text": ", \u03c9)",
+                    "ref_id": null
+                }
+            ],
+            "section": "defining our second model (referred as DCMM-edge)."
+        },
+        {
+            "text": "Note that contrary to previous works on listwise context modeling, we consider a set of objects to re-rank, and not a sequence (for instance in [4] , a RNN encoder is learned for re-ranking). In other words, we discard the rank information of the first ranker into the re-ranking process: we claim that the role of the first retriever is to be recall-oriented, and not precision-oriented. Thus, using initial order might be a too strong prior, and add noise information. Moreover, in the case of implicit feedback (clicks used as weak relevance signals), using rank information raises the issue of biased learning to rank (sensitivity to position and trust biases). It is also worth to emphasize that, contrary to most of the works around graph convolution models, our graph structure is somehow implicit: while edges between nodes generally indicate a certain relationship between nodes (for instance, connection between two users in a social network), in our case a connection represents the visual similarity between two nodes.",
+            "cite_spans": [
+                {
+                    "start": 144,
+                    "end": 147,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "defining our second model (referred as DCMM-edge)."
+        },
+        {
+            "text": "In the following, we introduce the two datasets we used to validate our approach -a public dataset from a MediaEval 5 challenge, and an annotated set of queries sampled from image search logs of Naver, the biggest commercial search engine in Korea-, as well as our experimental strategy. We emphasize on the fact that we restrict ourselves to two relatively small datasets and few features as input for the models. Even though the formulation from Eq. (3) is very general, our claim is that a simple model, i.e. containing few hundreds to thousands parameters, should be able to reproduce PRF mechanisms introduced in Sect. 3. When adapting the approach to larger datasets, the model capacity can be adjusted accordingly, in order to capture more complex relevance patterns. Note that we did not consider in our study standard datasets generally used to train joint embeddings such as MSCOCO [34] or Flickr30k [43] , because the retrieval scenario is rather artificial, compared to web search: there are no explicit queries, and a text is only relevant to a single image. Furthermore, we have tried to obtain the Clickture [24] dataset without success 6 , and therefore cannot report on it.",
+            "cite_spans": [
+                {
+                    "start": 892,
+                    "end": 896,
+                    "text": "[34]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 910,
+                    "end": 914,
+                    "text": "[43]",
+                    "ref_id": "BIBREF43"
+                },
+                {
+                    "start": 1123,
+                    "end": 1127,
+                    "text": "[24]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experiments"
+        },
+        {
+            "text": "MediaEval. We first conduct experiments on the dataset from the \"MediaE-val17, Retrieving Diverse Social Images Task\" challenge 7 . While this challenge also had a focus on diversity aspects, we solely consider the standard relevance ranking task. The dataset is composed of a ranked list of images (up to 300) for each query, retrieved from Flickr using its default ranking algorithm. The queries are general-purpose queries (e.g. q = autumn color ), and each image has been annotated by expert annotators (binary label, i.e. relevant or not). The goal is to refine the results from the base ranking. The training set contains 110 queries for 33340 images, while the test set contains 84 queries for 24986 images.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "While we could consider any number of learning to rank features as input for our model, we choose to restrict ourselves to a very narrow set of weak relevance signals, in order to remain comparable to its unsupervised counterpart, and ensure that the gain does not come from the addition of richer features. Hence, we solely rely on four relevance scores, namely tf-idf, BM25, Dirichlet smoothed LM [60] and DESM score [39] , between the query and each image's text component (the concatenation of the image title and tags). We use an Inception-ResNet model [48] pre-trained on ImageNet to get the image embeddings (d = 1536).",
+            "cite_spans": [
+                {
+                    "start": 399,
+                    "end": 403,
+                    "text": "[60]",
+                    "ref_id": "BIBREF60"
+                },
+                {
+                    "start": 419,
+                    "end": 423,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 558,
+                    "end": 562,
+                    "text": "[48]",
+                    "ref_id": "BIBREF48"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "WebQ. In order to validate our approach on a real world dataset, we sample a set of 1000 queries 8 from the image search logs of Naver. All images appearing in the top-50 candidates for these queries within a period of time of two weeks have been labeled by three annotators in terms of relevance to the query (binary label). Because of different query characteristics (in terms of frequency, difficulty etc.), and given the fact that new images are continuously added to/removed from the index, the number of images per query in our sample is variable (from around ten to few hundreds). Note that, while we actually have access to a much larger amount of click logs, we choose to restrict the experiments to this small sample in order keep the evaluations simple. Our goal here is to show that we are able to learn and reproduce some PRF mechanisms, without relying on large amount of data. Moreover, in this setting, it is easier to understand model's behaviour, as we avoid to deal with click noise and position bias. After removing queries without relevant images (according to majority voting among the three annotators), our sample includes 952 queries, and 43064 images, indexed through various text fields (title of the page, image caption etc.). We select seven of such fields, that might contain relevant pieces of information, and for which we compute two simple relevance features w.r.t. query q: BM25 and DESM [39] (using embeddings trained on a large query corpus from an anterior period). We also add an additional feature, which is a mixture of the two above, on the concatenation of all the fields. Image embeddings (d = 2048) are obtained using a ResNet-152 model [22] pre-trained on ImageNet.",
+            "cite_spans": [
+                {
+                    "start": 1423,
+                    "end": 1427,
+                    "text": "[39]",
+                    "ref_id": "BIBREF39"
+                },
+                {
+                    "start": 1682,
+                    "end": 1686,
+                    "text": "[22]",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets"
+        },
+        {
+            "text": "Given the limited number of queries in both collections, we conducted 5-fold cross-validation, by randomly splitting the queries into five folds. The model is trained on 4 folds (with 1 fold kept for validation, as we use early stopping on nDCG), and evaluated on the remaining one; this procedure is repeated 5 times. Then, the average validation nDCG is used to select the best model configuration. Note that for the MediaEval dataset, we have access to a separate test set, so we modify slightly the evaluation methodology: we do the above 5fold cross-validation on the training set, without using a validation fold (hence, we do not use early stopping, and the number of epochs is a hyperparameter to tune). Once the best model has been selected with the above strategy, we re-train it on the full training set, and give the final performance on the test set. We report the nDCG, MAP, P@20, and nDCG@20 for both datasets.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Evaluation Methodology"
+        },
+        {
+            "text": "We train the models using stochastic gradient descent with the Adam optimizer [29] . We set the batch size (i.e. number of graphs per batch) to MediaEval, we also tune the number of epochs \u2208 {50, 100, 200, 300, 500}, while for WebQ, we set it to 500, and use early stopping with patience set to 80. All node features are query-level normalized (mean-std normalization). The models are implemented using PyTorch and PyTorch geometric 9 [14] for the message passing components.",
+            "cite_spans": [
+                {
+                    "start": 78,
+                    "end": 82,
+                    "text": "[29]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 435,
+                    "end": 439,
+                    "text": "[14]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Methodology"
+        },
+        {
+            "text": "In order to be fair, we want to compare methods with somewhat similar feature sets. Obviously, for the supervised methods, results can be improved by either adding richer/more features, or increasing models' capacity. For both datasets, we compare our DCMM model to the following baselines:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-A learning to rank model only based on textual features (LTR).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-The cross-modal similarity introduced in Sect. 3.1 [2, 3, 10, 11, 45] (CM).",
+            "cite_spans": [
+                {
+                    "start": 52,
+                    "end": 55,
+                    "text": "[2,",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 56,
+                    "end": 58,
+                    "text": "3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 59,
+                    "end": 62,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 63,
+                    "end": 66,
+                    "text": "11,",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 67,
+                    "end": 70,
+                    "text": "45]",
+                    "ref_id": "BIBREF45"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "-The above LTR model with the cross-modal similarity as additional input feature (LTR+CM), to verify that it is actually beneficial to learn the crossmodal propagation in DCMM in a end-to-end manner.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Baselines"
+        },
+        {
+            "text": "For the cross-modal similarity, we use as proxy for s T (q, .) a simple mixture of term-based relevance score (Dirichlet-smoothed LM and BM25 for respectively MediaEval and WebQ) and DESM score, on a concatenation of all text fields. From our experiments, we observe that it is actually beneficial to recombine the cross-modal similarity with the initial relevance s T (q, .), using a simple mixture. Hence, three parameters are tuned (the two mixture parameters, and the number of neighbors for the query), following the evaluation methodology introduced in Sect. 4.2 10 . The LTR models are standard MLPs: they correspond to the upper part of architecture Fig. 1 (text branch), and are tuned following the same strategy.",
+            "cite_spans": [
+                {
+                    "start": 569,
+                    "end": 571,
+                    "text": "10",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 658,
+                    "end": 664,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Baselines"
+        },
+        {
+            "text": "We do not compare our models with joint embedding approaches on those datasets for the reasons mentioned in Sect. 2, but also due to our initial experiments on Medieval which gave poor results. For the sake of illustration, on MediaEval, 64% of the queries have no lemmas in common with training queries (and 35% for WebQ): given the relatively small size of these datasets, the models cannot generalize to unseen queries. This illustrates an \"extreme\" example of the generalization issues -especially on tail queries-of joint embedding techniques. In the meantime, as our model is fed with learning to rank features, especially term-based relevance scores like BM25, it could be less sensitive to generalization issues, for instance on new named entities. However, we want to emphasize that both approaches are not antagonist, but can actually be complementary. As our model can be seen as an extension of listwise learning to rank for bi-modal objects (if edges are removed, the model reduces to a standard MLP-based learning to rank), it can take as input node features matching scores from joint embeddings models. The model being an extension of PRF, we actually see the approaches at different stages of ranking. Table 1 gathers the main results of our study. Without too much surprise, going from pure text ranker to a model using both media types improves the results by a large margin (all the models are significantly better than the text-based LTR model, so we do not include these tests on Table 1 for clarity). Moreover, results indicate that combining initial features with the unsupervised cross-modal similarity in a LTR model allows to slightly improve results over the latter (not significantly though) for the MediaEval dataset, while it has no effect on WebQ: this is likely due to the fact that features are somehow redundant in our setting, because of how s T (q, .) is computed for the cross-modal similarity; the same would not hold if we would consider a richer set of features for the LTR models. Furthermore, the DCMM-cos model outperforms all the baselines, with larger margins for MediaEval than for WebQ; the only significant result (p-value < 0.05) is obtained for the MAP on MediaEval. Nevertheless, it shows that this simple architecture -the most straightforward extension of cross-modal similarity introduced in Sect. 3.1-, with a handful of parameters (see Table 1 ) and trained on small datasets, is able to reproduce PRF mechanisms. Interestingly, results tend to drop as we increase the number of layers (best results are obtained with a single convolution layer), no matter the number of neighbors chosen to define the visual graph. While it might be related to the relative simplicity of the model, it actually echoes common observations in PRF models (e.g. [3] ): if we propagate too much, we also tend to diffuse information too much. Similarly, we can also make a parallel with over-smoothing in GNNs [33] , which might be more critical for PRF, especially considering the simplicity of this model. The DCMM-edge shows interesting results: on WebQ, we manage to improve results significantly w.r.t. to CM sim, while on MediaEval, results are slightly worse than DCMM-cos (except for the MAP). It might be due to the fact that images in the latter are more alike to the ones used to train image signatures, compared to the (noisy) web images in WebQ; hence, learning a new metric between images has less impact. Interestingly, for both datasets, best results are obtained with more than a single layer; we hypothesize that the edge function plays the role of a simple filter for edges, allowing to propagate information from useful nodes across more layers. Note that the number of layers needed for the task is tied with how we define our input graph: the less neighbors we consider for each node, the more layers might be needed, in order for each node to gather information from useful nodes. In Fig. 2 , we observe that if the number of neighbors is too small (e.g. 3 or 5), then the model needs more layers to improve performance. On the other side, when considering too many neighbors (e.g. 20 or all), the nodes already have access to all the useful neighbors, hence adding layers only reduces performances. We need to find the right balance between the number of neighbors and the number of convolution layers, so that the model can learn to propagate relevant signals (e.g. 10 neighbors and 3 layers for WebQ). ",
+            "cite_spans": [
+                {
+                    "start": 2799,
+                    "end": 2802,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 2945,
+                    "end": 2949,
+                    "text": "[33]",
+                    "ref_id": "BIBREF33"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 1219,
+                    "end": 1226,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1502,
+                    "end": 1509,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 2393,
+                    "end": 2400,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 3942,
+                    "end": 3948,
+                    "text": "Fig. 2",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Baselines"
+        },
+        {
+            "text": "In this paper, we have proposed a reformulation of unsupervised cross-modal PRF mechanisms for image search as a differentiable architecture relying on graph convolutions. Compared to its unsupervised counterpart, our novel approach can integrate any set of features, while providing a high flexibility in the design of the architecture. Experiments on two datasets showed that a simple model derived from our formulation achieved comparable -or better-performance compared to cross-modal PRF.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        },
+        {
+            "text": "There are many extensions and possible directions stemming from the relatively simple model we have studied. Given enough training data (e.g. large amount of click logs), we could for instance learn to dynamically filter the visual similarity by using an attention mechanism to choose which nodes to attend, similarly to Graph Attention Networks [50] and Transformer model [49] , discarding the need to set the number of neighbors in the input graph. Finally, our approach directly addressed the cross-modal retrieval task, but its application to the more general PRF problem in IR remains possible.",
+            "cite_spans": [
+                {
+                    "start": 346,
+                    "end": 350,
+                    "text": "[50]",
+                    "ref_id": "BIBREF50"
+                },
+                {
+                    "start": 373,
+                    "end": 377,
+                    "text": "[49]",
+                    "ref_id": "BIBREF49"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Learning Deep Structured Semantic Models for Web Search using Clickthrough Data",
+            "authors": [],
+            "year": 2013,
+            "venue": "ACM International Conference on Information and Knowledge Management (CIKM)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "XRCE's Participation to ImageCLEF",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ah-Pine",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Cifarelli",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Clinchant",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Csurka",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Renders",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "9th Workshop of the Cross-Language Evaluation Forum (CLEF 2008)",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Unsupervised visual and textual information fusion in CBMIR using graph-based methods",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ah-Pine",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Csurka",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "ACM Trans. Inf. Syst",
+            "volume": "33",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2699668"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Learning a deep listwise context model for ranking refinement",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ai",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Bi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Deep canonical correlation analysis",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Andrew",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Arora",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Bilmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Livescu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "1247--1255",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Revisiting approximate metric optimization in the age of deep neural networks",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bruch",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zoghi",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Bendersky",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Najork",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR 2019)",
+            "volume": "",
+            "issn": "",
+            "pages": "1241--1244",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "From ranknet to lambdarank to lambdamart: an overview",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Burges",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Crossmodal retrieval in the cooking context: learning semantic text-image embeddings",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Carvalho",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Cad\u00e8ne",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Picard",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Soulier",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Thome",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Cord",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "AMC: attention guided multimodal correlation learning for image search",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Bui",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nevatia",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Trans-media pseudo-relevance feedback methods in multimedia retrieval",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                },
+                {
+                    "first": "J.-M",
+                    "middle": [],
+                    "last": "Renders",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Csurka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "CLEF 2007",
+            "volume": "5152",
+            "issn": "",
+            "pages": "569--576",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-85760-0_71"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Unsupervised visual and textual information fusion in multimedia retrieval -a graph-based point of view",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Csurka",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ah-Pine",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Clinchant",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Convolutional neural networks for softmatching n-grams in ad-hoc search",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": null,
+            "venue": "Proceedings of the Eleventh ACM International Conference on Web Search and Data Mining. WSDM 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "126--134",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Modeling diverse relevance patterns in ad-hoc retrieval",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Fast graph representation learning with PyTorch geometric",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Fey",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Lenssen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "ICLR Workshop on Representation Learning on Graphs and Manifolds",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "DeViSE: a deep visual-semantic embedding model",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Frome",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Neural message passing for quantum chemistry",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gilmer",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Schoenholz",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Riley",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Vinyals",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Dahl",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "A Multi-View Embedding Space for Modeling Internet Images, Tags, and Their Semantics",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ke",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Isard",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Int. J. Comput. Vis",
+            "volume": "106",
+            "issn": "2",
+            "pages": "210--233",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s11263-013-0658-4"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Improving imagesentence embeddings using large weakly annotated photo collections",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Gong",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hodosh",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hockenmaier",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "ECCV 2014",
+            "volume": "8692",
+            "issn": "",
+            "pages": "529--545",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-319-10593-2_35"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Beyond instance-level image retrieval: leveraging captions to learn a global visual representation for semantic",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Gordo",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Larlus",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "A deep relevance matching model for ad-hoc retrieval",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Inductive representation learning on large graphs",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Deep residual learning for image recognition",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ren",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Scalable deep multimodal learning for crossmodal retrieval",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhen",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "635--644",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Clickage: towards bridging semantic and intent gaps via mining click logs of search engines",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Hua",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "243--252",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/2502081.2502283"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "A position-aware deep model for relevance matching in information retrieval",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Berberich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Melo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "RE-PACRR: a context and densityaware neural information retrieval model",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Berberich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Melo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Multi-view deep network for cross-view classification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Shan",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "4847--4855",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Multi-modal image retrieval with random walk on multi-layer graphs",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Khasanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Dong",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Frossard",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "2016 IEEE International Symposium on Multimedia (ISM)",
+            "volume": "",
+            "issn": "",
+            "pages": "1--6",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Semi-supervised classification with graph convolutional networks",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Kipf",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Welling",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Relevance based language models",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Lavrenko",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the 24th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval. SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "120--127",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/383952.383972"
+                ]
+            }
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "NPRF: a neural pseudo relevance feedback framework for ad-hoc information retrieval",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "Deeper insights into graph convolutional networks for semi-supervised learning",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Han",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Microsoft COCO: common objects in context",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Deep coupled metric learning for crossmodal matching",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [
+                        "E"
+                    ],
+                    "last": "Liong",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Tan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Zhou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "IEEE Trans. Multimedia",
+            "volume": "19",
+            "issn": "6",
+            "pages": "1234--1244",
+            "other_ids": {}
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Cascade ranking for operational e-commerce search",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Xiao",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Ou",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Si",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining -KDD 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/3097983.3098011"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "An updated duet model for passage re-ranking",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "Learning to match using local and distributed representations of text for web search",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF39": {
+            "ref_id": "b39",
+            "title": "A dual embedding space model for document ranking",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Nalisnick",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Caruana",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF40": {
+            "ref_id": "b40",
+            "title": "Task-oriented query reformulation with reinforcement learning",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Nogueira",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cho",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF41": {
+            "ref_id": "b41",
+            "title": "DeepRank: a new deep architecture for relevance ranking in information retrieval",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Pang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Lan",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Cheng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF42": {
+            "ref_id": "b42",
+            "title": "Personalized context-aware re-ranking for e-commerce recommender systems",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Pei",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF43": {
+            "ref_id": "b43",
+            "title": "Flickr30k entities: collecting region-to-phrase correspondences for richer image-to-sentence models",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Plummer",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Cervantes",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Caicedo",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Hockenmaier",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF44": {
+            "ref_id": "b44",
+            "title": "Cross-modal bidirectional translation via reinforcement learning",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Qi",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Peng",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IJCAI",
+            "volume": "",
+            "issn": "",
+            "pages": "2630--2636",
+            "other_ids": {}
+        },
+        "BIBREF45": {
+            "ref_id": "b45",
+            "title": "NLE@MediaEval'17: combining cross-media similarity and embeddings for retrieving diverse social images",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Renders",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Csurka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF46": {
+            "ref_id": "b46",
+            "title": "BPR: Bayesian personalized ranking from implicit feedback",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Rendle",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Freudenthaler",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Gantner",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Schmidt-Thieme",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of the Twenty-Fifth Conference on Uncertainty in Artificial Intelligence. UAI 2009",
+            "volume": "",
+            "issn": "",
+            "pages": "452--461",
+            "other_ids": {}
+        },
+        "BIBREF47": {
+            "ref_id": "b47",
+            "title": "Dropout: a simple way to prevent neural networks from overfitting",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Srivastava",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Hinton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Krizhevsky",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Sutskever",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "J. Mach. Learn. Res",
+            "volume": "15",
+            "issn": "",
+            "pages": "1929--1958",
+            "other_ids": {}
+        },
+        "BIBREF48": {
+            "ref_id": "b48",
+            "title": "Inception-v4, inception-ResNet and the impact of residual connections on learning",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Szegedy",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ioffe",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Vanhoucke",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF49": {
+            "ref_id": "b49",
+            "title": "Attention is all you need",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Vaswani",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF50": {
+            "ref_id": "b50",
+            "title": "Graph attention networks",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Veli\u010dkovi\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Cucurull",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Casanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Romero",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Li\u00f2",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "International Conference on Learning Representations",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF51": {
+            "ref_id": "b51",
+            "title": "Adversarial cross-modal retrieval",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Hanjalic",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Shen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 25th ACM International Conference on Multimedia. MM 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "154--162",
+            "other_ids": {}
+        },
+        "BIBREF52": {
+            "ref_id": "b52",
+            "title": "Learning two-branch neural networks for image-text matching tasks",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "IEEE Trans. Pattern Anal. Mach. Intell",
+            "volume": "41",
+            "issn": "2",
+            "pages": "394--407",
+            "other_ids": {}
+        },
+        "BIBREF53": {
+            "ref_id": "b53",
+            "title": "Learning deep structure-preserving image-text embeddings",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lazebnik",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "5005--5013",
+            "other_ids": {}
+        },
+        "BIBREF54": {
+            "ref_id": "b54",
+            "title": "WSABIE: scaling up to large vocabulary image annotation",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Weston",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Bengio",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Usunier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF55": {
+            "ref_id": "b55",
+            "title": "Learning semantic structure-preserved embeddings for cross-modal retrieval",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Wu",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 26th ACM International Conference on Multimedia. MM 2018",
+            "volume": "",
+            "issn": "",
+            "pages": "825--833",
+            "other_ids": {}
+        },
+        "BIBREF56": {
+            "ref_id": "b56",
+            "title": "End-to-end neural ad-hoc ranking with kernel pooling",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Power",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF57": {
+            "ref_id": "b57",
+            "title": "How powerful are graph neural networks?",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Xu",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Hu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Jegelka",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF58": {
+            "ref_id": "b58",
+            "title": "Deep correlation for matching images and text",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Yan",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mikolajczyk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition",
+            "volume": "",
+            "issn": "",
+            "pages": "3441--3450",
+            "other_ids": {}
+        },
+        "BIBREF59": {
+            "ref_id": "b59",
+            "title": "Graph convolutional neural networks for web-scale recommender systems",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ying",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Eksombatchai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "L"
+                    ],
+                    "last": "Hamilton",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Leskovec",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF60": {
+            "ref_id": "b60",
+            "title": "A study of smoothing methods for language models applied to ad hoc information retrieval",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Zhai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lafferty",
+                    "suffix": ""
+                }
+            ],
+            "year": 2001,
+            "venue": "Proceedings of the 24th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval. SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "334--342",
+            "other_ids": {
+                "DOI": [
+                    "10.1145/383952.384019"
+                ]
+            }
+        },
+        "BIBREF61": {
+            "ref_id": "b61",
+            "title": "Deep cross-modal projection learning for image-text matching",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Lu",
+                    "suffix": ""
+                },
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Ferrari",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hebert",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Sminchisescu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "ECCV 2018",
+            "volume": "11205",
+            "issn": "",
+            "pages": "707--723",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-030-01246-5_42"
+                ]
+            }
+        },
+        "BIBREF62": {
+            "ref_id": "b62",
+            "title": "A domain generalization perspective on listwise context modeling",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Zhu",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "He",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Differentiable Cross-Modal Model architecture -schematic view. Note that the upper part is a standard MLP-based LTR model.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "bs = {5}, {32} for respectively MediaEval and WebQ, so that training fits on a single NVIDIA Tesla P100 GPU. The hyper-parameters we tune for each dataset are: (1) the learning rate \u2208 {1e\u22123, 1e\u22124, 5e\u22125}, (2) the number of layers \u2208 {2, 3} for the input MLP, as well as the number of hidden units \u2208 {4, 8, 16, 32}, {8, 16, 32, 64}, (2) the dropout rate [47] in the MLP layers \u2208 {0, 0.2}, (4) the number of graph convolutions \u2208 {1, 2, 3, 4} as well as the number of hidden units \u2208 {4, 8, 16}, {8, 16, 32}, (5) the dropout rate of the convolution layers \u2208 {0, 0.2, 0.5} and (6) the number of visual neighbors to consider when building the input graph, \u2208 {1, 3, 5, 10, 20, 50, 80, 100, 120, |G| \u2212 1}, {1, 3, 5, 10, 15, 20, 30, |G| \u2212 1} for respectively MediaEval and WebQ. For",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Impact of the number of convolutions layers and top-k neighbors for WebQ.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "Comparison of the methods on both datasets (test metrics). Significant improvement w.r.t. the cross-modal similarity (CM sim) is indicated with * (p-value < 0.05). The number of trained parameters are indicated for the convolution models: ranging from few hundreds to few thousands, i.e. orders of magnitude less than joint embeddings models.# params P@20 nDCG@20 nDCG MAP",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}
