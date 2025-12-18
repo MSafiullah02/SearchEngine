@@ -1,0 +1,527 @@
+{
+    "paper_id": "15c7e413de2e615378e1c0d4fa23d1f3425af285",
+    "metadata": {
+        "title": "Optimising Lockdown Policies for Epidemic Control using Reinforcement Learning A summary and mathematical description",
+        "authors": [
+            {
+                "first": "Harshad",
+                "middle": [],
+                "last": "Khadilkar",
+                "suffix": "",
+                "affiliation": {},
+                "email": "harshad.khadilkar@tcs.com"
+            },
+            {
+                "first": "Tanuja",
+                "middle": [],
+                "last": "Ganu",
+                "suffix": "",
+                "affiliation": {},
+                "email": "tanuja.ganu@microsoft.com"
+            },
+            {
+                "first": "Deva",
+                "middle": [
+                    "P"
+                ],
+                "last": "Seetharam",
+                "suffix": "",
+                "affiliation": {},
+                "email": "deva.seetharam@gmail.com"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "In the context of the ongoing Covid-19 pandemic, several reports and studies have attempted to model and predict the spread of the disease. There is also intense debate about policies for limiting the damage, both to health and to the economy. On the one hand, the health and safety of the population is the principal consideration for most countries. On the other hand, we cannot ignore the potential for long-term economic damage caused by strict nation-wide lockdowns. In this working paper, we present a quantitative way to compute lockdown decisions for individual cities or regions, while balancing health and economic considerations. Furthermore, these policies are learnt automatically by the proposed algorithm, as a function of disease parameters (infectiousness, gestation period, duration of symptoms, probability of death) and population characteristics (density, movement propensity). We account for realistic considerations such as imperfect lockdowns, and show that the policy obtained using reinforcement learning is a viable quantitative approach towards lockdowns.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "I. EXECUTIVE SUMMARY Important note: This manuscript reports an early version of the model and results, while deeper analysis is in progress. We wish to disseminate this work as soon as possible, in the context of the current Covid-19 urgency. We will continue to add more detailed description and literature review in stages.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "The goal of this section is to present a non-technical summary of the methodology and the results of this study. More detailed mathematical description is available in Section II.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": ""
+        },
+        {
+            "text": "The key contributions of this study are as follows. 1) We provide a methodology to compute the optimal lockdown/release policy for each node in a network, given disease characteristics and network properties. 2) This optimal policy is automatically learnt by the algorithm, using a technique known as reinforcement learning [1] . No explicit optimisation knowledge is required on the part of the user.",
+            "cite_spans": [
+                {
+                    "start": 324,
+                    "end": 327,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Contributions"
+        },
+        {
+            "text": "3) The policy is explicitly cognizant of health and economic costs, with the weight on each factor specified by the user's preferences. 4) The same algorithm can be used to compute the policy for any changes in (i) network data, (ii) disease parameters, and (iii) cost definitions. Only the relevant input values need to be updated by the user. 5) The computed policies are fully explainable, which means that the users can ask useful questions about the interventions and the reasons behind each decision. In that sense, the optimisation algorithm is not a black box.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Contributions"
+        },
+        {
+            "text": "Before proceeding further, we wish to make explicit the limitations of this study.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Disclaimers"
+        },
+        {
+            "text": "1) None of the authors are experts on communicable diseases. We have used disease models from available literature [2] , which has a fair degree of consensus.",
+            "cite_spans": [
+                {
+                    "start": 115,
+                    "end": 118,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "B. Disclaimers"
+        },
+        {
+            "text": "2) The network model used in this study is basic and not very sophisticated. It does account for population size and geography, but the effects are at a macro level. We do not model at the level of specific individuals and their movements. 3) So far, we have not used real data for the network model. We have tried to match the characteristics of Covid-19 as closely as possible, within the constraints of time and tractability.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "B. Disclaimers"
+        },
+        {
+            "text": "We approach this study as a combination of three steps. These are described below.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Methodology in brief"
+        },
+        {
+            "text": "Obtain or generate data: Before beginning the study, we need to define the network and disease parameters. We have generated a network with 100 nodes and 10000 individuals. Each node contains a certain number of individuals, who need not be uniformly distributed. Strength of connections between each pair of nodes is (i) directly proportional to the product of the populations of the two nodes, and (ii) inversely proportional to the square root of the distance between them. The resulting network structure is shown in Fig. 1 . Note that the figure only shows the two strongest connections for each node, but that all pairs of nodes are theoretically connected. We also model the disease parameters as available online, for Covid-19. Specifically, the incubation period is 5-10 days, the actual infected period is 7-14 days, exposed people can begin transmitting the disease immediately, only about 80% of people actually show visible symptoms, and the death rate for infected and symptomatic people is 2%. We also assume that if an exposed or infected person comes into contact with a susceptible person, the transmission probability is 100%. All the parameters described here are probabilistic, and actual values are generated during simulation. We run multiple simulations to get reliable statistics.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 521,
+                    "end": 527,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "C. Methodology in brief"
+        },
+        {
+            "text": "Effect of lockdown: Throughout this study, we assume that an open node allows people to travel to/from other open nodes in the network. However, people showing symptoms are not allowed to travel to other nodes (but asymptomatic and exposed people can do so). Furthermore, symptomatic people are quarantined within the node, but a small fraction may still circulate within the node by breaking the quarantine. When a node is locked down, all travel to/from the node is blocked. However, a small fraction of people may still circulate within the node (especially ones who are not showing symptoms).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Methodology in brief"
+        },
+        {
+            "text": "Baseline lockdown policies: In terms of intervention, we assume that each node has the option to be locked down or opened, once per week. The epidemic evolves on a daily basis, and after each week, the authorities can take this binary decision. As a reference, we define a set of policies that lock down any given node if the fraction of symptomatic people in that node cross a predefined threshold. We used threshold values of 5%, 10%, 20%, 50%, and 100% (the latter value ensures that nodes are never locked down). The first key question to be asked is, can we see the flattening the curve effect with these policies? The answer is yes: observe the evolution of infected people in Fig. 2 (with no lockdowns) and Fig. 3 (with lockdowns at 5% symptomatic people). We can see that the peak (blue curve) for the latter policy is lower, but a much longer period of infection is observed. The former policy also results in a higher number of deaths.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 683,
+                    "end": 689,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 714,
+                    "end": 720,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "C. Methodology in brief"
+        },
+        {
+            "text": "Train the reinforcement learning (RL) algorithm: RL works by running a large number of simulations of the spread of the disease, while attempting to find the optimal policy for lockdowns. The chief requirement is to quantify the cost of each outcome of the simulation. In this study, we place a weight of 1.0 on each day of lockdown, 1.0 on each person infected, and 2.5 on each death. A reward is defined as the negative of these costs (higher the reward, lower the cost). As shown in Fig. 4 , the RL algorithm is able to improve the reward over approximately 75 simulations, eventually performing as best as it can. The evolution of infection rates in Fig. 5 shows that the policy falls somewhere between the extremes shown in Fig. 2 and Fig. 3 . A combined comparison for several policies is shown in Fig. 6 , where we note that RL has the smallest peak that still has smooth evolution. The policies with 5% and 10% lockdowns have lower peaks, but they also show a kink when the locked-down nodes and opened up prematurely, and a second wave of infections is generated.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 486,
+                    "end": 492,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                },
+                {
+                    "start": 654,
+                    "end": 660,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 729,
+                    "end": 735,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 740,
+                    "end": 746,
+                    "text": "Fig. 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 804,
+                    "end": 810,
+                    "text": "Fig. 6",
+                    "ref_id": "FIGREF3"
+                }
+            ],
+            "section": "C. Methodology in brief"
+        },
+        {
+            "text": "The RL algorithm uses the following input features to take the lockdown decision for each node once per week: 1) Population of own node, 2) Fraction infected (symptomatic) in own node, 3) Fraction infected (symptomatic) in overall population, 4) Fraction of population recovered in own node, 5) Fraction dead in own node, 6) Potential infectors from rest of population, 7) Fraction increase in symptomatic population in own node in the last few days, and 8) Fraction increase in symptomatic population overall in the last few days. We can ask interesting questions of this policy, as shown in Fig. 7 . In this figure, we plot the actions taken as a function of two features at a time. All the other features are averaged over their observed values.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 593,
+                    "end": 599,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "D. Analysis"
+        },
+        {
+            "text": "\u2022 In the first plot, we show the decisions as the fraction of symptomatic people increase within the same node (xaxis) and in the population overall (y-axis). Clearly, the policy is wary of increasing values in either direction. \u2022 The second plot shows the actions for the population of a given node (x-axis) and its symptomatic population (y-axis). We can see that larger nodes are locked down earlier, once infection starts spreading. \u2022 The third plot shows the actions for the fraction of symptomatic population in the node (x-axis) and the potentially infectious people arriving from other nodes (y-axis). If the potential for outside infection is higher, we see that the node is locked down as soon as infection starts spreading within the node.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "D. Analysis"
+        },
+        {
+            "text": "We now proceed to give a detailed description of the mathematical model, for those who wish to go deeper into the technical details.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "II. DETAILED DESCRIPTION"
+        },
+        {
+            "text": "This portion is not necessary when the network data is derived from real sources. However, the data input needs to include, (i) the (x, y) location of each node, (ii) the population of each node in the network, and (iii) optionally, the strength of connectivity between each pair of nodes in normal times. Note that the third input is optional because one can use gravitational models [3] to approximate these connections.",
+            "cite_spans": [
+                {
+                    "start": 385,
+                    "end": 388,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                }
+            ],
+            "ref_spans": [],
+            "section": "A. Generation of network and population structure"
+        },
+        {
+            "text": "In order to generate randomised data, we first define the number of nodes and the total population. The first step generates (x, y) locations for each node from a uniform distribution over a fixed range [0, 100]. The second step iteratively assigns a random number of people to each node, starting from small numbers (1 or 2). In successive iterations, the additional number of people attached to each node is proportional to the number of people already attached to that node. This process approximates the building up of large nodes (cities) with dense populations. We define the final population in node n as \u03c1 n . In the final step, we generate the strength of connectivity \u03ba n1,n2 between each pair of nodes. The strength is defined to be directly proportional to the product of the populations, and inversely proportional to the square root of distances between the nodes. This last portion deviates from traditional gravitational models. However, the square root ensures that large cities remain strongly connected (for example, Mumbai and Delhi) even though their distances may be large.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Generation of network and population structure"
+        },
+        {
+            "text": "We also need to model the circulation of people within nodes and to other nodes. The parameters of this process are listed in Table I . Instead of physically modelling the movement of individuals, we compute the number of external (other node) population exposed by,",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 126,
+                    "end": 133,
+                    "text": "Table I",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "A. Generation of network and population structure"
+        },
+        {
+            "text": "if node n1 is currently open. Note that \u03c1 * n2 is the number of people in n2 who are not showing symptoms; we assume that symptomatic people are not allowed to travel at any time. The number of people within n1 who come into contact with each other is \u03c8 open for those not showing symptoms, and \u03c8 quar,leak for those who are showing symptoms.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Generation of network and population structure"
+        },
+        {
+            "text": "If node n1 is locked, we assume that there is no exposure to external population. All new exposures are produced by the small proportion \u03c8 int,lock of people still circulating within the node.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "A. Generation of network and population structure"
+        },
+        {
+            "text": "The parameters of infectious diseases that we have captured in this model are listed in Table II . The stages of the disease that we consider are shown in Fig. 8 , based on prior literature [2] and known characteristics of Covid-19. What fraction of the population comes into contact within the node on a given day, when node is locked down \u03c8 quar,leak 0.1 Fraction of symptomatic population that breaks quarantine and is at large u n,d 0 or 1 Whether a node n is open= 1 or locked= 0 on day d \u03c1n \u03c1 \u2265 0 integer Population of node n (after subtracting any that are dead) \u03ba n1,n2 \u03ba n1,n2 > 0 Connectivity strength between nodes n1 and n2",
+            "cite_spans": [
+                {
+                    "start": 190,
+                    "end": 193,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 88,
+                    "end": 96,
+                    "text": "Table II",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 155,
+                    "end": 161,
+                    "text": "Fig. 8",
+                    "ref_id": null
+                }
+            ],
+            "section": "B. Defining and modelling disease parameters"
+        },
+        {
+            "text": "We assume that people exposed to the disease will eventually show symptoms with a probability P EI = 0.8. The other 20% of people will be asymptomatic carriers. All people in states E, I, and A are capable of transmission to others. People in the I state die with a probability P ID = 0.02, while the rest go the Recovered state R. We assume that asymptomatic carriers do not die, but go to R. The rate at which changes in state occur are inversely proportional to the stage durations as listed in Table II . For example, the probability of an E state person moving to I or A is equal to 1/D cub on any given day. The number of such transitions on a day is produced by the requisite number of draws (equal to the population in a node in that state) from a multinomial distribution, with the relevant probabilities ([1/D cub , 1 \u2212 1/D cub ] in the example given above). New exposures are produced by the circulation model as described previously.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 498,
+                    "end": 506,
+                    "text": "Table II",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "B. Defining and modelling disease parameters"
+        },
+        {
+            "text": "We use an RL algorithm known as Deep Q Network [4] to compute the optimal lockdown policies. At the beginning of each week, the model observes the relevant states for each node (described in Section I-D) and produces a binary decision: u n,d = 1 for open and u n,d = 0 for lockdown. This decision is derived from a fully connected neural network. We use a single network for computing the values of both actions, in each state. The input size is 8 (the number of features). There are 2 hidden layers with 12 and 8 neurons respectively, each with tanh activation. The output layer has 2 linear neurons, producing the long-term value estimates for either action. Once an action is computed for all nodes, the simulation rolls forward for 7 days (one day at a time) before calling the model for a new set of decisions.",
+            "cite_spans": [
+                {
+                    "start": 47,
+                    "end": 50,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "C. Reinforcement learning model"
+        },
+        {
+            "text": "Each simulation lasts for 52 weeks (364 days). However, the terminal rewards are computed as soon as the number of active infections in the whole network goes to 0 (only S, R, D people: no further state changes are possible after this point). The terminal reward for node n is given by,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Reinforcement learning model"
+        },
+        {
+            "text": "where c dead = 25 is the penalty multiplier for number of deaths, c inf = 10 is the penalty multiplier for number of infections, c lock = 10 is the penalty multiplier for number of days of lockdown, x n,dead is the final number of deaths in node n, x n,inf is the final number of infections in node n, and d n,lock is the number of days for which node n was locked down. The constants a = 2 and b = 0.001 are userdefined parameters. Note that the terminal reward for each node is independent of the performance of other nodes. This value is backpropagated up to the start of the episode using a discount factor of 0.99.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Reinforcement learning model"
+        },
+        {
+            "text": "In addition to the terminal rewards, we also define step rewards as given by,",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Reinforcement learning model"
+        },
+        {
+            "text": "where the \u2206 terms are changes in state over the past week, the last term penalises a lockdown, and the normalisation factor is the population of the node. The target reward for each step is the average of the discounted terminal reward and the step reward, and is applied to the value output for the chosen action (0 or 1). The predicted reward for the other action is left untouched. The loss is computed using mean squared error (mse). Since we use the full Monte-Carlo reward at the end of the episode, we do not need to set up a Bellman equation that factors in the next state value. Training is carried out after each simulation using stochastic gradient descent optimiser in keras with a learning rate of 0.001 and a momentum of 0.8, for 5 epochs. The collected memory is discarded after every simulation episode.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "C. Reinforcement learning model"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Reinforcement learning: An introduction",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sutton",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Barto",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "An agent-based approach for modeling dynamics of contagious disease spread",
+            "authors": [
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Perez",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Dragicevic",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "International journal of health geographics",
+            "volume": "8",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Evolution of a locationbased online social network: analysis and models",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Allamanis",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Scellato",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Mascolo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of the 2012 Internet Measurement Conference",
+            "volume": "",
+            "issn": "",
+            "pages": "145--158",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Human-level control through deep RL",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Mnih",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kavukcuoglu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Silver",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Rusu",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Veness",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Bellemare",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Graves",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Riedmiller",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Fidjeland",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Ostrovski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nature",
+            "volume": "518",
+            "issn": "7540",
+            "pages": "",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Network layout, with size of bubbles indicating population size. Black lines indicate strongest connections for each node, while blue lines indicate the next strongest set of connections. Note that each pair of nodes is potentially linked with each other.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Evolution of infection rates when the nodes are never locked down. The x-axis is in days, extending up to a year. Evolution of infection rates when each node is locked down when the fraction of symptomatic people in it exceeds 5%. The x-axis is in days, extending up to a year.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Evolution of infection rates when each node is locked down according to the final reinforcement learning policy. The x-axis is in days, extending up to a year.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Comparison of infection rates across several policies.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Policy outcomes as a function of two features at a time.",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "harshad.khadilkar@tcs.com, harshadk@iitb.ac.in, tanuja.ganu@microsoft.com, deva.seetharam@gmail.com",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "CIRCULATION AND CONTACT PARAMETERS.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF2": {
+            "text": "OF THE DISEASE.Fig. 8. Change in state for each person. S is susceptible, E is exposed (virus in the body but not yet affecting the immune system), I is infected (showing symptoms), A is asymptomatic carrier, D is dead, and R is recovered. Note that numbers are capture probabilities and not rates of change.",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}

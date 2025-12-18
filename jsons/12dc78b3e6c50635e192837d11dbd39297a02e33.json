@@ -1,0 +1,1699 @@
+{
+    "paper_id": "12dc78b3e6c50635e192837d11dbd39297a02e33",
+    "metadata": {
+        "title": "Teaching a New Dog Old Tricks: Resurrecting Multilingual Retrieval Using Zero-Shot Learning",
+        "authors": [
+            {
+                "first": "Sean",
+                "middle": [],
+                "last": "Macavaney",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "IR Lab",
+                    "institution": "Georgetown University",
+                    "location": {
+                        "postCode": "20057",
+                        "settlement": "Washington",
+                        "region": "DC",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Luca",
+                "middle": [],
+                "last": "Soldaini",
+                "suffix": "",
+                "affiliation": {},
+                "email": "lssoldai@amazon.com"
+            },
+            {
+                "first": "Nazli",
+                "middle": [],
+                "last": "Goharian",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "IR Lab",
+                    "institution": "Georgetown University",
+                    "location": {
+                        "postCode": "20057",
+                        "settlement": "Washington",
+                        "region": "DC",
+                        "country": "USA"
+                    }
+                },
+                "email": ""
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "While billions of non-English speaking users rely on search engines every day, the problem of ad-hoc information retrieval is rarely studied for non-English languages. This is primarily due to a lack of data set that are suitable to train ranking algorithms. In this paper, we tackle the lack of data by leveraging pre-trained multilingual language models to transfer a retrieval system trained on English collections to non-English queries and documents. Our model is evaluated in a zero-shot setting, meaning that we use them to predict relevance scores for querydocument pairs in languages never seen during training. Our results show that the proposed approach can significantly outperform unsupervised retrieval techniques for Arabic, Chinese Mandarin, and Spanish. We also show that augmenting the English training collection with some examples from the target language can sometimes improve performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Every day, billions of non-English speaking users [22] interact with search engines; however, commercial retrieval systems have been traditionally tailored to English queries, causing an information access divide between those who can and those who cannot speak this language [39] . Non-English search applications have been equally under-studied by most information retrieval researchers. Historically, ad-hoc retrieval systems have been primarily designed, trained, and evaluated on English corpora (e.g., [1, 5, 6, 23] ). More recently, a new wave of supervised state-of-the-art ranking models have been proposed by researchers [11, 14, 21, 24, 26, 35, 37] ; these models rely on neural architectures to rerank the head of search results retrieved using a traditional unsupervised ranking algorithm, such as BM25. Like previous ad-hoc ranking algorithms, these methods are almost exclusively trained and evaluated on English queries and documents.",
+            "cite_spans": [
+                {
+                    "start": 50,
+                    "end": 54,
+                    "text": "[22]",
+                    "ref_id": null
+                },
+                {
+                    "start": 276,
+                    "end": 280,
+                    "text": "[39]",
+                    "ref_id": "BIBREF37"
+                },
+                {
+                    "start": 508,
+                    "end": 511,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 512,
+                    "end": 514,
+                    "text": "5,",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 515,
+                    "end": 517,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 518,
+                    "end": 521,
+                    "text": "23]",
+                    "ref_id": "BIBREF21"
+                },
+                {
+                    "start": 631,
+                    "end": 635,
+                    "text": "[11,",
+                    "ref_id": null
+                },
+                {
+                    "start": 636,
+                    "end": 639,
+                    "text": "14,",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 640,
+                    "end": 643,
+                    "text": "21,",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 644,
+                    "end": 647,
+                    "text": "24,",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 648,
+                    "end": 651,
+                    "text": "26,",
+                    "ref_id": "BIBREF24"
+                },
+                {
+                    "start": 652,
+                    "end": 655,
+                    "text": "35,",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 656,
+                    "end": 659,
+                    "text": "37]",
+                    "ref_id": "BIBREF35"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "The absence of rankers designed to operate on languages other than English can largely be attributed to a lack of suitable publicly available data sets. This aspect particularly limits supervised ranking methods, as they require samples for training and validation. For English, previous research relied on English collections such as TREC Robust 2004 [32] , the 2009-2014 TREC Web Track [7] , and MS MARCO [2] . No datasets of similar size exist for other languages.",
+            "cite_spans": [
+                {
+                    "start": 352,
+                    "end": 356,
+                    "text": "[32]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 388,
+                    "end": 391,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 407,
+                    "end": 410,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "While most of recent approaches have focused on ad hoc retrieval for English, some researchers have studied the problem of cross-lingual information retrieval. Under this setting, document collections are typically in English, while queries get translated to several languages; sometimes, the opposite setup is used. Throughout the years, several cross lingual tracks were included as part of TREC. TREC 6, 7, 8 [4] offer queries in English, German, Dutch, Spanish, French, and Italian. For all three years, the document collection was kept in English. CLEF also hosted multiple cross-lingual ad-hoc retrieval tasks from 2000 to 2009 [3] . Early systems for these tasks leveraged dictionary and statistical translation approaches, as well as other indexing optimizations [27] . More recently, approaches that rely on cross-lingual semantic representations (such as multilingual word embeddings) have been explored. For example, Vuli\u0107 and Moens [34] proposed BWESG, an algorithm to learn word embeddings on aligned documents that can be used to calculate document-query similarity. Sasaki et al. [28] leveraged a data set of Wikipedia pages in 25 languages to train a learning to rank algorithm for Japanese-English and Swahili-English cross-language retrieval. Litschko et al. [20] proposed an unsupervised framework that relies on aligned word embeddings. Ultimately, while related, these approaches are only beneficial to users who can understand documents in two or more languages instead of directly tackling non-English document retrieval.",
+            "cite_spans": [
+                {
+                    "start": 399,
+                    "end": 406,
+                    "text": "TREC 6,",
+                    "ref_id": null
+                },
+                {
+                    "start": 407,
+                    "end": 409,
+                    "text": "7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 410,
+                    "end": 415,
+                    "text": "8 [4]",
+                    "ref_id": null
+                },
+                {
+                    "start": 634,
+                    "end": 637,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 771,
+                    "end": 775,
+                    "text": "[27]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 944,
+                    "end": 948,
+                    "text": "[34]",
+                    "ref_id": "BIBREF32"
+                },
+                {
+                    "start": 1095,
+                    "end": 1099,
+                    "text": "[28]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 1277,
+                    "end": 1281,
+                    "text": "[20]",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "A few monolingual ad-hoc data sets exist, but most are too small to train a supervised ranking method. For example, TREC produced several non-English test collections: Spanish [12] , Chinese Mandarin [31] , and Arabic [25] . Other languages were explored, but the document collections are no longer available. The CLEF initiative includes some non-English monolingual datasets, though these are primarily focused on European languages [3] . Recently, Zheng et al. [40] introduced Sogou-QCL, a large query log dataset in Mandarin. Such datasets are only available for languages that already have large, established search engines.",
+            "cite_spans": [
+                {
+                    "start": 176,
+                    "end": 180,
+                    "text": "[12]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 200,
+                    "end": 204,
+                    "text": "[31]",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 218,
+                    "end": 222,
+                    "text": "[25]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 435,
+                    "end": 438,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 464,
+                    "end": 468,
+                    "text": "[40]",
+                    "ref_id": "BIBREF38"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Inspired by the success of neural retrieval methods, this work focuses on studying the problem of monolingual ad-hoc retrieval on non English languages using supervised neural approaches. In particular, to circumvent the lack of training data, we leverage transfer learning techniques to train Arabic, Mandarin, and Spanish retrieval models using English training data. In the past few years, transfer learning between languages has been proven to be a remarkably effective approach for low-resource multilingual tasks (e.g. [16, 17, 29, 38] ). Our model leverages a pre-trained multi-language transformer model to obtain an encoding for queries and documents in different languages; at train time, this encoding is used to predict relevance of query document pairs in English. We evaluate our models in a zero-shot setting; that is, we use them to predict relevance scores for query document pairs in languages never seen during training. By leveraging a pre-trained multilingual language model, which can be easily trained from abundant aligned [19] or unaligned [8] web text, we achieve competitive retrieval performance without having to rely on language specific relevance judgements. During the peer review of this article, a preprint [30] was published with similar observations as ours. In summary, our contributions are:",
+            "cite_spans": [
+                {
+                    "start": 525,
+                    "end": 529,
+                    "text": "[16,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 530,
+                    "end": 533,
+                    "text": "17,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 534,
+                    "end": 537,
+                    "text": "29,",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 538,
+                    "end": 541,
+                    "text": "38]",
+                    "ref_id": "BIBREF36"
+                },
+                {
+                    "start": 1047,
+                    "end": 1051,
+                    "text": "[19]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1065,
+                    "end": 1068,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1241,
+                    "end": 1245,
+                    "text": "[30]",
+                    "ref_id": "BIBREF28"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We study zero shot transfer learning for IR in non-English languages.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "-We propose a simple yet effective technique that leverages contextualized word embedding as multilingual encoder for query and document terms. Our approach outperforms several baselines on multiple non-English collections. -We show that including additional in-language training samples may help further improve ranking performance. -We release our code for pre-processing, initial retrieval, training, and evaluation of non-English datasets. 1 We hope that this encourages others to consider cross-lingual modeling implications in future work.",
+            "cite_spans": [
+                {
+                    "start": 444,
+                    "end": 445,
+                    "text": "1",
+                    "ref_id": "BIBREF0"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Zero-Shot Multi-lingual Ranking. Because large-scale relevance judgments are largely absent in languages other than English, we propose a new setting to evaluate learning-to-rank approaches: zero-shot cross-lingual ranking. This setting makes use of relevance data from one language that has a considerable amount of training data (e.g., English) for model training and validation, and applies the trained model to a different language for testing. More formally, let S be a collection of relevance tuples in the source language, and T be a collection of relevance judgments from another language. Each relevance tuple q, d, r consists of a query, document, and relevance score, respectively. In typical evaluation environments, S is segmented into multiple splits for training (S train ) and testing (S test ), such that there is no overlap of queries between the two splits. A ranking algorithm is tuned on S train to define the ranking function R Strain (q, d) \u2208 R, which is subsequently tested on S test . We propose instead tuning a model on all data from the source language (i.e., training R S (\u00b7)), and testing on a collection from the second language (T ).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Methodology"
+        },
+        {
+            "text": "We evaluate on monolingual newswire datasets from three languages: Arabic, Mandarin, and Spanish. The Arabic document collection contains 384k documents (LDC2001T55), and we use topics/relevance information from the 2001-02 TREC Multilingual track (25 and 50 topics, respectively). For Mandarin, we use 130k news articles from LDC2000T52. Mandarin topics and relevance judgments are utilized from TREC 5 and 6 (26 and 28 topics, respectively). Finally, the Spanish collection contains 58k articles from LDC2000T51, and we use topics from TREC 3 and 4 (25 topics each). We use the topics, rather than the query descriptions, in all cases except TREC Spanish 4, in which only descriptions are provided. The topics more closely resemble real user queries than descriptions. 2 We test on these collections because they are the only document collections available from TREC at this time. 3 We index the text content of each document using a modified version of Anserini with support for the languages we investigate [36] . Specifically, we add Anserini support for Lucene's Arabic and Spanish light stemming and stop word list (via SpanishAnalyzer and ArabicAnalyzer). We treat each character in Mandarin text as a single token.",
+            "cite_spans": [
+                {
+                    "start": 771,
+                    "end": 772,
+                    "text": "2",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 883,
+                    "end": 884,
+                    "text": "3",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 1011,
+                    "end": 1015,
+                    "text": "[36]",
+                    "ref_id": "BIBREF34"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "Modeling. We explore the following ranking models:",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "-Unsupervised baselines. We use the Anserini [36] implementation of BM25, RM3 query expansion, and the Sequential Dependency Model (SDM) as unsupervised baselines. In the spirit of the zero-shot setting, we use the default parameters from Anserini (i.e., assuming no data of the target language). -PACRR [14] models n-gram relationships in the text using learned 2D convolutions and max pooling atop a query-document similarity matrix. -KNRM [35] uses learned Gaussian kernel pooling functions over the querydocument similarity matrix to rank documents. -Vanilla BERT [21] uses the BERT [10] transformer model, with a dense layer atop the classification token to compute a ranking score. To support multiple languages, we use the base-multilingual-cased pretrained weights. These weights were trained on Wikipedia text from 104 languages.",
+            "cite_spans": [
+                {
+                    "start": 45,
+                    "end": 49,
+                    "text": "[36]",
+                    "ref_id": "BIBREF34"
+                },
+                {
+                    "start": 304,
+                    "end": 308,
+                    "text": "[14]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 442,
+                    "end": 446,
+                    "text": "[35]",
+                    "ref_id": "BIBREF33"
+                },
+                {
+                    "start": 568,
+                    "end": 572,
+                    "text": "[21]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 587,
+                    "end": 591,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "We use the embedding layer output from base-multilingual-cased model for PACRR and KNRM. In pilot studies, we investigated using cross-lingual MUSE vectors [8] and the output representations from BERT, but found the BERT embeddings to be more effective.",
+            "cite_spans": [
+                {
+                    "start": 156,
+                    "end": 159,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "Experimental Setup. We train and validate models using TREC Robust 2004 collection [32] . TREC Robust 2004 contains 249 topics, 528k documents, and 311k relevance judgments in English (folds 1-4 from [15] for training, fold 5 for validation). Thus, the model is only exposed to English text in the training and validation stages (though the embedding and contextualized language models are trained on large amounts of unlabeled text in the languages). The validation dataset is used for parameter tuning and for the selection of the optimal training epoch (via nDCG@20). We train using pairwise softmax loss with Adam [18] .",
+            "cite_spans": [
+                {
+                    "start": 83,
+                    "end": 87,
+                    "text": "[32]",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 200,
+                    "end": 204,
+                    "text": "[15]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 618,
+                    "end": 622,
+                    "text": "[18]",
+                    "ref_id": "BIBREF16"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "We evaluate the performance of the trained models by re-ranking the top 100 documents retrieved with BM25. We report MAP, Precision@20, and nDCG@20 to gauge the overall performance of our approach, and the percentage of judged documents in the top 20 ranked documents (judged@20) to evaluate how suitable the datasets are to approaches that did not contribute to the original judgments. ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Datasets."
+        },
+        {
+            "text": "We present the ranking results in Table 1 . We first point out that there is considerable variability in the performance of the unsupervised baselines; in some cases, RM3 and SDM outperform BM25, whereas in other cases they underperform. Similarly, the PACRR and KNRM neural models also vary in effectiveness, though more frequently perform much worse than BM25. This makes sense because these models capture matching characteristics that are specific to English. For instance, n-gram patterns captured by PACRR for English do not necessarily transfer well to languages with different constituent order, such as Arabic (VSO instead of SVO). An interesting observation is that the Vanilla BERT model (which recall is only tuned on English text) generally outperforms a variety of approaches across three test languages. This is particularly remarkable because it is a single trained model that is effective across all three languages, without any difference in parameters. The exceptions are the Arabic 2001 dataset, in which it performs only comparably to BM25 and the MAP results for Spanish. For Spanish, RM3 is able to substantially improve recall (as evidenced by MAP), and since Vanilla BERT acts as a re-ranker atop BM25, it is unable to take advantage of this improved recall, despite significantly improving the precision-focused metrics. In all cases, Vanilla BERT exhibits judged@20 above 85%, indicating that these test collections are still valuable for evaluation. To test whether a small amount of in-language training data can further improve BERT ranking performance, we conduct an experiment that uses the other collection for each language as additional training data. The in-language samples are interleaved into the English training samples. Results for this fewshot setting are shown in Table 2 . We find that the added topics for Arabic 2001 (+50) and Spanish 4 (+25) significantly improve the performance. This results in a model significantly better than BM25 for Arabic 2001, which suggests that there may be substantial distributional differences in the English TREC 2004 training and Arabic 2001 test collections. We further back this up by training an \"oracle\" BERT model (training on the test data) for Arabic 2001, which yields a model substantially better (P@20 = 0.7340, nDCG@20 = 0.8093, MAP = 0.4250).",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 34,
+                    "end": 41,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                },
+                {
+                    "start": 1808,
+                    "end": 1815,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                }
+            ],
+            "section": "Results"
+        },
+        {
+            "text": "We introduced a zero-shot multilingual setting for evaluation of neural ranking methods. This is an important setting due to the lack of training data available in many languages. We found that contextualized languages models (namely, BERT) have a big upper-hand, and are generally more suitable for cross-lingual performance than prior models (which may rely more heavily on phenomena exclusive to English). We also found that additional in-language training data may improve the performance, though not necessarily. By releasing our code and models, we hope that cross-lingual evaluation will become more commonplace.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Conclusion"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Probabilistic models of information retrieval based on measuring the divergence from randomness",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Amati",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [
+                        "J"
+                    ],
+                    "last": "Van Rijsbergen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "ACM Trans. Inf. Syst. (TOIS)",
+            "volume": "20",
+            "issn": "4",
+            "pages": "357--389",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "MS MARCO: a human generated machine reading comprehension dataset",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bajaj",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1611.09268"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "CLEF 2003 -overview of results",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Braschler",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Peters",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Gonzalo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Braschler",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "",
+            "volume": "3237",
+            "issn": "",
+            "pages": "44--63",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-540-30222-3_5"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Cross-language information retrieval (CLIR) track overview",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Braschler",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Sch\u00e4uble",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Peters",
+                    "suffix": ""
+                }
+            ],
+            "year": 2000,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Learning to rank: from pairwise approach to listwise approach",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Cao",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Qin",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [
+                        "Y"
+                    ],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Tsai",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Li",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proceedings of the 24th International Conference on Machine Learning",
+            "volume": "",
+            "issn": "",
+            "pages": "129--136",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "A survey of automatic query expansion in information retrieval",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Carpineto",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Romano",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ACM Comput. Surv. (CSUR)",
+            "volume": "44",
+            "issn": "1",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "TREC 2014 web track overview",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Collins-Thompson",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Bennett",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Diaz",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Word translation without parallel data",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Conneau",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Lample",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Ranzato",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Denoyer",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "J\u00e9gou",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1710.04087"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "Deeper text understanding for IR with contextual neural language modeling",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "BERT: pre-training of deep bidirectional transformers for language understanding",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Devlin",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Chang",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Lee",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Toutanova",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Guo",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Q",
+                    "middle": [],
+                    "last": "Ai",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "1",
+            "issn": "",
+            "pages": "55--64",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Overview of the fourth text retrieval conference (TREC-4)",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Harman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "NIST Special Publication (SP",
+            "volume": "",
+            "issn": "",
+            "pages": "1--24",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Overview of the third text retrieval conference (TREC-3)",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Harman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1995,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "PACRR: a position-aware neural IR model for relevance matching",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Hui",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Berberich",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "De Melo",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1704.03940"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Parameters learned in the comparison of retrieval models using term dependencies",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Huston",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Google's multilingual neural machine translation system: enabling zero-shot translation",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Trans. Assoc. Comput. Linguis",
+            "volume": "5",
+            "issn": "",
+            "pages": "339--351",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Cross-lingual transfer learning for POS tagging without cross-lingual resources",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "K"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Kim",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Sarikaya",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Fosler-Lussier",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing",
+            "volume": "",
+            "issn": "",
+            "pages": "2832--2838",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Adam: a method for stochastic optimization",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Kingma",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Ba",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Cross-lingual language model pretraining",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Lample",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Conneau",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1901.07291"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Unsupervised cross-lingual information retrieval using monolingual data only",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Litschko",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Glava\u0161",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "P"
+                    ],
+                    "last": "Ponzetto",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Vuli\u0107",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "1253--1256",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "CEDR: contextualized embeddings for document ranking",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Macavaney",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Yates",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Cohan",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Goharian",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 42nd International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2019",
+            "volume": "",
+            "issn": "",
+            "pages": "1101--1104",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "A Markov random field model for term dependencies",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Metzler",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Proceedings of the 28th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval, SIGIR 2005",
+            "volume": "",
+            "issn": "",
+            "pages": "472--479",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "An introduction to neural information retrieval",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Craswell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Found. Trends R Inf. Retrieval",
+            "volume": "13",
+            "issn": "1",
+            "pages": "1--126",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "The TREC 2002 Arabic/English CLIR track",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Oard",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [
+                        "C"
+                    ],
+                    "last": "Gey",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Neural information retrieval: at the end of the early years",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Onal",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Inf. Retrieval J",
+            "volume": "21",
+            "issn": "2-3",
+            "pages": "111--182",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/s10791-017-9321-y"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "Multilingual Information Retrieval: From Research to Practice",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Peters",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Braschler",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Clough",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "DOI": [
+                    "10.1007/978-3-642-23008-0"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Cross-lingual learning-torank with shared representations",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sasaki",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Sun",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schamoni",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Duh",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Inui",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "2",
+            "issn": "",
+            "pages": "458--463",
+            "other_ids": {}
+        },
+        "BIBREF27": {
+            "ref_id": "b27",
+            "title": "Cross-lingual transfer learning for multilingual task oriented dialog",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Schuster",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gupta",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Shah",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Lewis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies",
+            "volume": "1",
+            "issn": "",
+            "pages": "3795--3805",
+            "other_ids": {}
+        },
+        "BIBREF28": {
+            "ref_id": "b28",
+            "title": "Cross-lingual relevance transfer for document retrieval",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Shi",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF29": {
+            "ref_id": "b29",
+            "title": "The sixth text retrieval conference (TREC-6)",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Voorhees",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Harman",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Wilkinson",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "The Text REtrieval Conference (TREC)",
+            "volume": "500",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF30": {
+            "ref_id": "b30",
+            "title": "Overview of the TREC 2005 robust retrieval track",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF31": {
+            "ref_id": "b31",
+            "title": "Overview of the fifth text retrieval conference (TREC-5)",
+            "authors": [
+                {
+                    "first": "E",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Voorhees",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Harman",
+                    "suffix": ""
+                }
+            ],
+            "year": 1996,
+            "venue": "In: TREC",
+            "volume": "97",
+            "issn": "",
+            "pages": "1--28",
+            "other_ids": {}
+        },
+        "BIBREF32": {
+            "ref_id": "b32",
+            "title": "Monolingual and cross-lingual information retrieval models based on (bilingual) word embeddings",
+            "authors": [
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Vuli\u0107",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [
+                        "F"
+                    ],
+                    "last": "Moens",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of the 38th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "363--372",
+            "other_ids": {}
+        },
+        "BIBREF33": {
+            "ref_id": "b33",
+            "title": "End-to-end neural ad-hoc ranking with kernel pooling",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Xiong",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Dai",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Callan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Power",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval",
+            "volume": "",
+            "issn": "",
+            "pages": "55--64",
+            "other_ids": {}
+        },
+        "BIBREF34": {
+            "ref_id": "b34",
+            "title": "Anserini: reproducible ranking baselines using Lucene",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Fang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "J. Data Inf. Qual",
+            "volume": "10",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF35": {
+            "ref_id": "b35",
+            "title": "Simple applications of BERT for ad hoc document retrieval",
+            "authors": [
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Lin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2019,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1903.10972"
+                ]
+            }
+        },
+        "BIBREF36": {
+            "ref_id": "b36",
+            "title": "Transfer learning for sequence tagging with hierarchical recurrent networks",
+            "authors": [
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Yang",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Salakhutdinov",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "W"
+                    ],
+                    "last": "Cohen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1703.06345"
+                ]
+            }
+        },
+        "BIBREF37": {
+            "ref_id": "b37",
+            "title": "The digital language divide",
+            "authors": [
+                {
+                    "first": "H",
+                    "middle": [],
+                    "last": "Young",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "",
+            "volume": "15",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF38": {
+            "ref_id": "b38",
+            "title": "The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Zheng",
+                    "suffix": ""
+                },
+                {
+                    "first": "Z",
+                    "middle": [],
+                    "last": "Fan",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Luo",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "1117--1120",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "TABREF0": {
+            "text": "Zero-shot multi-lingual results for various baseline and neural methods. Significant improvements and reductions in performance compared with BM25 are indicated with \u2191 and \u2193, respectively (paired t-test by query, p < 0.05).",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Zero-Shot (ZS) and Few-Shot (FS) comparison for Vanilla BERT (multilingual) on each dataset. Within each metric and dataset, the top result is listed in bold. Significant increases from using FS are indicated with \u2191 (paired t-test, p < 0.05).",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": [
+        {
+            "text": "This work was supported in part by ARCS Foundation.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Acknowledgements."
+        }
+    ]
+}
