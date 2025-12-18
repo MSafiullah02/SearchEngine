@@ -1,0 +1,1453 @@
+{
+    "paper_id": "PMC6009829",
+    "metadata": {
+        "title": "RosettaES: a sampling strategy enabling automated interpretation of difficult cryo-EM maps",
+        "authors": [
+            {
+                "first": "Brandon",
+                "middle": [],
+                "last": "Frenz",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Alexandra",
+                "middle": [
+                    "C"
+                ],
+                "last": "Walls",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Edward",
+                "middle": [
+                    "H"
+                ],
+                "last": "Egelman",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "David",
+                "middle": [],
+                "last": "Veesler",
+                "suffix": "",
+                "email": null,
+                "affiliation": {}
+            },
+            {
+                "first": "Frank",
+                "middle": [],
+                "last": "DiMaio",
+                "suffix": "",
+                "email": "dimaio@uw.edu",
+                "affiliation": {}
+            }
+        ]
+    },
+    "body_text": [
+        {
+            "text": "Accurate atomic models of macromolecular structures are invaluable for understanding the biochemical and cellular processes carried out by proteins. Recent advances in cryo-EM1,2 have led to a dramatic expansion in the number of structures that can be studied at high resolution. Though several reconstructions have been achieved at resolutions of 2.5 \u00c5 or better3, it is far more common to obtain resolutions between 3\u20135 \u00c5.",
+            "cite_spans": [
+                {
+                    "start": 175,
+                    "end": 176,
+                    "mention": "1",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 177,
+                    "end": 178,
+                    "mention": "2",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 363,
+                    "end": 364,
+                    "mention": "3",
+                    "ref_id": "BIBREF22"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "At resolutions worse than 3 \u00c5, model building is challenging and error prone. Semiautomated methods for atomic model building exist, but these methods are laborious and prone to user bias4,5 Automatic model building methods have been developed for X-ray crystallography and work well for cryo-EM data up to 3.0-\u00c5 resolution, but such methods have difficulty registering sequence to backbone at lower resolutions6,7,8,9. Methods combining homology modeling with rigid-body docking and flexible fitting have also been developed but are limited to cases where a relatively accurate starting model is available10,11,12,13. Cryo-EM-specific methods have been developed for structure determination but similarly have difficulty correctly identifying sequence14,15. We previously developed a fully automated de novo method16 that does not have these restrictions; however, its algorithm for model completion required >70% of the protein be placed correctly, which limited its applicability. Here, we describe an approach that overcomes this limitation.",
+            "cite_spans": [
+                {
+                    "start": 187,
+                    "end": 188,
+                    "mention": "4",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 189,
+                    "end": 190,
+                    "mention": "5",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 411,
+                    "end": 412,
+                    "mention": "6",
+                    "ref_id": "BIBREF27"
+                },
+                {
+                    "start": 413,
+                    "end": 414,
+                    "mention": "7",
+                    "ref_id": "BIBREF28"
+                },
+                {
+                    "start": 415,
+                    "end": 416,
+                    "mention": "8",
+                    "ref_id": "BIBREF29"
+                },
+                {
+                    "start": 417,
+                    "end": 418,
+                    "mention": "9",
+                    "ref_id": "BIBREF30"
+                },
+                {
+                    "start": 606,
+                    "end": 608,
+                    "mention": "10",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 609,
+                    "end": 611,
+                    "mention": "11",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 612,
+                    "end": 614,
+                    "mention": "12",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 615,
+                    "end": 617,
+                    "mention": "13",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 752,
+                    "end": 754,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 755,
+                    "end": 757,
+                    "mention": "15",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 815,
+                    "end": 817,
+                    "mention": "16",
+                    "ref_id": "BIBREF7"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "Our approach, RosettaES, further automates, improves upon, and expedites de novo model building using 3\u20135-\u00c5 resolution cryo-EM data. Our method uses fragment-based sampling to enumerate a 'pool' of possible protein conformations that both possess physically realistic geometry and are consistent with the experimental density data. We use several strategies for pruning this set of solutions during sampling, ensuring the size of this solution pool is reasonable even when building segments with dozens of residues.",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "The RosettaES algorithm uses a 'beam search', in which a fixed-size ensemble of partial structures is maintained throughout sampling (Supplementary Fig. 1; see Online Methods). The method aims to complete a partial model guided by EM density. Missing segments are built iteratively; starting from residues immediately N- or C-terminal to a missing segment, putative solutions are spawned that add one additional residue and sample the conformation of the most recently placed three residues guided by backbone segments from high-resolution structures with similar local sequence. This ensemble is then pruned of models that are: (i) energetically unfavorable, (ii) inconsistent with the data, or (iii) too similar to another solution in the ensemble. Following this pruning, if the ensemble exceeds a predefined maximum size, then models are clustered so that the pool size does not exceed this limit.",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "For protein structures missing multiple interacting segments, individual segments are sampled and combined in a Monte Carlo assembly algorithm identifying internally consistent combinations; if this fails additional rounds of search are performed in order to force increased diversity17. Finally, several features increase the stringency of ensemble selection: (i) an explicit penalty on atomic models tracing discontinuous density, (ii) agreement of a model to side-chain density, and (iii) identification of putative strand pairs when growing \u03b2 strands (Fig. 1).",
+            "cite_spans": [
+                {
+                    "start": 284,
+                    "end": 286,
+                    "mention": "17",
+                    "ref_id": "BIBREF8"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": [
+                {
+                    "start": 556,
+                    "end": 562,
+                    "mention": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "We benchmarked RosettaES on a set of nine proteins, each with missing segments of between 11 and 160 residues (Supplementary Table 1); we assumed the native structure of all other regions was known. We compared the performance of RosettaES to that of RosettaCM18 by reporting the high-accuracy version of the global distance test (GDT-HA)19\u2014a measure that roughly reports the fraction of residues correctly placed\u2014of each completed segment between the two approaches (Fig. 1a). RosettaES outperformed or matched RosettaCM across all residue ranges (Supplementary Table 1) and was able to generate and select accurate solutions up to 111 residues in length, including a 78-residue segment in FrhA (Fig. 1c). We also compared the performance of RosettaES with that of Buccaneer20, which accurately assigned (placed correct sequence within 2.0 \u00c5) 16% of the total residues in the benchmark, while RosettaES accurately assigned 76% (Supplementary Table 2). We also find that the diversity of the final solutions serves as a good metric for assessing the accuracy of the solution set (Supplementary Fig. 2).",
+            "cite_spans": [
+                {
+                    "start": 260,
+                    "end": 262,
+                    "mention": "18",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 338,
+                    "end": 340,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 775,
+                    "end": 777,
+                    "mention": "20",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": [
+                {
+                    "start": 468,
+                    "end": 475,
+                    "mention": "Fig. 1a",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 697,
+                    "end": 704,
+                    "mention": "Fig. 1c",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "RosettaES rebuilds multiple interacting segments by independently sampling and combining, iterating the process as necessary until a set of nonclashing solutions is found. Resulting nonclashing models are then refined and ranked using Rosetta. Using the benchmark set described above, we ran the full assembly process\u2014in this case not assuming other segments were known a priori\u2014with models ranging from 20\u201380% complete. In four cases (FrhA, FrhB, FrhG, and TMV), the final backbone r.m.s. deviation (C\u03b1 atoms only) was \u2a7d2 \u00c5 from the deposited model; in one case (TRPV1), RosettaES produced a nonclashing atomic model about 3.6 \u00c5 from the deposited model. In the remaining cases (BPP1, VP6, STIV, and T20S), which all contained large \u03b2 sheets, RosettaES produced a solution matching the deposited model for most (but not all) missing segments (Supplementary Table 3).",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "We also had previously applied RosettaES in determining the structures of three very challenging proteins. The first included domains C and D of the mouse hepatitis virus (MHV) spike protein at 4.0-\u00c5 resolution21. The MHV spike protein is a homotrimer comprising \u223c1,300 residues per protomer, the bulk of which was solved using homology modeling and de novo fragment docking. However, only 30 of the 180 residues comprising domains C and D could be assigned using de novo fragment docking. Starting from this 30-residue fragment, we completed an atomic structure using RosettaES and tracing in parallel. The top-scoring RosettaES models were visually selected and refined22,23,24. RosettaES was carried out in multiple steps; the 154-residue C terminus of domain D was poorly converged when run to completion, so it was instead broken into two separate runs of 125 and 29 residues, where the best model after refinement of the first run served as a seed for the second. Comparing this model with a manually traced model revealed significant topological differences between the two. The RosettaES model displays several key features that suggest it is correct: three disulfide bonds accounted for by the density and the observation of extra density corresponding to a glycosylated asparagine residue. The recent determination of the orthologous HCoV-NL63 (ref. 25) and HKU1 (ref. 26) spikes confirm our model (Fig. 2a\u2013f; PDB 3jcl).",
+            "cite_spans": [
+                {
+                    "start": 210,
+                    "end": 212,
+                    "mention": "21",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 671,
+                    "end": 673,
+                    "mention": "22",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 674,
+                    "end": 676,
+                    "mention": "23",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 677,
+                    "end": 679,
+                    "mention": "24",
+                    "ref_id": "BIBREF16"
+                },
+                {
+                    "start": 1360,
+                    "end": 1362,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 1379,
+                    "end": 1381,
+                    "mention": "26",
+                    "ref_id": "BIBREF18"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": [
+                {
+                    "start": 1409,
+                    "end": 1418,
+                    "mention": "Fig. 2a\u2013f",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "The HCoV-NL63 spike protein has a similar architecture to that of the MHV spike25. In this 3.4-\u00c5-resolution map it was possible to resolve residues in the C termini of the HCoV-NL63 spike protomers that are invisible in the reconstruction of MHV and difficult to place manually. RosettaES assigned residues 1,197 to 1,224; and it explained the density better than a hand-traced model (data not shown). The accuracy of the atomic model we obtained is supported by several of its key features, including the position of two asparagines with corresponding glycan density and good agreement of several hydrophobic residues into density (Fig. 2g\u2013j).",
+            "cite_spans": [
+                {
+                    "start": 79,
+                    "end": 81,
+                    "mention": "25",
+                    "ref_id": "BIBREF17"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": [
+                {
+                    "start": 633,
+                    "end": 642,
+                    "mention": "Fig. 2g\u2013j",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "A cryo-EM reconstruction of the flexible filamentous bamboo mosaic virus27 was consistent with a crystal structure of the homologous papaya mosaic virus but featured additional density corresponding to the termini (Fig. 2k,l); modeling with RosettaCM proved difficult, as this segment lacked regular secondary structure. RosettaES determined a well-converged ensemble of models consistent with the 5.6-\u00c5 resolution density (Fig. 2m). As additional support for our assignment, a recent structure of the homologous pepino mosiac virus shows similar architecture for the terminus28.",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 74,
+                    "mention": "27",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 576,
+                    "end": 578,
+                    "mention": "28",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "section": "Main",
+            "ref_spans": [
+                {
+                    "start": 215,
+                    "end": 224,
+                    "mention": "Fig. 2k,l",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 424,
+                    "end": 431,
+                    "mention": "Fig. 2m",
+                    "ref_id": "FIGREF1"
+                }
+            ]
+        },
+        {
+            "text": "RosettaES should expand the range of atomic models that can be determined to include long unidentified segments, extended protein loops, and \u03b2 sheets. RosettaES outperforms other approaches; it can reliably generate atomic models on unassigned segments up to 50 residues and can occasionally generate accurate models over 100 residues in length.",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "The improved efficiency of RosettaES results from the use of experimental data to incrementally guide sampling. Its high performance stems from the use of short three-residue fragments that can completely cover tripeptide conformational space (Supplementary Fig. 3; see Online Methods). Because a subset of fragments exists to generate an atomic model similar to the one deposited for any target in our benchmark, we can say with certainty that any failure to find an accurate atomic model occurs because the cap on the number of partial solutions is set too low. In some cases, a modest increase in cap size improves accuracy dramatically (Supplementary Fig. 4). Computational time scales linearly with this cap; a typical run for a 30-residue segment is 1.5 h on a 16-core machine (Supplementary Fig. 5).",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "There are several ways in which these failures due to insufficient exploration may be detected. When a segment is solved in the context of the rest of the protein, the convergence of the final solutions provides a good indication of the accuracy of the final model (Supplementary Fig. 2). Additionally, when multiple segments are assigned, the lack of convergence to a nonclashing conformation suggests that greater sampling is needed. RosettaES should be a useful tool for automated model building in near-atomic-resolution cryo-EM maps; its potential is here exemplified by its successful use in the determination of three novel protein structures.",
+            "cite_spans": [],
+            "section": "Main",
+            "ref_spans": []
+        },
+        {
+            "text": "Sampling is guided by protein fragments, generated using Rosetta's fragment picker29, which finds high-resolution structures with similar local sequences. For benchmarking, all homologous proteins (psiblast E-value < 0.05) were excluded from the search. We have found that the best performance results from the use of 100 three-residue fragments and 20 nine-residue fragments at each position; the three residue fragments accurately recapitulate the diversity of these regions, while the nine residue fragments help in modeling the n to n + 4 hydrogen bond patterns in alpha helices. In each iteration a new residue is added to the expanding model, and an N-residue fragment manipulates the new residue and the (N \u2013 1) residues preceding it.",
+            "cite_spans": [
+                {
+                    "start": 82,
+                    "end": 84,
+                    "mention": "29",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "section": "Conformational sampling. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "After each fragment insertion, all residues added by RosettaES (and up to 15 residues on the 'stem') are first minimized using a low-resolution 'centroid' representation that models side chains with a single interaction center. The ensemble is then culled to at most twice the size limit of the ensemble (2 \u00d7 M); each of the structures in the ensemble is then converted to an all-atom representation and subjected to two rounds of side-chain minimization and repacking. Since the structures we evaluate are incomplete, we use a modified centroid energy that only includes terms for the Ramachandran and omega angles, van der Waals energies, short- and long-range hydrogen bonds, and fit to density. Following all-atom refinement of the best 2 \u00d7 M centroid structures, only the fit-to-density score from the all-atom model is used, in combination with the energetic terms from the centroid model; the best M structures are then selected from this pool.",
+            "cite_spans": [],
+            "section": "Conformational sampling. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "For internal polypeptide segments, when fewer than ten residues remain to be placed, distance constraints are used to penalize conformations that cannot be closed. These constraints make sure that the backbone N and C termini are within 32 \u00c5 when they are ten residues apart; they decrease by 3 \u00c5 as the gap closes by one. They are also used in minimization, where a harmonic penalty is applied beyond this maximum allowed distance. The final minimization (with no gap) uses a very tight 0.5-\u00c5 penalty.",
+            "cite_spans": [],
+            "section": "Conformational sampling. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "A key component of the approach is the filtering step, where all sampled structures are culled to at most M structures, with M being the user-defined cap on ensemble size at each step. The first step in filtering is removing conformations that are inconsistent with the data; this is done by removing all conformations that do not score at least 85% as well (using Rosetta energy plus fit-to-density energy) as the best solution of the beam. If this results in an ensemble pool that is still larger than the cap, then these solutions are then filtered in two passes; first, 'nearly redundant' conformations (pairs where every residue has <1.2-\u00c5 r.m.s. deviation) are merged, keeping the lowest energy structure; next, all remaining structures are clustered with a 3-\u00c5 radius, with structures chosen from each cluster round robin. In this last step, models are chosen by energy, but two structures can be chosen from a single cluster until every cluster has one representative taken. Clustering in this way ensures that reasonable diversity is maintained throughout sampling.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "In addition to the scoring terms described above, we have modified the score function in three ways, which helps to improve accuracy by penalizing incorrect conformations, effectively increasing the size of the ensemble pool. These terms are described below.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Continuous density penalty. The density energy calculated in Rosetta is based on the correlation between the density expected from the model and the experimental density. However, we found that, with the conformational sampling of RosettaES, solutions which jumped between distinct backbone paths in the density were not properly penalized. Therefore, we came up with a penalty scheme that attempted to more strongly penalize paths that traveled through density discontinuities.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The 'fast density' scoring function in Rosetta30 computes the density score as the sum of per-atom scores\u2014which are quickly computed by convoluting one atom's density with the experimental map\u2014and interpolating the resulting map to calculate scores. The normal density score Ed = \u03a3iei is computed as the sum scores for all atoms. We can also compute a 'local discontinuity' score that considers the worst scoring atom k in a stretch from residues N \u2013 8 to N + 8; a modified score Ed* computes the score for each atom as \u03a3iek + 0.3(ei \u2013 ek); that is, we only take 30% of the score above the worst scoring atom in the local region. Finally, we use the ratio of Ed* to Ed to scale the (correlation-based) density score used by Rosetta.",
+            "cite_spans": [
+                {
+                    "start": 46,
+                    "end": 48,
+                    "mention": "30",
+                    "ref_id": "BIBREF23"
+                }
+            ],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "\u03b2-sheet sampling. In order to form a proper \u03b2 sheet correct hydrogen bond patterning must exist between complementary strands. When building a strand in a partial model in which the adjacent strand(s) is (are) missing, properly orienting hydrogen bond donors and acceptors is challenging. To handle this, we consider explicitly modeling adjacent strands during sampling. When in a \u03b2 region of Ramachandran space, we consider an idealized four-residue complementary \u03b2 strand on both sides of the four most recently placed residues. Strands are aligned in an antiparallel orientation with perfect hydrogen bond geometry. Grown strands that clash with any other atom in the model are removed, and any remaining strands are refined with the growing segment. Following refinement, if strands poorly match density (if any atom scores lower than 0.7ek, with ek defined in the previous subsection), they are removed. Remaining strands are added to the energy of the respective partial model (the full Rosetta energy), and 50% of the density energy is added.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Side-chain density. Refinement is primarily carried out in Rosetta's low-resolution 'centroid' mode, largely for reasons of speed, as all-atom refinement is slower, and the landscape is much more rugged, requiring significantly more optimization. However, a key disadvantage of this approach is that side-chain density\u2014which is limited but present at these modest resolutions\u2014is ignored. Thus, we have developed a strategy to use low-resolution modeling augmented with all-atom fit to density.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Following low-resolution refinement, the ensemble is filtered to contain twice the number of structures allowed by the cap. These structures are then converted to all atom, and side-chain rotamers are discretely optimized and then minimized. The density score of the all-atom model is then used to replace the density score of the low-resolution model. To penalize side chain density discontinuities, we use a strategy similar to that used for penalizing backbone density discontinuities: all atoms receive a score equal to the lesser of (i) the per-atom score or (ii) the score of the worst atom of C\u03b2 or C\u03b3 plus 30% of the difference between this and the per-atom score. This avoids giving a bonus to, for example, arginines placing their side chains in regions of unassigned backbone.",
+            "cite_spans": [],
+            "section": "Filtering the pool of structures. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "When multiple missing segments are present in the atomic model (Fig. 1a), we subdivide the problem into two steps. First, for each segment (independently), we find the ensemble of plausible paths. Then, we find all sets of per-segment solutions that are consistent with each other. To do so, we have implemented a Monte Carlo search algorithm, referred to as Monte Carlo Assembly (MCA), which takes the results from each segment and attempts to find a nonclashing set. The energy of an assignment is the sum of individual density scores, scaled by segment size, plus all pairwise van der Waals (vdw) scores:",
+            "cite_spans": [],
+            "section": "Multiloop assembly. ::: Methods",
+            "ref_spans": [
+                {
+                    "start": 64,
+                    "end": 71,
+                    "mention": "Fig. 1a",
+                    "ref_id": "FIGREF0"
+                }
+            ]
+        },
+        {
+            "text": "For all experiments, we use wvdw = 1.0. All pairwise scores are precomputed, and the Monte Carlo simulation is carried out for 1,500 steps; with kT initially at 200 and halving every 250 steps. Each 'move' in the simulation replaces a single segment with another in the ensemble. 100 trajectories of MCA are performed, with a composite model being created for each, and the best scoring is selected. If the sum of vdw energies of this solution is greater than 100, then additional rounds of sampling are carried out.",
+            "cite_spans": [],
+            "section": "Multiloop assembly. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Tabu sampling. When building multiple loops, if no nonclashing solutions are found, we carry out additional sampling. However, this sampling is aware of the previous rounds' sampling and tries to explore additional regions of conformational space. For these subsequent rounds, this sampling is used in the ensemble filtering stage; when we select round robin from the 3-\u00c5 clusters, we limit only 10% of the cluster cap to clusters that were generated in previous rounds\u2014all other structures are sampled from clusters that did not have a representative in previous rounds. Following this additional round of sampling, these new solutions are added to the previous pool, and assembly is attempted again.",
+            "cite_spans": [],
+            "section": "Multiloop assembly. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The convergence of the final ensemble provides a good indication of whether an accurate solution has been sampled, with lower diversity suggesting that a correct solution has been found (Supplementary Fig. 2). To determine ensemble diversity for each new residue, the center of mass across the ensemble's C\u03b1 positions is calculated; and then the r.m.s. deviation between the actual C\u03b1 positions and their respective centers of mass are calculated for all models in the ensemble.",
+            "cite_spans": [],
+            "section": "Ensemble diversity. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "One key parameter of model building is the cap on ensemble size, which allows a tradeoff between run time and completeness of conformational sampling. For all experiments in the manuscript, a cap of 32 was considered. In addition, in one case where a cap of 32 failed to find a solution (a 65-residue segment in FrhG), we showed the performance as a function of increasing the cap size incrementally from 32 up to 320. The results are shown in Supplementary Figure 4. In this case, which RosettaES failed to sample accurately with a cap of 32 (r.m.s. deviation \u2248 3 \u00c5), an increased ensemble size cap helps significantly: when the cap was set to 288 or greater, a model with r.m.s. deviation of 0.9 \u00c5 was sampled.",
+            "cite_spans": [],
+            "section": "Ensemble size cap and run time. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The typical run time for a missing segment of \u223c30 residues with the ensemble size capped at 32, and parallelized to 16 cores, is roughly 1.5 h. Supplemental Figure 5 shows that run time scales linearly with increasing beam size. Run times are reported for a single round of model building.",
+            "cite_spans": [],
+            "section": "Ensemble size cap and run time. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "To test how our method performed on maps of varying sharpness, we took the unsharpened map for the hCoV-NL63 and ran RosettaES on increasing levels of B-factor sharpening using Rosetta's ScaleMapIntensities mover. The high-resolution cutoff was set to 3.4, and the low resolution was set arbitrarily high; fade_width was set to 0.2. Backbone and C\u03b2 r.m.s. deviation was calculated in comparison to the deposited model. As shown in Supplementary Figure 6, while RosettaES performance was dampened at extreme values, performance was largely consistent over a wide range of sharpening values.",
+            "cite_spans": [],
+            "section": "Map sharpening. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "We used a previously generated benchmark set of nine proteins, for which 3\u20135-\u00c5 cryo-EM data and a deposited model were available14. The round 1 models of the Rosetta de novo density application were used as inputs for all benchmarking except for comparison to alternate methods where the target segment was extracted from the deposited model in order to create a fair comparison. For the bamboo mosaic virus, the initial model was a homology model built from the Papaya Mosaic Virus. For the Mouse Hepatitis Virus (MHV), the starting model was a fragment docked by the Rosetta de novo density application. For HCoV-NL63, the initial model was a homology model built from MHV.",
+            "cite_spans": [
+                {
+                    "start": 128,
+                    "end": 130,
+                    "mention": "14",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "section": "Data sets used. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The high-accuracy version of the global distance test19 was used to compare models. This test assigned a score to each atom pair based on their distance with the following criteria:",
+            "cite_spans": [
+                {
+                    "start": 53,
+                    "end": 55,
+                    "mention": "19",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": " distance < 0.5 \u00c5; 4",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": " distance < 1.0 \u00c5; 3",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": " distance < 2.0 \u00c5; 2",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": " distance < 4.0 \u00c5; 1",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": " distance > 4.0 \u00c5; 0",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The final score is equal to the sum of the atom pair scores divided by 4N, where N is the number of atom pairs.",
+            "cite_spans": [],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Figures were generated using UCSF Chimera31.",
+            "cite_spans": [
+                {
+                    "start": 41,
+                    "end": 43,
+                    "mention": "31",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "section": "Statistics. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "This protocol and source code are freely available for academic use in weekly releases, after week 17 2017, of the Rosetta software suite found at https://www.rosettacommons.org/. Instructions for using RosettaES can be found in the Supplementary Protocol.",
+            "cite_spans": [],
+            "section": "Code availability. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "The accession codes used are as follows: mouse hepatitis virus at 4 \u00c5 (EMDB 6526; PDB 3jcl), human coronavirus NL63 at 3.4 \u00c5 (EMDB 8331; PDB 5szs), and bamboo mosaic virus at 5.6 \u00c5 (EMDB 3020; PDB 5a2t).",
+            "cite_spans": [],
+            "section": "Data availability statement. ::: Methods",
+            "ref_spans": []
+        },
+        {
+            "text": "Publisher's note: Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.",
+            "cite_spans": [],
+            "section": "Additional information",
+            "ref_spans": []
+        }
+    ],
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Figure 1: (a) A comparison of RosettaES to RosettaCM reporting GDT-HA over the backbone + C\u03b2 atoms on a benchmark set of single missing segments extracted from the deposited model. Length of the segment is colored such that longer segments appear a darker red. The x- and y-axes correspond to the GDT-HA of the model compared with the deposited structures under two conditions. The closer the GDT-HA is to 1, the more similar the structures. Values above the solid line indicate a more accurate solution with RosettaES than RosettaCM. (b) The GDT-HAs over the backbone + C\u03b2 atoms of all the atomic models in the benchmark set as features (discontinuous penalty, two-tier filtering, side-chain density, and sheet sampling) are added. (c) The deposited structure of FrhA (PDB 4ci0) shown in the cryo-EM density map, with the starting model in blue and the removed region in red. Residues 187\u2013265 (highlighted in red) were removed in the benchmark. (d) The top-scoring solution generated by RosettaCM, shown in yellow. (e) The top-scoring solution generated by RosettaES, shown in green. (f) Minimal backbone trace of the deposited model (in red) compared with the one produced by RosettaES (green). The two have a 1.9-\u00c5 backbone and C\u03b2 r.m.s. deviation.",
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Figure 2: (a\u2013f) Building domains C and D of the MHV coronavirus spike with RosettaES. (a) A 30-residue segment of MHV domain C was placed by Rosetta de novo fragment docking14. (b) The model completed by RosettaES (green) and a hand-traced model (red). (c) The RosettaES-generated model shown in the cryo-EM density map. Large aromatic residues are shown as sticks. (d) A tube of density shown at the putatively glycosylated ASN 657 side chain. (e) Correct positioning of cysteines to form three unique disulfide bonds. (f) A recently determined structure of HKU1 spike protein (magenta, PDB 5i08) matches the topology obtained by RosettaCM (green; cysteines are highlighted in red). (g) Density for the C-terminal tail of HCoV-NL63. Docked in red is the partial model of HCoV-NL63 built using our structure of MHV as a template. (h) The final structure, after completion with RosettaES, attachment of glycans (shown in blue), and refinement. (i) Placement of Asp 1201 and Asp 1218 (green) and glycans (blue) in the density map. (j) Placement of tyrosine 1227 in the density map. (k) A symmetric homology model of the papaya mosaic virus (PDB 4DOX) docked into the reconstruction of the bamboo mosaic virus. The C termini in the core are missing from the model. (l) A close-up view of the asymmetric unit with the homologous structure shown in red. (m) The top-scoring models produced by RosettaES, shown in green, placed into the density map.",
+            "type": "figure"
+        }
+    },
+    "back_matter": [],
+    "bib_entries": {
+        "BIBREF0": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "McMullan",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Henderson",
+                    "suffix": ""
+                },
+                {
+                    "first": "AR",
+                    "middle": [],
+                    "last": "Faruqi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Ultramicroscopy",
+            "volume": "109",
+            "issn": "",
+            "pages": "1126-1143",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.ultramic.2009.04.002"
+                ]
+            }
+        },
+        "BIBREF1": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "LG",
+                    "middle": [],
+                    "last": "Trabuco",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Villa",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mitra",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Schulten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Structure",
+            "volume": "16",
+            "issn": "",
+            "pages": "673-683",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2008.03.005"
+                ]
+            }
+        },
+        "BIBREF2": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Orzechowski",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Tama",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Biophys. J.",
+            "volume": "95",
+            "issn": "",
+            "pages": "5692-5705",
+            "other_ids": {
+                "DOI": [
+                    "10.1529/biophysj.108.139451"
+                ]
+            }
+        },
+        "BIBREF3": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "GF",
+                    "middle": [],
+                    "last": "Schr\u00f6der",
+                    "suffix": ""
+                },
+                {
+                    "first": "AT",
+                    "middle": [],
+                    "last": "Brunger",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Levitt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Structure",
+            "volume": "15",
+            "issn": "",
+            "pages": "1630-1641",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2007.09.021"
+                ]
+            }
+        },
+        "BIBREF4": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "\u0160ali",
+                    "suffix": ""
+                },
+                {
+                    "first": "TL",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                }
+            ],
+            "year": 1993,
+            "venue": "J. Mol. Biol.",
+            "volume": "234",
+            "issn": "",
+            "pages": "779-815",
+            "other_ids": {
+                "DOI": [
+                    "10.1006/jmbi.1993.1626"
+                ]
+            }
+        },
+        "BIBREF5": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Chen",
+                    "suffix": ""
+                },
+                {
+                    "first": "PR",
+                    "middle": [],
+                    "last": "Baldwin",
+                    "suffix": ""
+                },
+                {
+                    "first": "SJ",
+                    "middle": [],
+                    "last": "Ludtke",
+                    "suffix": ""
+                },
+                {
+                    "first": "ML",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "J. Struct. Biol.",
+            "volume": "196",
+            "issn": "",
+            "pages": "289-298",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.jsb.2016.06.004"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Lindert",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Structure",
+            "volume": "20",
+            "issn": "",
+            "pages": "464-478",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2012.01.023"
+                ]
+            }
+        },
+        "BIBREF7": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "RY-R",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nat. Methods",
+            "volume": "12",
+            "issn": "",
+            "pages": "335-338",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nmeth.3287"
+                ]
+            }
+        },
+        "BIBREF8": {
+            "title": "",
+            "authors": [],
+            "year": null,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": []
+            }
+        },
+        "BIBREF9": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Song",
+                    "suffix": ""
+                }
+            ],
+            "year": 2013,
+            "venue": "Structure",
+            "volume": "21",
+            "issn": "",
+            "pages": "1735-1742",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2013.08.005"
+                ]
+            }
+        },
+        "BIBREF10": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Kopp",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Bordoli",
+                    "suffix": ""
+                },
+                {
+                    "first": "JND",
+                    "middle": [],
+                    "last": "Battey",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Kiefer",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Schwede",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Proteins",
+            "volume": "69",
+            "issn": "",
+            "pages": "38-56",
+            "other_ids": {
+                "DOI": [
+                    "10.1002/prot.21753"
+                ]
+            }
+        },
+        "BIBREF11": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "MG",
+                    "middle": [],
+                    "last": "Campbell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Structure",
+            "volume": "20",
+            "issn": "",
+            "pages": "1823-1828",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2012.08.026"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cowtan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2006,
+            "venue": "Acta Crystallogr. D Biol. Crystallogr.",
+            "volume": "62",
+            "issn": "",
+            "pages": "1002-1011",
+            "other_ids": {
+                "DOI": [
+                    "10.1107/S0907444906022116"
+                ]
+            }
+        },
+        "BIBREF13": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "AC",
+                    "middle": [],
+                    "last": "Walls",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nature",
+            "volume": "531",
+            "issn": "",
+            "pages": "114-117",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nature16988"
+                ]
+            }
+        },
+        "BIBREF14": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "CM",
+                    "middle": [],
+                    "last": "Coleman",
+                    "suffix": ""
+                },
+                {
+                    "first": "MB",
+                    "middle": [],
+                    "last": "Frieman",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "J. Virol.",
+            "volume": "88",
+            "issn": "",
+            "pages": "5209-5212",
+            "other_ids": {
+                "DOI": [
+                    "10.1128/JVI.03488-13"
+                ]
+            }
+        },
+        "BIBREF15": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Forgie",
+                    "suffix": ""
+                },
+                {
+                    "first": "TJ",
+                    "middle": [],
+                    "last": "Marrie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Semin. Respir. Crit. Care Med.",
+            "volume": "30",
+            "issn": "",
+            "pages": "67-85",
+            "other_ids": {
+                "DOI": [
+                    "10.1055/s-0028-1119811"
+                ]
+            }
+        },
+        "BIBREF16": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "DiMaio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nat. Methods",
+            "volume": "12",
+            "issn": "",
+            "pages": "361-365",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nmeth.3286"
+                ]
+            }
+        },
+        "BIBREF17": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "AC",
+                    "middle": [],
+                    "last": "Walls",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nat. Struct. Mol. Biol.",
+            "volume": "23",
+            "issn": "",
+            "pages": "899-905",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nsmb.3293"
+                ]
+            }
+        },
+        "BIBREF18": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "RN",
+                    "middle": [],
+                    "last": "Kirchdoerfer",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Nature",
+            "volume": "531",
+            "issn": "",
+            "pages": "118-121",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nature17200"
+                ]
+            }
+        },
+        "BIBREF19": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "DiMaio",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Nat. Struct. Mol. Biol.",
+            "volume": "22",
+            "issn": "",
+            "pages": "642-644",
+            "other_ids": {
+                "DOI": [
+                    "10.1038/nsmb.3054"
+                ]
+            }
+        },
+        "BIBREF20": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Agirrezabala",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "eLife",
+            "volume": "4",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": [
+                    "10.7554/eLife.11795"
+                ]
+            }
+        },
+        "BIBREF21": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Gront",
+                    "suffix": ""
+                },
+                {
+                    "first": "DW",
+                    "middle": [],
+                    "last": "Kulp",
+                    "suffix": ""
+                },
+                {
+                    "first": "RM",
+                    "middle": [],
+                    "last": "Vernon",
+                    "suffix": ""
+                },
+                {
+                    "first": "CEM",
+                    "middle": [],
+                    "last": "Strauss",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "PLoS One",
+            "volume": "6",
+            "issn": "",
+            "pages": null,
+            "other_ids": {
+                "DOI": [
+                    "10.1371/journal.pone.0023294"
+                ]
+            }
+        },
+        "BIBREF22": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Merk",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Cell",
+            "volume": "165",
+            "issn": "",
+            "pages": "1698-1707",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.cell.2016.05.040"
+                ]
+            }
+        },
+        "BIBREF23": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "DiMaio",
+                    "suffix": ""
+                },
+                {
+                    "first": "MD",
+                    "middle": [],
+                    "last": "Tyka",
+                    "suffix": ""
+                },
+                {
+                    "first": "ML",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Chiu",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "J. Mol. Biol.",
+            "volume": "392",
+            "issn": "",
+            "pages": "181-190",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.jmb.2009.07.008"
+                ]
+            }
+        },
+        "BIBREF24": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "TD",
+                    "middle": [],
+                    "last": "Goddard",
+                    "suffix": ""
+                },
+                {
+                    "first": "CC",
+                    "middle": [],
+                    "last": "Huang",
+                    "suffix": ""
+                },
+                {
+                    "first": "TE",
+                    "middle": [],
+                    "last": "Ferrin",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "J. Struct. Biol.",
+            "volume": "157",
+            "issn": "",
+            "pages": "281-287",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.jsb.2006.06.010"
+                ]
+            }
+        },
+        "BIBREF25": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "ML",
+                    "middle": [],
+                    "last": "Baker",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "J. Struct. Biol.",
+            "volume": "174",
+            "issn": "",
+            "pages": "360-373",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.jsb.2011.01.015"
+                ]
+            }
+        },
+        "BIBREF26": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Emsley",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Cowtan",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "Acta Crystallogr. D Biol. Crystallogr.",
+            "volume": "60",
+            "issn": "",
+            "pages": "2126-2132",
+            "other_ids": {
+                "DOI": [
+                    "10.1107/S0907444904019158"
+                ]
+            }
+        },
+        "BIBREF27": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "TA",
+                    "middle": [],
+                    "last": "Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "JY",
+                    "middle": [],
+                    "last": "Zou",
+                    "suffix": ""
+                },
+                {
+                    "first": "SW",
+                    "middle": [],
+                    "last": "Cowan",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Kjeldgaard",
+                    "suffix": ""
+                }
+            ],
+            "year": 1991,
+            "venue": "Acta Crystallogr. A",
+            "volume": "47",
+            "issn": "",
+            "pages": "110-119",
+            "other_ids": {
+                "DOI": [
+                    "10.1107/S0108767390010224"
+                ]
+            }
+        },
+        "BIBREF28": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "TC",
+                    "middle": [],
+                    "last": "Terwilliger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2003,
+            "venue": "Acta Crystallogr. D Biol. Crystallogr.",
+            "volume": "59",
+            "issn": "",
+            "pages": "38-44",
+            "other_ids": {
+                "DOI": [
+                    "10.1107/S0907444902018036"
+                ]
+            }
+        },
+        "BIBREF29": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "MA",
+                    "middle": [],
+                    "last": "DePristo",
+                    "suffix": ""
+                },
+                {
+                    "first": "PIW",
+                    "middle": [],
+                    "last": "de Bakker",
+                    "suffix": ""
+                },
+                {
+                    "first": "RJK",
+                    "middle": [],
+                    "last": "Johnson",
+                    "suffix": ""
+                },
+                {
+                    "first": "TL",
+                    "middle": [],
+                    "last": "Blundell",
+                    "suffix": ""
+                }
+            ],
+            "year": 2005,
+            "venue": "Structure",
+            "volume": "13",
+            "issn": "",
+            "pages": "1311-1319",
+            "other_ids": {
+                "DOI": [
+                    "10.1016/j.str.2005.06.008"
+                ]
+            }
+        },
+        "BIBREF30": {
+            "title": "",
+            "authors": [
+                {
+                    "first": "TC",
+                    "middle": [],
+                    "last": "Terwilliger",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Acta Crystallogr. D Biol. Crystallogr.",
+            "volume": "64",
+            "issn": "",
+            "pages": "61-69",
+            "other_ids": {
+                "DOI": [
+                    "10.1107/S090744490705024X"
+                ]
+            }
+        }
+    }
+}
