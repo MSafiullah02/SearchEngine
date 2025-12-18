@@ -9,6 +9,11 @@ const searchQuery = document.getElementById("searchQuery")
 const themeToggle = document.getElementById("themeToggle")
 const pagination = document.getElementById("pagination")
 const autocompleteDropdown = document.getElementById("autocompleteDropdown")
+const uploadButton = document.getElementById("uploadButton")
+const fileInput = document.getElementById("fileInput")
+const uploadModal = document.getElementById("uploadModal")
+const closeModal = document.getElementById("closeModal")
+const uploadStatus = document.getElementById("uploadStatus")
 
 // Load saved theme preference
 const savedTheme = localStorage.getItem("theme")
@@ -20,6 +25,109 @@ themeToggle.addEventListener("click", () => {
   document.body.classList.toggle("dark-mode")
   const isDark = document.body.classList.contains("dark-mode")
   localStorage.setItem("theme", isDark ? "dark" : "light")
+})
+
+uploadButton.addEventListener("click", () => {
+  fileInput.click()
+})
+
+fileInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0]
+
+  if (!file) return
+
+  // Validate file type
+  if (!file.name.endsWith(".json")) {
+    alert("Please select a valid JSON file")
+    fileInput.value = ""
+    return
+  }
+
+  // Show modal with processing status
+  uploadModal.style.display = "flex"
+  uploadStatus.className = "upload-status processing"
+  uploadStatus.innerHTML = `
+    <div class="spinner"></div>
+    <p>Processing document...</p>
+  `
+
+  try {
+    // Read file content
+    const content = await file.text()
+
+    // Validate JSON format
+    let jsonData
+    try {
+      jsonData = JSON.parse(content)
+    } catch (error) {
+      throw new Error("Invalid JSON file format")
+    }
+
+    // Upload to server
+    const response = await fetch("http://localhost:5000/api/upload-document", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        filename: file.name,
+        data: jsonData,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      throw new Error(errorData?.error || "Upload failed")
+    }
+
+    const result = await response.json()
+
+    // Show success message
+    uploadStatus.className = "upload-status success"
+    uploadStatus.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      <p><strong>Document uploaded successfully!</strong></p>
+      <p style="font-size: 0.9rem; color: #666;">Paper ID: ${escapeHtml(result.paper_id)}</p>
+      <p style="font-size: 0.9rem; color: #666;">Added ${result.terms_added} terms to index</p>
+    `
+
+    // Clear file input
+    fileInput.value = ""
+
+    // Auto-close modal after 3 seconds
+    setTimeout(() => {
+      uploadModal.style.display = "none"
+    }, 3000)
+  } catch (error) {
+    console.error("[v0] Upload error:", error)
+
+    // Show error message
+    uploadStatus.className = "upload-status error"
+    uploadStatus.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+      <p><strong>Upload failed</strong></p>
+      <p style="font-size: 0.9rem;">${escapeHtml(error.message)}</p>
+    `
+
+    // Clear file input
+    fileInput.value = ""
+  }
+})
+
+closeModal.addEventListener("click", () => {
+  uploadModal.style.display = "none"
+})
+
+uploadModal.addEventListener("click", (e) => {
+  if (e.target === uploadModal) {
+    uploadModal.style.display = "none"
+  }
 })
 
 let allResults = []
@@ -415,4 +523,3 @@ function escapeHtml(text) {
   div.textContent = text
   return div.innerHTML
 }
-
