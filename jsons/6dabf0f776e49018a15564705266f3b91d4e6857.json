@@ -1,0 +1,952 @@
+{
+    "paper_id": "6dabf0f776e49018a15564705266f3b91d4e6857",
+    "metadata": {
+        "title": "Simplified Parsing Expression Derivatives",
+        "authors": [
+            {
+                "first": "Aaron",
+                "middle": [],
+                "last": "Moss",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "University of Portland",
+                    "location": {
+                        "settlement": "Portland",
+                        "country": "USA"
+                    }
+                },
+                "email": "mossa@up.edu"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "This paper presents a new derivative parsing algorithm for parsing expression grammars; this new algorithm is both simpler and faster than the existing parsing expression derivative algorithm presented by Moss [12]. This new algorithm improves on the worst-case space and runtime bounds of the previous algorithm by a linear factor, as well as decreasing runtime by about half in practice.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "A derivative parsing algorithm for parsing expression grammars (PEGs) was first published by Moss [12] ; this paper presents a simplified and improved algorithm, as well as a practical comparison of the two algorithms both to each other and to other PEG parsing methods. This new algorithm preserves or improves the performance bounds of the earlier algorithm, trimming a linear factor off the worst-case time and space bounds, while preserving the linear time and constant space bounds for the class of \"well-behaved\" inputs defined in [12] .",
+            "cite_spans": [
+                {
+                    "start": 98,
+                    "end": 102,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 537,
+                    "end": 541,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Parsing expression grammars are a language formalism similar in power to the more familiar context-free grammars (CFGs). PEGs are a formalization of recursive-descent parsing with limited backtracking and infinite lookahead; Fig. 1 provides definitions of the fundamental parsing expressions. a is a character literal, matching and consuming a single character of input; \u03b5 is the empty expression which always matches without consuming any input, while \u2205 is the failure expression, which never matches. A is a nonterminal, which is replaced by its corresponding parsing expression R(A) to provide recursive structure in the formalism. The negative lookahead expression !\u03b1 provides much of the unique power of PEGs, matching only if its subexpression \u03b1 does not match, but consuming no input 1 . The sequence expression \u03b1\u03b2 matches \u03b1 followed by \u03b2, while the alternation expression \u03b1/\u03b2 matches either \u03b1 or \u03b2. Unlike the unordered choice in CFGs, if its first alternative \u03b1 matches, an alternation expression never backtracks to attempt its second alternative \u03b2; this ordered choice is responsible for the unambiguous nature of PEG parsing. Parsing expressions are functions that recognize prefixes of strings, producing either the un-consumed suffix of a match, or fail on failure. The language L(\u03d5) of a parsing expression \u03d5 over strings from an alphabet \u03a3 is the set of strings matched by \u03d5; precisely, L(\u03d5) = {s \u2208 \u03a3 * : \u2203s \u2208 \u03a3 * , \u03d5(s) = s }. This paper uses the notation for the empty string (distinct from the empty expression \u03b5) and s[i] for the suffix s i s i+1 \u00b7 \u00b7 \u00b7 s n\u22121 of some string s = s 0 s 1 \u00b7 \u00b7 \u00b7 s n\u22121 .",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 225,
+                    "end": 231,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Parsing Expression Grammars"
+        },
+        {
+            "text": "A number of recognition algorithms for parsing expression grammars have been presented in the literature, though none have combined efficient runtime performance with good worst-case bounds. Ford [4] introduced both the PEG formalism and two recognition algorithms: recursive descent (a direct translation of the functions in Fig. 1 ) and packrat (memoized recursive descent). The recursive descent algorithm has exponential worst-case runtime, though it behaves well in practice (as shown in Sect. 6); packrat improves the runtime bound to linear, but at the cost of best-case linear space usage. Ford [5] also showed that there exist PEGs to recognize non-context-free languages (e.g. a n b n c n ), and conjectured that some context-free languages exist for which there is no PEG. Mizushima et al. [11] have demonstrated the use of manually-inserted \"cut operators\" to trim memory usage of packrat parsing to a constant, while maintaining the asymptotic worst-case bounds; Kuramitsu [8] and Redziejowski [14] have built modified packrat parsers that use heuristic table-trimming mechanisms to achieve similar real-world performance without manual grammar modifications, but which sacrifice the polynomial worst-case runtime. Medeiros and Ierusalimschy [9] have developed a parsing machine for PEGs, similar in concept to a recursive descent parser, but somewhat faster in practice. Henglein and Rasmussen [7] have proved linear worst-case time and space bounds for their progressive tabular parsing algorithm, with some evidence of constant space usage in practice for a simple JSON grammar, but their work lacks empirical comparisons to other algorithms.",
+            "cite_spans": [
+                {
+                    "start": 196,
+                    "end": 199,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 603,
+                    "end": 606,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 801,
+                    "end": 805,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 986,
+                    "end": 989,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 1007,
+                    "end": 1011,
+                    "text": "[14]",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 1255,
+                    "end": 1258,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 1408,
+                    "end": 1411,
+                    "text": "[7]",
+                    "ref_id": "BIBREF6"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 326,
+                    "end": 332,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Related Work"
+        },
+        {
+            "text": "Moss [12] and Garnock-Jones et al. [6] have developed derivative parsing algorithms for PEGs. This paper extends the work of Moss, improving the theoretical quartic time and cubic space bounds by a linear factor each, and halving runtime in practice. Garnock-Jones et al. do not include empirical performance results for their work, but their approach elegantly avoids defining new parsing expressions through use of a nullability combinator to represent lookahead followers as later alternatives of an alternation expression.",
+            "cite_spans": [
+                {
+                    "start": 5,
+                    "end": 9,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 35,
+                    "end": 38,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work"
+        },
+        {
+            "text": "Though the backtracking capabilities of PEGs are responsible for much of their expressive power and ease-of-use, backtracking is also responsible for the worstcase resource bounds of existing algorithms. Recursive-descent parsing uses exponential time in the worst case to perform backtracking search, while packrat parsing trades this worst-case time for high best-case space usage. Derivative parsing presents a different trade-off, with low common-case memory usage paired with a polynomial time bound. A derivative parsing approach pursues all backtracking options concurrently, eliminating the repeated backtracking over the same input characteristic of worst-case recursive-descent, but also discarding bookkeeping information for infeasible options, saving space relative to packrat.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Derivative Parsing"
+        },
+        {
+            "text": "The essential idea of derivative parsing, first introduced by Brzozowski [3] , is to iteratively transform an expression into an expression for the \"rest\" of the input. For example, given \u03b3 = foo/bar /baz , d b (\u03b3) = ar /az , the suffixes that can follow b in L(\u03b3). After one derivative, the first character of the input has been consumed, and the grammar mutated to account for this missing character. Once repeated derivatives have been taken for every character in the input string, the resulting expression can be checked to determine whether or not it represents a match, e.g. d z \u2022d a \u2022d b (\u03b3) = \u03b5, a matching result. Existing work shows how to compute the derivatives of regular expressions [3] , context-free grammars [10] , and parsing expression grammars [6, 12] . This paper presents a simplified algorithm for parsing expression derivatives, as well as a formal proof of the correctness of this algorithm, an aspect lacking from the earlier presentations.",
+            "cite_spans": [
+                {
+                    "start": 73,
+                    "end": 76,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 698,
+                    "end": 701,
+                    "text": "[3]",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 726,
+                    "end": 730,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 765,
+                    "end": 768,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 769,
+                    "end": 772,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Derivative Parsing"
+        },
+        {
+            "text": "The difficulty in designing a derivative parsing algorithm for PEGs is simulating backtracking when the input must be consumed at each step, with no ability to re-process earlier input characters. Consider !(ab)a; ab and a must be parsed concurrently, and an initial match of a must be reversed if ab later matches. Alternations introduce further complications; consider (!(ab)/a!c)a: the final a must be parsed concurrently with !(ab), but also \"held back\" until after the a in a!c has been matched. To track the connections among such backtracking choices, Moss [12] used a system of \"backtracking generations\" to label possible backtracking options for each expression, as well as a complex mapping algorithm to translate the backtracking generations of parsing expressions to the corresponding generations of their parent expressions. The key observation of the simplified algorithm presented here is that an index into the input string is sufficient to label backtracking choices consistently across all parsing expressions.",
+            "cite_spans": [
+                {
+                    "start": 564,
+                    "end": 568,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Derivative Parsing"
+        },
+        {
+            "text": "Typically [3, 10, 12] , the derivative d c (\u03d5) is a function from an expression \u03d5 and a character c \u2208 \u03a3 to a derivative expression. Formally, L (d c (\u03d5)) = {s \u2208 \u03a3 * : c s \u2208 L(\u03d5)}. This paper defines a derivative d c,i (\u03d5), adding an index i for the current location in the input. This added index is used as a label to connect backtracking decisions across derivative subexpressions by annotation of certain parsing expressions. A sequence expression \u03b1\u03b2 must track possible indices where \u03b1 may have stopped consuming characters and \u03b2 began to be parsed; to this end, \u03b1\u03b2 is annotated with a list of lookahead followers [\u03b2 i1 \u00b7 \u00b7 \u00b7 \u03b2 i k ], where \u03b2 ij is the repeated derivative of \u03b2 starting at each index i j where \u03b1 may have stopped consuming characters. To introduce this backtracking, \u03b5 and !\u03b1, neither of which consume any characters, become \u03b5 j , a match at index j, and ! j \u03b1, a lookahead expression at index j. These annotated expressions are formally defined in Fig. 2 ; note that they produce either a string or fail under the same conditions as their equivalents in Fig. 1 . Considered in isolation these extensions appear to introduce a dependency on the string s into the expression definition (given that s[k] is a suffix of s[j]), but within the context of the derivative parsing algorithm any \u03b5 j or ! j must be in the \u03b1 subexpression of a sequence expression \u03b1\u03b2[\u03b2 i1 \u00b7 \u00b7 \u00b7 \u03b2 i k ] and paired with a corresponding \u03b2 j lookahead follower such that \u03b2(s[j]) = \u03b2 j (s[k]), eliminating the dependency. Figure 3 defines a normalization function \u2022 i to annotate parsing expressions with their indices; derivative parsing of \u03d5 starts by taking \u03d5 0 . Expressions that are known to always match their input provide opportunities for short-circuiting a derivative computation. For instance, if \u03bd is an expression that is known to match, \u03bd/\u03b2 never tries the \u03b2 alternative, while !\u03bd always fails, allowing these expressions to be replaced by the simpler \u03bd and \u2205, respectively. A similar optimization opportunity arises when expressions that have stopped consuming input are later invalidated; the augmented sequence expression \u03b1\u03b2[\u03b2 i1 \u00b7 \u00b7 \u00b7 \u03b2 i k ] keeps an ongoing derivative \u03b2 j of \u03b2 for each start position j that may be needed, so discarding unreachable \u03b2 j is essential for performance. Might et al. [10] dub this optimization \"compaction\" and demonstrate its importance to derivative performance; this work includes compaction in the derivative step based on functions back and match defined in Fig. 4 over normalized parsing expressions. By these definitions, based on [12] , back(\u03d5) is the set of indices where \u03d5 may have stopped consuming input, while match(\u03d5) is the set of indices where \u03d5 matched. Note that |match(\u03d5)| \u2264 1 and the definition of match(\u03b1/\u03b2) depends on the invariant that the \u03b2 alternative is discarded if \u03b1 matches.",
+            "cite_spans": [
+                {
+                    "start": 10,
+                    "end": 13,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 14,
+                    "end": 17,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 18,
+                    "end": 21,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 2307,
+                    "end": 2311,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 2578,
+                    "end": 2582,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 970,
+                    "end": 976,
+                    "text": "Fig. 2",
+                    "ref_id": null
+                },
+                {
+                    "start": 1076,
+                    "end": 1082,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 1512,
+                    "end": 1520,
+                    "text": "Figure 3",
+                    "ref_id": "FIGREF1"
+                },
+                {
+                    "start": 2503,
+                    "end": 2509,
+                    "text": "Fig. 4",
+                    "ref_id": null
+                }
+            ],
+            "section": "Derivative Parsing"
+        },
+        {
+            "text": "a i = a \u03b5 i = \u03b5i \u2205 i = \u2205 !\u03b1 i = !i \u03b1 i A i = R(A) i \u03b1\u03b2 i = \u03b1 i \u03b2[\u03b2i = \u03b2 i ] \u2208 L(\u03b1) \u03b1 i \u03b2[] otherwise \u03b1/\u03b2 i = \u03b1 i / \u03b2 iback(a) = {} back(\u03b5i) = {i} back(\u2205) = {} back(!i\u03b1) = {i} back(\u03b1\u03b2[\u03b2i 1 \u00b7 \u00b7 \u00b7 \u03b2i k ]) = \u222a j\u2208[i 1 \u00b7\u00b7\u00b7i k ] back(\u03b2j) back(\u03b1/\u03b2) = back(\u03b1) \u222a back(\u03b2) match(a) = {} match(\u03b5i) = {i} match(\u2205) = {} match(!i\u03b1) = {} match(\u03b1\u03b2[\u03b2i 1 \u00b7 \u00b7 \u00b7 \u03b2i k ]) = \u222a j\u2208match(\u03b1) match(\u03b2j) match(\u03b1/\u03b2) = match(\u03b2)",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 2. Formal definitions of added parsing expressions"
+        },
+        {
+            "text": "With these preliminaries established, the derivative is defined in Fig. 5 . The derivative consumes character literals, while preserving \u03b5 j matches and \u2205 failures. To a first approximation, the derivative distributes through lookahead and alternation, though match and failure results trigger expression simplification. The bulk of the work done by the algorithm is in the sequence expression \u03b1\u03b2 derivative. At a high level, the sequence derivative takes the derivative of \u03b1, then updates the appropriate derivatives of \u03b2, selecting one if \u03b1 matches. Any index j in back(d c,i (\u03b1)) where \u03b1 may have stopped consuming input needs to be paired with a corresponding backtrack follower \u03b2 j ; introducing a new follower \u03b2 i involves a normalization operation. Testing for a match at end-of-input is traditionally [3, 6, 10] handled in derivative parsing with a nullability combinator \u03b4 which reduces the grammar to \u03b5 or \u2205; this work uses the derivative with respect to an end-of-input character # / \u2208 \u03a3 to implement this combinator. As such, if \u03b1 matches at end-of-input, d n,# ( \u03b2 n ) must also be evaluated. As in previous work [10, 12] , \u2022 i , d c,i , back, and match are all memoized for performance.",
+            "cite_spans": [
+                {
+                    "start": 809,
+                    "end": 812,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 813,
+                    "end": 815,
+                    "text": "6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 816,
+                    "end": 819,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1126,
+                    "end": 1130,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1131,
+                    "end": 1134,
+                    "text": "12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 67,
+                    "end": 73,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF2"
+                }
+            ],
+            "section": "Fig. 4. Definitions of back and match"
+        },
+        {
+            "text": "The derivative with respect to a character can be extended to the derivative with respect to a string s = s 1 s 2 \u00b7 \u00b7 \u00b7 s n by repeated application: d s,i (\u03d5) = d sn,i+n \u2022 d sn\u22121,i+n\u22121 \u2022 \u00b7 \u00b7 \u00b7 \u2022 d s1,i+1 (\u03d5). After augmentation with an initial normalization step and final end-of-input derivative, the overall derivative parsing ",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Fig. 4. Definitions of back and match"
+        },
+        {
+            "text": "There is insufficient space in this paper to include a formal proof of the correctness of the presented algorithm. The author has produced such a proof, however; the general approach is outlined here. The proof makes extensive use of structural induction, thus it must also show that such induction terminates when applied to recursively-expanded nonterminals. If evaluation of a parsing expression involves a left-recursive call to a nonterminal, this evaluation never terminates; as such, left-recursive grammars are generally excluded from consideration. Ford [5, \u00a7 3.6] introduced the notion that a parsing expression is well-formed if it does not occur anywhere in its own recursive left-expansion or have any subexpression that does; Fig. 7 formalizes the immediate left-expansion LE and the recursive left-expansion LE + consistently with Ford's definition. The normalization step presented in this paper expands nonterminals left-recursively, eliminating recursive structure from the parsing expressions considered by the derivative algorithm; this expansion is safe for well-formed grammars. To prove the equivalence of derivative parsing with recursive descent, it must be shown that normalization does not change the semantics of a parsing expression, that the derivative step performs the expected transformation of the language of an expression, and that the end-of-input derivative correctly implements the behavior of an expression on the empty string. In each of these cases, the proof proceeds by treating the relevant parsing expressions as functions over their input and proving that they produce equivalent results.",
+            "cite_spans": [
+                {
+                    "start": 563,
+                    "end": 573,
+                    "text": "[5, \u00a7 3.6]",
+                    "ref_id": null
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 740,
+                    "end": 746,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Correctness"
+        },
+        {
+            "text": "Proof of correctness of the derivative step depends on a number of invariant properties of the normalized parsing expressions (e.g. there is a lookahead follower \u03b2 j in \u03b1\u03b2[\u03b2 i1 \u00b7 \u00b7 \u00b7 \u03b2 i k ] for every \u03b5 j that may arise from derivatives of \u03b1); these properties must be shown to be established by the \u2022 i function and maintained by d c,i . Other lemmas needed to support the proof describe the dynamic behavior of the derivative algorithm (e.g. match(\u03d5) implies that the derivative of \u03d5 eventually becomes a \u03b5 j success result).",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Correctness"
+        },
+        {
+            "text": "Without appealing to a formal proof of correctness, it should be noted that the experimental results in Sect. 6 demonstrate successful matching of a large number of strings, and thus a low (possibly zero) false-negative rate for the derivative algorithm; further automated correctness tests are available with the source distribution [13] .",
+            "cite_spans": [
+                {
+                    "start": 334,
+                    "end": 338,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Correctness"
+        },
+        {
+            "text": "In [12] , Moss demonstrated the polynomial worst-case space and time of his algorithm with an argument based on bounds on the depth and fanout of the DAG formed by his derivative expressions. These bounds, cubic space and quartic time, were improved to constant space and linear time for a broad class of \"wellbehaved\" inputs with constant-bounded backtracking and depth of recursive invocation. This paper includes a similar analysis of the algorithm presented here, improving the worst-case bounds of the previous algorithm by a linear factor, to quadratic space and cubic time, while maintaining the optimal constant space and linear time bounds for the same class of \"well-behaved\" inputs.",
+            "cite_spans": [
+                {
+                    "start": 3,
+                    "end": 7,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Analysis"
+        },
+        {
+            "text": "For an input string of length n, the algorithm runs O(n) derivative steps; the cost of each derivative step d c,i (\u03d5) is the sum of the cost of the derivative algorithm in Fig. 5 on each expression node in the recursive left-expansion LE + of \u03d5. Since by convention the size of the grammar is a constant, all operations on any expression \u03b3 from the original grammar (particularly \u03b3 i ) run in constant time and space. It can be observed from the derivative step and index equations in Figs. 5 and 4 that once the appropriate subexpression derivatives have been calculated, the cost of a derivative step on a single expression node \u03b4 is proportional to the size of the immediate left-expansion of \u03b4, LE (\u03b4). Let b be the maximum |LE (\u03b4)| over all \u03b4 \u2208 LE + (\u03d5); by examination of Fig. 7 , |LE (\u03b4)| is bounded by the number of backtracking followers \u03b2 ij in the annotated sequence expression. Since no more than one backtracking follower may be added per derivative step, b \u2208 O(n). Assuming \u2022 i is memoized for each i, only a constant number of expression nodes may be added to the expression at each derivative step, therefore |LE + (\u03d5)| \u2208 O(n). By this argument, the derivative parsing algorithm presented here runs in O(n 2 ) worst-case space and O(n 3 ) worst-case time, improving the previous space and time bounds for derivative parsing of PEGs by a linear factor each. This linear improvement over the algorithm presented in [12] is due to the new algorithm only storing O(b) backtracking information in sequence nodes, rather than O(b 2 ) as in the previous algorithm.",
+            "cite_spans": [
+                {
+                    "start": 1429,
+                    "end": 1433,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 172,
+                    "end": 178,
+                    "text": "Fig. 5",
+                    "ref_id": "FIGREF2"
+                },
+                {
+                    "start": 778,
+                    "end": 784,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Analysis"
+        },
+        {
+            "text": "In practical use, the linear time and constant space results presented in [12] for inputs with constant-bounded backtracking and grammar nesting (a class that includes most source code and structured data) also hold for this algorithm. If b is bounded by a constant rather than its linear worst-case, the bounds discussed above are reduced to linear space and quadratic time. Since b is a bound on the size of LE (\u03d5), it can be seen from Fig. 7 that this is really a bound on sequence expression backtracking choices, which existing work including [12] has shown is often bounded by a constant in practical use.",
+            "cite_spans": [
+                {
+                    "start": 74,
+                    "end": 78,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 548,
+                    "end": 552,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 438,
+                    "end": 444,
+                    "text": "Fig. 7",
+                    "ref_id": "FIGREF4"
+                }
+            ],
+            "section": "Analysis"
+        },
+        {
+            "text": "Given that the bound on b limits the fanout of the derivative expression DAG, a constant bound on the depth of that DAG implies that the overall size of the DAG is similarly constant-bounded. Intuitively, the bound on the depth of the DAG is a bound on recursive invocations of a nonterminal by itself, applying a sort of \"tail-call optimization\" for right-recursive invocations such as R \u03b1 * := \u03b1 R \u03b1 * / \u03b5. The conjunction of both of these bounds defines the class of \"well-behaved\" PEG inputs introduced by Moss in [12] , and by the constant bound on derivative DAG size this algorithm also runs in constant space and linear time on such inputs.",
+            "cite_spans": [
+                {
+                    "start": 518,
+                    "end": 522,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Analysis"
+        },
+        {
+            "text": "In addition to being easier to implement than the previous derivative parsing algorithm, the new parsing expression derivative also has superior performance.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "To test this performance, the simplified parsing expression derivative (SPED) algorithm was compared against the parser-combinator-based recursive descent (Rec.) and packrat (Pack.) parsers used in [12] , as well as the parsing expression derivative (PED) implementation from that paper. The same set of XML, JSON, and Java inputs and grammars used in [12] are used here; the inputs originally come from [11] . Code and test data are available online [13] . All tests were compiled with g++ 6.2.0 and run on a Windows system with 8 GB of RAM, a 2.6 GHz processor, and SSD main storage. Figure 8 shows the runtime of all four algorithms on all three data sets, plotted against the input size; Fig. 9 shows the memory usage of the same runs, also plotted against the input size, but on a log-log scale. Contrary to its poor worst-case asymptotic performance, the recursive descent algorithm is actually best in practice, running most quickly on all tests, and using the least memory on all but the largest inputs (where the derivative parsing algorithms' ability to not buffer input gives them an edge). Packrat parsing is consistently slower than recursive descent, while using two orders of magnitude more memory. The two derivative parsing algorithms have significantly slower runtime, but memory usage closer to recursive descent than packrat.",
+            "cite_spans": [
+                {
+                    "start": 198,
+                    "end": 202,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 352,
+                    "end": 356,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 404,
+                    "end": 408,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                },
+                {
+                    "start": 451,
+                    "end": 455,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 586,
+                    "end": 594,
+                    "text": "Figure 8",
+                    "ref_id": "FIGREF6"
+                },
+                {
+                    "start": 692,
+                    "end": 698,
+                    "text": "Fig. 9",
+                    "ref_id": "FIGREF7"
+                }
+            ],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Though on these well-behaved inputs all four algorithms run in linear time and space (constant space for the derivative parsing algorithms), the constant factor differs by both algorithm and grammar complexity. The XML and JSON grammars are of similar complexity, with 23 and 24 nonterminals, respectively, and all uses of lookahead expressions !\u03b1 and &\u03b1 eliminated by judicious use of the more specialized negative character class, end-of-input, and until expressions described in [12] . It is consequently unsurprising that the parsers have similar runtime performance on those two grammars. By contrast, the Java grammar is significantly more complex, with 178 nonterminals and 54 lookahead expressions, and correspondingly poorer runtime performance.",
+            "cite_spans": [
+                {
+                    "start": 482,
+                    "end": 486,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Both the packrat algorithm and the derivative parsing algorithm presented here trade increased space usage for better runtime. Naturally, this trade-off works more in their favour for more complex grammars, particularly those with more lookahead expressions, as suggested by Moss [12] . Grouping the broadly equivalent XML and JSON tests together and comparing mean speedup, recursive descent is 3.3x as fast as packrat and 18x as fast as SPED on XML and JSON, yet only 1.6x as fast as packrat and 3.7x as fast as SPED for Java. Packrat's runtime advantage over SPED also decreases from 5.5x to 2.3x between XML/JSON and Java.",
+            "cite_spans": [
+                {
+                    "start": 280,
+                    "end": 284,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Though the packrat algorithm is a modest constant factor faster than the derivative parsing algorithm across the test suite, it uses as much as 300x as much peak memory on the largest test cases, with the increases scaling linearly in the input size. Derivative parsing, by contrast, maintains a grammar-dependent constant memory usage across all the (well-behaved) inputs tested. This constant memory usage is within a factor of two on either side of the memory usage of the recursive descent implementation on all the XML and JSON inputs tested, and 3-5x more on the more complex Java grammar. The higher memory usage on Java is likely due to the lookahead expressions, which are handled with runtime backtracking in recursive descent, but extra concurrently-processed expressions in derivative parsing.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "Derivative parsing in general is known to have poor runtime performance [1, 10] , as these results also demonstrate. However, this new algorithm does provide a significant improvement on the current state of the art for parsing expression derivatives, with a 40% speedup on XML and JSON, a 50% speedup on Java, and an up to 13% decrease in memory usage. This improved performance may be beneficial for use cases that specifically require the derivative computation, such as the modular parsers of Brachth\u00e4user et al. [2] or the sentence generator of Garnock-Jones et al. [6] .",
+            "cite_spans": [
+                {
+                    "start": 72,
+                    "end": 75,
+                    "text": "[1,",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 76,
+                    "end": 79,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 517,
+                    "end": 520,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 571,
+                    "end": 574,
+                    "text": "[6]",
+                    "ref_id": "BIBREF5"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Experimental Results"
+        },
+        {
+            "text": "This paper has introduced a new derivative parsing algorithm for PEGs based on the previously-published algorithm in [12] . Its key contributions are simplification of the earlier algorithm and empirical comparison of this new algorithm to previous work. The simplified algorithm also improves the worst-case space and time bounds of the previous algorithm by a linear factor. The author has produced a formal proof of correctness for this simplified algorithm, but was unable to include it in this paper due to space constraints.",
+            "cite_spans": [
+                {
+                    "start": 117,
+                    "end": 121,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        },
+        {
+            "text": "While extension of this recognition algorithm to a parsing algorithm remains future work, any such extension may rely on the fact that successfully recognized parsing expressions produce a \u03b5 e expression in this algorithm, where e is the index where the last character was consumed. As one approach, \u2022 b might annotate parsing expressions with b, the index where they began to consume characters. By collecting subexpression matches and combining the two indices b and e on a successful match, this algorithm should be able to return a parse tree on match, rather than simply a recognition decision. The parser derivative approach of Might et al. [10] may be useful here, with the added simplification that PEGs, unlike CFGs, have no more than one valid parse tree, and thus do not need to store multiple possible parses in a single node.",
+            "cite_spans": [
+                {
+                    "start": 647,
+                    "end": 651,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion and Future Work"
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "On the complexity and performance of parsing with derivatives",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Adams",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Hollenbeck",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Might",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation",
+            "volume": "",
+            "issn": "",
+            "pages": "224--236",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Parsing with first-class derivatives",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "I"
+                    ],
+                    "last": "Brachth\u00e4user",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Rendel",
+                    "suffix": ""
+                },
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Ostermann",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of the 2016 ACM SIGPLAN International Conference on Object-Oriented Programming, Systems, Languages, and Applications, OOPSLA 2016",
+            "volume": "",
+            "issn": "",
+            "pages": "588--606",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "Derivatives of regular expressions",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "A"
+                    ],
+                    "last": "Brzozowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 1964,
+            "venue": "J. ACM (JACM)",
+            "volume": "11",
+            "issn": "4",
+            "pages": "481--494",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Packrat parsing: a practical linear-time algorithm with backtracking",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2002,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "Parsing expression grammars: a recognition-based syntactic foundation",
+            "authors": [
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Ford",
+                    "suffix": ""
+                }
+            ],
+            "year": 2004,
+            "venue": "ACM SIGPLAN Notices",
+            "volume": "39",
+            "issn": "1",
+            "pages": "111--122",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Recognising and generating terms using derivatives of parsing expression grammars",
+            "authors": [
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Garnock-Jones",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Eslamimehr",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Warth",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {
+                "arXiv": [
+                    "arXiv:1801.10490"
+                ]
+            }
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "PEG parsing in less space using progressive tabling and dynamic analysis",
+            "authors": [
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Henglein",
+                    "suffix": ""
+                },
+                {
+                    "first": "U",
+                    "middle": [
+                        "T"
+                    ],
+                    "last": "Rasmussen",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 2017 ACM SIGPLAN Workshop on Partial Evaluation and Program Manipulation, PEPM 2017",
+            "volume": "",
+            "issn": "",
+            "pages": "35--46",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "Packrat parsing with elastic sliding window",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Kuramitsu",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "J. Inf. Process",
+            "volume": "23",
+            "issn": "4",
+            "pages": "505--512",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "A parsing machine for PEGs",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Medeiros",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Ierusalimschy",
+                    "suffix": ""
+                }
+            ],
+            "year": 2008,
+            "venue": "Proceedings of the 2008 Symposium on Dynamic Languages",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Parsing with derivatives: a functional pearl",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Might",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Darais",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Spiewak",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "ACM SIGPLAN Notices",
+            "volume": "46",
+            "issn": "9",
+            "pages": "189--195",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Packrat parsers can handle practical grammars in mostly constant space",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [],
+                    "last": "Mizushima",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Maeda",
+                    "suffix": ""
+                },
+                {
+                    "first": "Y",
+                    "middle": [],
+                    "last": "Yamaguchi",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of the 9th ACM SIGPLAN-SIGSOFT workshop on Program analysis for software tools and engineering",
+            "volume": "",
+            "issn": "",
+            "pages": "29--36",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "Derivatives of parsing expression grammars",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Moss",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of the 15th International Conference on Automata and Formal Languages",
+            "volume": "",
+            "issn": "",
+            "pages": "180--194",
+            "other_ids": {
+                "DOI": [
+                    "10.4204/EPTCS.252.18"
+                ]
+            }
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Egg",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Moss",
+                    "suffix": ""
+                }
+            ],
+            "year": 2018,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Parsing expression grammar as a primitive recursive-descent parser with backtracking",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Redziejowski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2007,
+            "venue": "Fundam. Inform",
+            "volume": "79",
+            "issn": "3-4",
+            "pages": "513--524",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "\u03b1(s)) \u03b1(s) = fail fail otherwise \u03b1/\u03b2(s) = \u03b1(s) \u03b1(s) = fail \u03b2(s) otherwise Formal definitions of parsing expressions; R(A) is the expansion of A",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF1": {
+            "text": "Definition of normalization function",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "Definition of derivative step; # is end-of-input algorithm is then \u03d5 (n) = d #,n+1 \u2022 d s,0 ( \u03d5 0 ). If \u03d5 (n) = \u03b5 j , then \u03d5(s) = s[j], otherwise \u03d5(s) = fail. As an example, see Fig. 6.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "0 = (!0b/!1c)a[\u03b20 = \u03b51, \u03b21 = a] dc,2 \u2022 da,1 \u03b3 0 = \u03b51 [Note: \u03b20 from !0b success] d #,3 \u2022 dc,2 \u2022 da,1 \u03b3 0 = \u03b51 Derivative execution example on string ac",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF4": {
+            "text": "Definition of LE left-expansion function and its transitive closure LE + ; LE computed by iteration to a fixed point.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF6": {
+            "text": "Algorithm runtime with respect to input size; lower is better.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF7": {
+            "text": "Maximum algorithm memory use with respect to input size; lower is better.",
+            "latex": null,
+            "type": "figure"
+        }
+    },
+    "back_matter": []
+}

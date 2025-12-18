@@ -1,0 +1,1540 @@
+{
+    "paper_id": "5ecba5c8d3eda0e99e201e954dc7fb39877cd618",
+    "metadata": {
+        "title": "Predicting the Size of Candidate Document Set for Implicit Web Search Result Diversification",
+        "authors": [
+            {
+                "first": "Yasar",
+                "middle": [],
+                "last": "Baris",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Middle East Technical University",
+                    "location": {
+                        "settlement": "Ankara",
+                        "country": "Turkey"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ulu",
+                "middle": [],
+                "last": "",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Middle East Technical University",
+                    "location": {
+                        "settlement": "Ankara",
+                        "country": "Turkey"
+                    }
+                },
+                "email": ""
+            },
+            {
+                "first": "Ismail",
+                "middle": [
+                    "Sengor"
+                ],
+                "last": "Altingovde",
+                "suffix": "",
+                "affiliation": {
+                    "laboratory": "",
+                    "institution": "Middle East Technical University",
+                    "location": {
+                        "settlement": "Ankara",
+                        "country": "Turkey"
+                    }
+                },
+                "email": "altingovde@ceng.metu.edu.tr"
+            }
+        ]
+    },
+    "abstract": [
+        {
+            "text": "Implicit result diversification methods exploit the content of the documents in the candidate set, i.e., the initial retrieval results of a query, to obtain a relevant and diverse ranking. As our first contribution, we explore whether recently introduced word embeddings can be exploited for representing documents to improve diversification, and show a positive result. As a second improvement, we propose to automatically predict the size of candidate set on per query basis. Experimental evaluations using our BM25 runs as well as the best-performing ad hoc runs submitted to TREC (2009TREC ( -2012 show that our approach improves the performance of implicit diversification up to 5.4% wrt. initial ranking.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Abstract"
+        }
+    ],
+    "body_text": [
+        {
+            "text": "Diversification of web search results is a well-known approach to handle queries that are ambiguous, underspecified, or including multiple aspects [23] . Diversification methods in the literature are broadly categorized as implicit or explicit. The implicit methods essentially make use the documents in the candidate set, i.e., the initial retrieval results for the query. In contrary, explicit methods exploit the knowledge of query aspects, which is usually inferred from a topic taxonomy [1] or query log [20] . The exhaustive experiments in the literature confirm that the latter type of additional information is very useful, as explicit methods consistently outperform the implicit ones [10, 23] . This finding does not render the implicit diversification less valuable, as in many scenarios the query aspects are not readily available or not easy to infer (e.g., for the rare queries in Web search) [15] , but rather calls for approaches to improve their performance.",
+            "cite_spans": [
+                {
+                    "start": 147,
+                    "end": 151,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 492,
+                    "end": 495,
+                    "text": "[1]",
+                    "ref_id": "BIBREF0"
+                },
+                {
+                    "start": 509,
+                    "end": 513,
+                    "text": "[20]",
+                    "ref_id": "BIBREF19"
+                },
+                {
+                    "start": 694,
+                    "end": 698,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 699,
+                    "end": 702,
+                    "text": "23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 907,
+                    "end": 911,
+                    "text": "[15]",
+                    "ref_id": "BIBREF14"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Our contributions in this paper are two-fold: First, we re-visit the implicit diversification using recently introduced word embeddings, and show that using the latter to represent documents is superior to traditional vector space model (with tf-idf weights). However, we observe that using either type of representations, implicit diversification can hardly beat even the initial -non-diversifiedranking (confirming the observations of [10] ). These findings, obtained using the best-performing trade-off parameter \u03bb (i.e., used to tune the weight of relevance vs. diversity in a ranking, as explained in Sect. 2) and a candidate set size N = 100 documents (an ad hoc yet intuitive choice made in several earlier works [10, 15, 21] ), imply that a more customized tuning of parameters is required for implicit diversification. An earlier work also recognized such a need for selective diversification, and proposed to predict the trade-off parameter \u03bb on a per query basis [21] . However, the second parameter that is equally important, the size of the candidate set (N ), on which diversification is applied, is left unexplored. We believe that for the implicit methods, where the evidence used for diversification is based solely on the content of the documents, tuning the candidate set size is crucial: a small set with documents relevant to only the main query might not cover any alternative intents (aspects) of the query, while a too large set is likely to include several noisy documents and hence, mislead the implicit methods.",
+            "cite_spans": [
+                {
+                    "start": 437,
+                    "end": 441,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 720,
+                    "end": 724,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 725,
+                    "end": 728,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 729,
+                    "end": 732,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 974,
+                    "end": 978,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In the light of above discussion, as our second contribution, we propose to predict the candidate set size, N , on a per query basis, to achieve a more customized diversification of query results. To this end, we employ a rich set of features that capture the retrieval effectiveness (i.e., query performance predictors [6, 14, 21, 24] ) and pairwise similarity of documents (using alternative document representations). All features are computed over the candidate set at several rank-cutoffs (actually, from 10 to 100 with a step size of 10). Before the diversification for a query, we predict N (as well as \u03bb, as in [21] ), based on these features.",
+            "cite_spans": [
+                {
+                    "start": 320,
+                    "end": 323,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 324,
+                    "end": 327,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 328,
+                    "end": 331,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 332,
+                    "end": 335,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 619,
+                    "end": 623,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "In our evaluations, we employ MMR [5] as a representative implicit method, as it is widely employed in the literature, has fewer parameters to tune and fast. Our findings over the homemade runs (based on the BM25 function) as well as the representative runs from the previous TREC campaigns (2009 to 2012) are promising. By predicting the parameters on a per query basis and employing word embeddings, implicit diversification can outperform the nondiversified baselines (with relative gains up to 5.4%), as well as the diversification baseline with parameters based on majority voting (with even larger gains).",
+            "cite_spans": [
+                {
+                    "start": 34,
+                    "end": 37,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Introduction"
+        },
+        {
+            "text": "Word embeddings are employed for various tasks related to diversification of search results (such as expanding the queries in tweet search [16] , generating diversified query expansions [13] , inferring query aspects [25] ). However, as far as we know, the impact of employing word embeddings to represent the documents for implicit diversification has not been explored.",
+            "cite_spans": [
+                {
+                    "start": 139,
+                    "end": 143,
+                    "text": "[16]",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 186,
+                    "end": 190,
+                    "text": "[13]",
+                    "ref_id": "BIBREF12"
+                },
+                {
+                    "start": 217,
+                    "end": 221,
+                    "text": "[25]",
+                    "ref_id": "BIBREF24"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work."
+        },
+        {
+            "text": "Earlier works proposed several implicit diversification methods [23] . While most of these works employ a fixed N , such as 50 or 100 (e.g., [7, 10, 15, 16, 18] ), a few works (such as [12] ) identified N (and/or \u03bb) over a training set, (i.e., as our Majority Voting baseline presented in Sect. 4). Santos et al. [21] suggested a selective diversification approach, where only \u03bb is predicted for each query, using kNN approach. None of these works predict the candidate set size on a per query basis for result diversification. Finally, in an unpublished thesis work [2] , preliminary experiments for candidate set size prediction are presented for explicit diversification. In contrary, our work addresses implicit diversification, which requires features that capture inter-document similarity and are not used in the latter work. Furthermore, we predict both parameters N and \u03bb (consecutively) using the same set of features, which is different than the setup in [2] .",
+            "cite_spans": [
+                {
+                    "start": 64,
+                    "end": 68,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 141,
+                    "end": 144,
+                    "text": "[7,",
+                    "ref_id": "BIBREF6"
+                },
+                {
+                    "start": 145,
+                    "end": 148,
+                    "text": "10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 149,
+                    "end": 152,
+                    "text": "15,",
+                    "ref_id": "BIBREF14"
+                },
+                {
+                    "start": 153,
+                    "end": 156,
+                    "text": "16,",
+                    "ref_id": "BIBREF15"
+                },
+                {
+                    "start": 157,
+                    "end": 160,
+                    "text": "18]",
+                    "ref_id": "BIBREF17"
+                },
+                {
+                    "start": 185,
+                    "end": 189,
+                    "text": "[12]",
+                    "ref_id": "BIBREF11"
+                },
+                {
+                    "start": 313,
+                    "end": 317,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 567,
+                    "end": 570,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                },
+                {
+                    "start": 966,
+                    "end": 969,
+                    "text": "[2]",
+                    "ref_id": "BIBREF1"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Related Work."
+        },
+        {
+            "text": "There are several implicit methods in the literature [23] , and in this work, we use MMR [5] as a representative method due to two reasons. First, being a simple, intuitive and efficient method, MMR is employed as a baseline and/or representative approach in a large number of works (e.g., [10, 21, 26, 27] ). Secondly, we conducted preliminary experiments with some other candidates (namely, MSD [8] , MMC and GNE [26] ) and did not observe meaningful performance differences wrt. MMR. Actually, only GNE produced slightly better results, however as it is based on a greedy local search, its execution time is considerably longer than MMR. Therefore, we proceed with MMR as a representative method. In what follows, we first briefly review MMR and then discuss how word embeddings are employed to represent documents in this context. [5] . This is a greedy best-first search approach that aims to choose the document that maximizes the following scoring function in each iteration.",
+            "cite_spans": [
+                {
+                    "start": 53,
+                    "end": 57,
+                    "text": "[23]",
+                    "ref_id": "BIBREF22"
+                },
+                {
+                    "start": 89,
+                    "end": 92,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                },
+                {
+                    "start": 290,
+                    "end": 294,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 295,
+                    "end": 298,
+                    "text": "21,",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 299,
+                    "end": 302,
+                    "text": "26,",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 303,
+                    "end": 306,
+                    "text": "27]",
+                    "ref_id": "BIBREF26"
+                },
+                {
+                    "start": 397,
+                    "end": 400,
+                    "text": "[8]",
+                    "ref_id": "BIBREF7"
+                },
+                {
+                    "start": 415,
+                    "end": 419,
+                    "text": "[26]",
+                    "ref_id": "BIBREF25"
+                },
+                {
+                    "start": 835,
+                    "end": 838,
+                    "text": "[5]",
+                    "ref_id": "BIBREF4"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Document Representation for Implicit Diversification"
+        },
+        {
+            "text": "Given a query q and a candidate result set D of size N , MMR constructs a diversified ranking S of size s (typically, s < N) as follows. At first, the document with the highest relevance score is inserted into S. Then, in each iteration, the document that maximizes Eq. 1 is added to S. While computing the score of a document d \u2208 D \u2212 S, its relevance to q, denoted as rel(q, d), is discounted by the d's maximum similarity the previously selected documents into S. In Eq. 1, sim(d, d j ) is typically computed by the Cosine distance of documents that are represented as tf-idf weighted vectors. Finally, \u03bb is a trade-off parameter to balance the relevance and diversity in the final result set S.",
+            "cite_spans": [],
+            "ref_spans": [],
+            "section": "Maximal Marginal Relevance (MMR)"
+        },
+        {
+            "text": "Word Embeddings for Document Representation. In this preliminary work, we take a simplistic approach and represent each document d based on the embedding vectors of their terms t \u2208 d. In the literature, different approaches are proposed for this purpose, such as computing the minimum, maximum or average for each dimension of the embedding vectors over all terms in the document [4] . The aggregation operation can also be weighted, e.g., by IDF values of the terms. In this work, based on our preliminary experiments, we represent each document as a concatenation of minimum and maximum vectors, as in [4] . Thus, sim(d, d j ) in Eq. 1 is computed as the Cosine distance between the latter type of vectors.",
+            "cite_spans": [
+                {
+                    "start": 380,
+                    "end": 383,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                },
+                {
+                    "start": 604,
+                    "end": 607,
+                    "text": "[4]",
+                    "ref_id": "BIBREF3"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Maximal Marginal Relevance (MMR)"
+        },
+        {
+            "text": "Implicit diversification methods do not exploit any external information (in contrary to their explicit competitors) and their diversification decision is essentially based on the content of the documents. While the size of the candidate set, N , is an important parameter for all diversification approaches, it is more crucial for the implicit methods: In particular, a very large candidate set is likely to have more irrelevant documents towards the tail of the ranking, yet such documents -yielding smaller similarity to the relevant ones that are ranked higher-are more likely to be scored high by Eq. 1, and hence, would decrease the relevance of the final ranking. In contrary, setting N too small will risk to have any diverse document in the final ranking, and hence, reduce the diversity. This implies that the value of N should be determined on a per query basis. As a further motivation, consider Fig. 1 , a bubble chart that presents the bestperforming (\u03bb, N ) pairs (for diversification with MMR) for 198 queries used in the TREC Diversity track (2009-2012). The initial runs are obtained using BM25 and the size of the bubble denotes the frequency of a pair. Clearly, there is no single \u03bb or N that optimizes all queries, and indeed, values are quite scattered.",
+            "cite_spans": [],
+            "ref_spans": [
+                {
+                    "start": 908,
+                    "end": 914,
+                    "text": "Fig. 1",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Predicting the Candidate Set Size"
+        },
+        {
+            "text": "In this work, we propose to predict N . Since our approach requires determining an optimal cut-off point in the candidate ranking, we compute each of the following features over a ranking of top-n documents, where n \u2208 {10, 20, . . . N}. Our features (shown in Table 1 ) can be grouped into two categories. The first group are based on well-known query performance predictors [6, 14, 24] , and as in [21] , they are intended to capture the quality of the ranking (i.e., in terms of relevance). The second group of features is intended to reflect the diversity of a ranking. To this end, we propose to compute the pairwise similarity of the documents, and aggregate these scores using minimum, maximum and average functions. While computing such similarities, we employ both tf-idf and word embedding based document representations (as discussed in Sect. 2). Finally, as entities are found helpful in earlier works [21] , as a third option, we represent each document based on the named entities it contains (see Sect. 4 for details).",
+            "cite_spans": [
+                {
+                    "start": 375,
+                    "end": 378,
+                    "text": "[6,",
+                    "ref_id": "BIBREF5"
+                },
+                {
+                    "start": 379,
+                    "end": 382,
+                    "text": "14,",
+                    "ref_id": "BIBREF13"
+                },
+                {
+                    "start": 383,
+                    "end": 386,
+                    "text": "24]",
+                    "ref_id": "BIBREF23"
+                },
+                {
+                    "start": 399,
+                    "end": 403,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 913,
+                    "end": 917,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 260,
+                    "end": 267,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Predicting the Candidate Set Size"
+        },
+        {
+            "text": "A training instance for a query includes a vector of these features computed for each top-n ranking (n \u2208 {10, 20, . . . 100}) , i.e., including 10 variants for each feature. For each query, we apply parameter sweeping over N \u2208 {10, 20, . . . , 100}  and \u03bb \u2208 {0.05, 1.0, . . . , 0.95} , and determine the best performing values (for diversification with MMR), to serve as the ground truth (categorical) class labels. For a test query, we first predict N as the class label. Next, we predict \u03bb (as in [21] ) by using the aforementioned features and the predicted N value, as an additional feature (i.e., as in the classifier chain approach in [19] ). Our preliminary experiments with Weka [9] revealed that best results are obtained using a lazy learning algorithm, kNN (as in [21] ). Thus, for a test query, N (and then, \u03bb) are predicted using majority voting among the class labels of its k neighbors. ",
+            "cite_spans": [
+                {
+                    "start": 499,
+                    "end": 503,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 641,
+                    "end": 645,
+                    "text": "[19]",
+                    "ref_id": "BIBREF18"
+                },
+                {
+                    "start": 687,
+                    "end": 690,
+                    "text": "[9]",
+                    "ref_id": "BIBREF8"
+                },
+                {
+                    "start": 775,
+                    "end": 779,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 100,
+                    "end": 125,
+                    "text": "(n \u2208 {10, 20, . . . 100})",
+                    "ref_id": "FIGREF0"
+                },
+                {
+                    "start": 218,
+                    "end": 283,
+                    "text": "over N \u2208 {10, 20, . . . , 100}  and \u03bb \u2208 {0.05, 1.0, . . . , 0.95}",
+                    "ref_id": "FIGREF0"
+                }
+            ],
+            "section": "Predicting the Candidate Set Size"
+        },
+        {
+            "text": "Dataset and Runs. We employ topic sets that are introduced in \"Diversity Task\" of TREC Web Track between 2009 and 2012. Each topic set includes 50 queries (except 2010, which has 48), their official aspects and the relevance judgments at the aspect level. We have two types of runs created as follows. First, we used our own retrieval system to index ClueWeb09 collection Part-B (with 50M documents) and then, for each topic set, we generated an an initial ranking of top-100 documents per query, using the well-known BM25 function. These are referred to as BM25 runs. Secondly, we selected the best-performing run (again, on ClueWeb-B) submitted to ad hoc retrieval track of TREC (2009-2012). As in [3, 10] , as these runs are not diversified, they can safely serve as initial retrieval results (with various ranking methods beyond BM25), and best-performing run is the one that yields the highest \u03b1-nDCG@10 score. These are referred to as ",
+            "cite_spans": [
+                {
+                    "start": 700,
+                    "end": 703,
+                    "text": "[3,",
+                    "ref_id": "BIBREF2"
+                },
+                {
+                    "start": 704,
+                    "end": 707,
+                    "text": "10]",
+                    "ref_id": "BIBREF9"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Evaluation Setup and Results"
+        },
+        {
+            "text": "To represent documents with embeddings (Sect. 2), we employ the pre-trained Glove word vectors (with 100 dimensions) for 400K words. Tf-idf vectors are based on the document and collection statistics, as usual. To extract the named entities in documents (to compute some features in Table 1 ), we used an entity list (of people, locations, etc.) from DBpedia together with the dictionary-based entity recognition approach of [22] . For prediction of N and \u03bb, kNN algorithm is applied with 5-fold cross validation over each run. We employ the best performing k. We observed that, especially for the TREC runs, setting k to 1 is adequate in several cases. The size of the final ranking S is 10, and we report \u03b1-nDCG@10 scores.",
+            "cite_spans": [
+                {
+                    "start": 425,
+                    "end": 429,
+                    "text": "[22]",
+                    "ref_id": "BIBREF21"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 283,
+                    "end": 290,
+                    "text": "Table 1",
+                    "ref_id": "TABREF0"
+                }
+            ],
+            "section": "Experimental Parameters."
+        },
+        {
+            "text": "Results for Document Representation Experiments. As our first research question, we focus on the impact of using word embeddings for representing documents during diversification. In this experiment, we set N = 100 as typical (e.g., [10, 21] ), and report results for the best-performing \u03bb for each run. Table 2 shows that the performance of MMR TfIdf is inferior to the nondiversified ranking for the majority of the cases, i.e., its application yields even less diverse rankings. This finding confirms [10] , where MMR is rarely found to provide any significant gains. In contrary, MMR WordEmb outperforms the MMR TfIdf in all cases (underlined cases in Table 2 are statistically significant using paired t-test at 0.05 confidence level). Furthermore, MMR WordEmb is also superior to the non-diversified baseline for seven (out of eight) runs, but with a small difference in most cases. These findings indicate that word embeddings are useful for MMR, but not adequate for impressive diversification performance. Table 3 . Diversification performance (\u03b1-nDCG@10) of MMR WordEmb with parameters obtained via Orcl 100,\u03bb (best \u03bb [21] ), Orcl N,\u03bb (best N and \u03bb), Majority Voting and kNN. Results for Predicting Parameters. We evaluate the performance of predicting the parameters N and \u03bb only for MMR WordEmb (due to the aforementioned findings). Table 3 reports the results both for BM25 runs and TREC best runs. We provide \u03b1-nDCG@10 scores for non-diversified (NonDiv) ranking, as well as two oracle approaches (discussed later). The traditional baseline Majority Voting (MV) sets N and \u03bb to the most frequent value in training folds, respectively. We make several observations from Table 3 . First, the MV baseline cannot beat the initial non-diversified ranking (NonDiv) for several cases. When kNN is applied to predict the parameters N and \u03bb, the diversification performance is superior to MV baseline (in all cases), and outperforms the NonDiv ranking in all runs but one (i.e., Qutparabline from 2012). For BM25 runs, kNN based diversification provides relative gains wrt. the non-diversified ranking ranging from 1.5% to 5.4%. For more competitive TREC runs, the relative gains are in the range 1.2% to 2.3% (except the 2012 run, where there is a relative degradation of 1%). Given that the latter runs are employing sophisticated approaches far beyond BM25, our findings are promising. Note that, in some cases (underlined in Table 3 ) improvements wrt. MV are statistically significant (using paired t-test at 0.05 confidence level), while there is no significant degradation wrt. MV or NonDiv. The latter is a contrary and encouraging finding in comparison to [10] , where MMR is observed to yield only significant degradation in most cases. Table 3 also reports two oracle approaches: In Oracle N,\u03bb , the best-performing N and \u03bb is used for each query. In Oracle 100,\u03bb , we fixed N as 100, and only employed the best-performing \u03bb. The latter oracle aims to provide an upperbound for predicting only \u03bb as in [21] , while the former one presents the upperbound for our approach, predicting both parameters. We see that our approach can yield higher performance (for all runs), and in certain cases, the possible gain is considerably larger than that of predicting only \u03bb. As a further observation, a comparison of kNN performance to Oracle N,\u03bb indicates that there is still room for improvement, i.e., if better prediction of parameters can be achieved.",
+            "cite_spans": [
+                {
+                    "start": 233,
+                    "end": 237,
+                    "text": "[10,",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 238,
+                    "end": 241,
+                    "text": "21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 504,
+                    "end": 508,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 1128,
+                    "end": 1132,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 2670,
+                    "end": 2674,
+                    "text": "[10]",
+                    "ref_id": "BIBREF9"
+                },
+                {
+                    "start": 3018,
+                    "end": 3022,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                }
+            ],
+            "ref_spans": [
+                {
+                    "start": 304,
+                    "end": 311,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 656,
+                    "end": 663,
+                    "text": "Table 2",
+                    "ref_id": "TABREF1"
+                },
+                {
+                    "start": 1015,
+                    "end": 1022,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1345,
+                    "end": 1352,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 1683,
+                    "end": 1690,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 2434,
+                    "end": 2441,
+                    "text": "Table 3",
+                    "ref_id": null
+                },
+                {
+                    "start": 2752,
+                    "end": 2759,
+                    "text": "Table 3",
+                    "ref_id": null
+                }
+            ],
+            "section": "Experimental Parameters."
+        },
+        {
+            "text": "We showed that implicit diversification benefits from word embeddings based document representation, but it still yields rather small gains in diversification effectiveness wrt. the initial ranking. As a remedy, we proposed to predict N , the candidate set size, using a rich set of features. By predicting N (together with \u03bb, as in [21] ) and employing word embeddings, we achieved better diversification. In our future work, we plan to use document embeddings (e.g., Doc2Vec [11] ) for document representation. We will also exploit additional (e.g., click-based) features for better prediction of the diversification parameters.",
+            "cite_spans": [
+                {
+                    "start": 333,
+                    "end": 337,
+                    "text": "[21]",
+                    "ref_id": "BIBREF20"
+                },
+                {
+                    "start": 477,
+                    "end": 481,
+                    "text": "[11]",
+                    "ref_id": "BIBREF10"
+                }
+            ],
+            "ref_spans": [],
+            "section": "Conclusion."
+        }
+    ],
+    "bib_entries": {
+        "BIBREF0": {
+            "ref_id": "b0",
+            "title": "Diversifying search results",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Agrawal",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gollapudi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Halverson",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Ieong",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of WSDM",
+            "volume": "",
+            "issn": "",
+            "pages": "5--14",
+            "other_ids": {}
+        },
+        "BIBREF1": {
+            "ref_id": "b1",
+            "title": "Analyzing and boosting the performance of explicit result diversification methods for web search",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Akcay",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF2": {
+            "ref_id": "b2",
+            "title": "On the additivity and weak baselines for search result diversification research",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Akcay",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Altingovde",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2017,
+            "venue": "Proceedings of ICTIR",
+            "volume": "",
+            "issn": "",
+            "pages": "109--116",
+            "other_ids": {}
+        },
+        "BIBREF3": {
+            "ref_id": "b3",
+            "title": "Representation learning for very short texts using weighted word embedding aggregation",
+            "authors": [
+                {
+                    "first": "C",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Boom",
+                    "suffix": ""
+                },
+                {
+                    "first": "S",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Canneyt",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Demeester",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Dhoedt",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Pattern Recogn. Lett",
+            "volume": "80",
+            "issn": "",
+            "pages": "150--156",
+            "other_ids": {}
+        },
+        "BIBREF4": {
+            "ref_id": "b4",
+            "title": "The use of MMR, diversity-based reranking for reordering documents and producing summaries",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [
+                        "G"
+                    ],
+                    "last": "Carbonell",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Goldstein",
+                    "suffix": ""
+                }
+            ],
+            "year": 1998,
+            "venue": "Proceedings of SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "335--336",
+            "other_ids": {}
+        },
+        "BIBREF5": {
+            "ref_id": "b5",
+            "title": "Query performance prediction for IR",
+            "authors": [
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Carmel",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "1196--1197",
+            "other_ids": {}
+        },
+        "BIBREF6": {
+            "ref_id": "b6",
+            "title": "Diversity by proportionality: an election-based approach to search result diversification",
+            "authors": [
+                {
+                    "first": "V",
+                    "middle": [],
+                    "last": "Dang",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [
+                        "B"
+                    ],
+                    "last": "Croft",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of SIGIR",
+            "volume": "",
+            "issn": "",
+            "pages": "65--74",
+            "other_ids": {}
+        },
+        "BIBREF7": {
+            "ref_id": "b7",
+            "title": "An axiomatic approach for result diversification",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Gollapudi",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sharma",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "381--390",
+            "other_ids": {}
+        },
+        "BIBREF8": {
+            "ref_id": "b8",
+            "title": "The WEKA data mining software: an update",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Hall",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Reutemann",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "H"
+                    ],
+                    "last": "Witten",
+                    "suffix": ""
+                }
+            ],
+            "year": 2009,
+            "venue": "SIGKDD Explor",
+            "volume": "11",
+            "issn": "1",
+            "pages": "10--18",
+            "other_ids": {}
+        },
+        "BIBREF9": {
+            "ref_id": "b9",
+            "title": "Examining additivity and weak baselines",
+            "authors": [
+                {
+                    "first": "S",
+                    "middle": [],
+                    "last": "Kharazmi",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Scholer",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Vallet",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Sanderson",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Trans. Inf. Syst",
+            "volume": "34",
+            "issn": "4",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF10": {
+            "ref_id": "b10",
+            "title": "Distributed representations of sentences and documents",
+            "authors": [
+                {
+                    "first": "Q",
+                    "middle": [
+                        "V"
+                    ],
+                    "last": "Le",
+                    "suffix": ""
+                },
+                {
+                    "first": "T",
+                    "middle": [],
+                    "last": "Mikolov",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of ICML",
+            "volume": "",
+            "issn": "",
+            "pages": "1188--1196",
+            "other_ids": {}
+        },
+        "BIBREF11": {
+            "ref_id": "b11",
+            "title": "University of glasgow at TREC 2012: experiments with terrier in medical records, microblog, and web tracks",
+            "authors": [
+                {
+                    "first": "N",
+                    "middle": [],
+                    "last": "Limsopatham",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [],
+                    "last": "Mccreadie",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Albakour",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "R",
+                    "middle": [
+                        "L T"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of TREC",
+            "volume": "",
+            "issn": "",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF12": {
+            "ref_id": "b12",
+            "title": "Compact aspect embedding for diversified query expansions",
+            "authors": [
+                {
+                    "first": "X",
+                    "middle": [],
+                    "last": "Liu",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Bouchoucha",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Sordoni",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Nie",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of AAAI",
+            "volume": "",
+            "issn": "",
+            "pages": "115--121",
+            "other_ids": {}
+        },
+        "BIBREF13": {
+            "ref_id": "b13",
+            "title": "Predicting query performance for fusion-based retrieval",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Markovits",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shtok",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Carmel",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "813--822",
+            "other_ids": {}
+        },
+        "BIBREF14": {
+            "ref_id": "b14",
+            "title": "Scalable and efficient web search result diversification",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Naini",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Altingovde",
+                    "suffix": ""
+                },
+                {
+                    "first": "W",
+                    "middle": [],
+                    "last": "Siberski",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "ACM Trans. Web",
+            "volume": "10",
+            "issn": "3",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF15": {
+            "ref_id": "b15",
+            "title": "Utilizing word embeddings for result diversification in tweet search",
+            "authors": [
+                {
+                    "first": "K",
+                    "middle": [
+                        "D"
+                    ],
+                    "last": "Onal",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Altingovde",
+                    "suffix": ""
+                },
+                {
+                    "first": "P",
+                    "middle": [],
+                    "last": "Karagoz",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Proceedings of AIRS",
+            "volume": "",
+            "issn": "",
+            "pages": "366--378",
+            "other_ids": {}
+        },
+        "BIBREF16": {
+            "ref_id": "b16",
+            "title": "Query performance prediction for aspect weighting in search result diversification",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ozdemiray",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Altingovde",
+                    "suffix": ""
+                }
+            ],
+            "year": 2014,
+            "venue": "Proceedings of CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "1871--1874",
+            "other_ids": {}
+        },
+        "BIBREF17": {
+            "ref_id": "b17",
+            "title": "Explicit search result diversification using score and rank aggregation methods",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [
+                        "M"
+                    ],
+                    "last": "Ozdemiray",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [
+                        "S"
+                    ],
+                    "last": "Altingovde",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "JASIST",
+            "volume": "66",
+            "issn": "6",
+            "pages": "1212--1228",
+            "other_ids": {}
+        },
+        "BIBREF18": {
+            "ref_id": "b18",
+            "title": "Classifier chains for multi-label classification",
+            "authors": [
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Read",
+                    "suffix": ""
+                },
+                {
+                    "first": "B",
+                    "middle": [],
+                    "last": "Pfahringer",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Holmes",
+                    "suffix": ""
+                },
+                {
+                    "first": "E",
+                    "middle": [],
+                    "last": "Frank",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Mach. Learn",
+            "volume": "85",
+            "issn": "3",
+            "pages": "333--359",
+            "other_ids": {}
+        },
+        "BIBREF19": {
+            "ref_id": "b19",
+            "title": "Exploiting query reformulations for web search result diversification",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "L T"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of WWW",
+            "volume": "",
+            "issn": "",
+            "pages": "881--890",
+            "other_ids": {}
+        },
+        "BIBREF20": {
+            "ref_id": "b20",
+            "title": "Selectively diversifying web search results",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "L T"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of CIKM",
+            "volume": "",
+            "issn": "",
+            "pages": "1179--1188",
+            "other_ids": {}
+        },
+        "BIBREF21": {
+            "ref_id": "b21",
+            "title": "Voting for related entities",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "L T"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2010,
+            "venue": "Proceedings of RIAO",
+            "volume": "",
+            "issn": "",
+            "pages": "1--8",
+            "other_ids": {}
+        },
+        "BIBREF22": {
+            "ref_id": "b22",
+            "title": "Search result diversification",
+            "authors": [
+                {
+                    "first": "R",
+                    "middle": [
+                        "L T"
+                    ],
+                    "last": "Santos",
+                    "suffix": ""
+                },
+                {
+                    "first": "C",
+                    "middle": [],
+                    "last": "Macdonald",
+                    "suffix": ""
+                },
+                {
+                    "first": "I",
+                    "middle": [],
+                    "last": "Ounis",
+                    "suffix": ""
+                }
+            ],
+            "year": 2015,
+            "venue": "Found. Trends Inf. Retrieval",
+            "volume": "9",
+            "issn": "1",
+            "pages": "1--90",
+            "other_ids": {}
+        },
+        "BIBREF23": {
+            "ref_id": "b23",
+            "title": "Predicting query performance by query-drift estimation",
+            "authors": [
+                {
+                    "first": "A",
+                    "middle": [],
+                    "last": "Shtok",
+                    "suffix": ""
+                },
+                {
+                    "first": "O",
+                    "middle": [],
+                    "last": "Kurland",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Carmel",
+                    "suffix": ""
+                },
+                {
+                    "first": "F",
+                    "middle": [],
+                    "last": "Raiber",
+                    "suffix": ""
+                },
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Markovits",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "ACM Trans. Inf. Syst",
+            "volume": "30",
+            "issn": "2",
+            "pages": "",
+            "other_ids": {}
+        },
+        "BIBREF24": {
+            "ref_id": "b24",
+            "title": "Query subtopic mining exploiting word embedding for search result diversification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "Z"
+                    ],
+                    "last": "Ullah",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Shajalal",
+                    "suffix": ""
+                },
+                {
+                    "first": "A",
+                    "middle": [
+                        "N"
+                    ],
+                    "last": "Chy",
+                    "suffix": ""
+                },
+                {
+                    "first": "M",
+                    "middle": [],
+                    "last": "Aono",
+                    "suffix": ""
+                }
+            ],
+            "year": 2016,
+            "venue": "Proceedings of AIRS",
+            "volume": "",
+            "issn": "",
+            "pages": "308--314",
+            "other_ids": {}
+        },
+        "BIBREF25": {
+            "ref_id": "b25",
+            "title": "On query result diversification",
+            "authors": [
+                {
+                    "first": "M",
+                    "middle": [
+                        "R"
+                    ],
+                    "last": "Vieira",
+                    "suffix": ""
+                }
+            ],
+            "year": 2011,
+            "venue": "Proceedings of ICDE",
+            "volume": "",
+            "issn": "",
+            "pages": "1163--1174",
+            "other_ids": {}
+        },
+        "BIBREF26": {
+            "ref_id": "b26",
+            "title": "Top-k retrieval using facility location analysis",
+            "authors": [
+                {
+                    "first": "G",
+                    "middle": [],
+                    "last": "Zuccon",
+                    "suffix": ""
+                },
+                {
+                    "first": "L",
+                    "middle": [],
+                    "last": "Azzopardi",
+                    "suffix": ""
+                },
+                {
+                    "first": "D",
+                    "middle": [],
+                    "last": "Zhang",
+                    "suffix": ""
+                },
+                {
+                    "first": "J",
+                    "middle": [],
+                    "last": "Wang",
+                    "suffix": ""
+                }
+            ],
+            "year": 2012,
+            "venue": "Proceedings of ECIR",
+            "volume": "",
+            "issn": "",
+            "pages": "305--316",
+            "other_ids": {}
+        }
+    },
+    "ref_entries": {
+        "FIGREF0": {
+            "text": "Best-performing (N, \u03bb) pair over BM25 runs for 198 TREC topics.",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF2": {
+            "text": "TREC runs. The ids of the selected runs for each year are as follows: Ucdsift (2009), Uogtr (2010), Srchvs11b (2011) and Qutparabline (2012).",
+            "latex": null,
+            "type": "figure"
+        },
+        "FIGREF3": {
+            "text": "Orcl 100,\u03bb Orcl N,\u03bb MV kNNNonDiv Orcl 100,\u03bb Orcl N,",
+            "latex": null,
+            "type": "figure"
+        },
+        "TABREF0": {
+            "text": "List of features computed over each ranking.",
+            "latex": null,
+            "type": "table"
+        },
+        "TABREF1": {
+            "text": "Diversification performance (\u03b1-nDCG@10) of MMR using TF-IDF vectors (MMR TfIdf ) vs. word embedding vectors (MMR WordEmb ) for BM25 and TREC runs. Topic set NonDiv MMR TfIdf MMR WordEmb NonDiv MMR TfIdf MMR WordEmb",
+            "latex": null,
+            "type": "table"
+        }
+    },
+    "back_matter": []
+}
